@@ -2,6 +2,14 @@
 
 ---
 
+## v0.9.17
+
+### Fix config flow translations not loading after HACS install
+
+- **Add `strings.json`** — HA uses `strings.json` at the component root as the canonical source for English config flow translations. Without it, HA does not load the `config_flow` translation category for custom integrations, so field labels and help text from `translations/en.json` were silently ignored. The setup form showed raw field keys or stale cached labels instead of the intended human-readable labels. `strings.json` contains the same content as `translations/en.json` and is kept in sync going forward.
+
+---
+
 ## What's included from upstream (ciejer/metservice-weather)
 
 All upstream changes through the point of forking are included, covering the full development history of the integration:
