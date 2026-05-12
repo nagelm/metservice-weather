@@ -5,26 +5,31 @@
         "title": "MetService Weather",
         "description": "Configure your MetService NZ weather integration.",
         "data": {
-          "name": "Integration name",
+          "name": "Device name",
           "location": "Weather location",
-          "tide_region": "Tide information region",
-          "boating_region": "Boating conditions region",
+          "marine_region": "Marine Region",
           "use_mobile": "Override public web data with mobile API (default: false)",
           "mobile_api_key": "Mobile API key"
         },
         "data_description": {
-          "tide_region": "Select a marine region to get local tide times. Choose \"None — skip\" if you don't need tides.",
-          "boating_region": "Select a marine region to get boating and surf conditions. Choose \"None — skip\" if you don't need this.",
+          "name": "This name appears on all entities and the device in Home Assistant. Use your location name (e.g. \"Napier\") so entities read as \"Napier Temperature\". You can add multiple instances of this integration with different names and locations if you need weather data for more than one place.",
+          "marine_region": "Optional. Select the coastal region nearest to you to enable tide times, boating conditions, and surf sensors. You will choose specific stations for each on the next screen. Choose \"None — skip marine data\" if you don't need any of these.",
           "use_mobile": "Only useful if your location is not in the list above, or if you want weather data to follow your current GPS position rather than a fixed location. Requires a private API key extracted from the MetService mobile app — see the README for instructions.",
           "mobile_api_key": "Required only when the mobile API override above is enabled. See the README for how to obtain this key."
         }
       },
       "locations": {
         "title": "Marine locations",
-        "description": "Choose the specific station for each marine feature you enabled.",
+        "description": "Choose a specific station for each marine feature, or skip those you don't need.",
         "data": {
           "tide_url": "Tide station",
-          "boating_url": "Boating location"
+          "boating_url": "Boating location",
+          "surf_url": "Surf location"
+        },
+        "data_description": {
+          "tide_url": "Select a tide station to get next high/low tide times. Choose \"None — skip\" to omit tide sensors.",
+          "boating_url": "Select a location to get boating conditions and forecast. Choose \"None — skip\" to omit boating sensors.",
+          "surf_url": "Select a surf spot to get wave height, swell, rating, and wind conditions. Choose \"None — skip\" to omit surf sensors."
         }
       }
     },
@@ -34,7 +39,8 @@
       "unknown_error": "[%key:common::config_flow::error::unknown%]",
       "api_key_required": "A mobile API key is required when using the mobile API override.",
       "tide_location_not_found": "Could not determine the URL for the selected tide station.",
-      "boating_location_not_found": "Could not determine the URL for the selected boating location."
+      "boating_location_not_found": "Could not determine the URL for the selected boating location.",
+      "surf_location_not_found": "Could not determine the URL for the selected surf location."
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",

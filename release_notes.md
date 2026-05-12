@@ -57,6 +57,18 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
+## v0.9.16
+
+### UI label and help text improvements
+
+- **"Integration name" → "Device name"** — the name field on the setup screen is now labelled "Device name" to better reflect that it prefixes all HA entity names and appears on the device card
+- **Help text for Device name** — explains that the name appears on all entities (e.g. "Napier Temperature") and that adding multiple instances with different names/locations is how you get weather for more than one place
+- **Help text for Marine Region** — explains that the field is optional, covers tide times, boating conditions, and surf sensors, and that the next screen lets you pick specific stations for each
+- **Help text for each location selector** — each of Tide station, Boating location, and Surf location now has a description explaining what sensors it enables and that "None — skip" omits those sensors entirely
+- **"marine_region" → "Marine Region"** — display label corrected
+
+---
+
 ## v0.9.15
 
 ### Config flow redesign — single marine region, three independent location selectors
