@@ -114,6 +114,11 @@ SENSOR_MAP_PUBLIC: Final[dict[str, str]] = {
     "breakdown_afternoon": "breakdown.afternoon.condition",
     "breakdown_evening": "breakdown.evening.condition",
     "breakdown_overnight": "breakdown.overnight.condition",
+    # Tomorrow's forecast — injected from 7-day data at coordinator update time
+    "tomorrow_condition": "tomorrow_condition",
+    "tomorrow_temp_high": "tomorrow_temp_high",
+    "tomorrow_temp_low": "tomorrow_temp_low",
+    "tomorrow_description": "tomorrow_description",
     # Sun and moon — from sunAndMoon module (fetched as dataUrl in main page)
     "sunrise": "riseSet.sunRise",
     "sunset": "riseSet.sunSet",
