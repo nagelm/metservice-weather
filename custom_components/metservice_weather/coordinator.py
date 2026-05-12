@@ -121,6 +121,15 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         """Return the tide URL."""
         return self._tide_url
 
+    # Shared headers for public API and supplementary fetches
+    _PUBLIC_HEADERS: dict[str, str] = {
+        "Accept-Encoding": "gzip",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
+        ),
+    }
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API."""
         if self._api_type == "public":
@@ -141,7 +150,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         try:
             async with async_timeout.timeout(10):
                 url = f"{self._api_url}/{self._latitude}/{self._longitude}"
-                _LOGGER.info(f"Fetching MetService data from {url}")
+                _LOGGER.info("Fetching MetService mobile data from %s", url)
                 response = await self._session.get(url, headers=headers)
                 result_current = await response.json(content_type=None)
                 if result_current is None:
@@ -161,21 +170,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 await self.expand_data_urls(result_current)
                 await self.expand_data_urls(result_daily)
             result_current['weather_warnings'] = warnings_text
-            result = {}
             if self._enable_tides:
                 result_tides = await self.get_tides()
                 result_current['tideImport'] = result_tides
-                result = {
-                    RESULTS_CURRENT: result_current,
-                    RESULTS_FORECAST_DAILY: result_daily,
-                }
-            else:
-                result = {
-                    RESULTS_CURRENT: result_current,
-                    RESULTS_FORECAST_DAILY: result_daily,
-                }
-            self.data = result
-            return result
+            self.data = {
+                RESULTS_CURRENT: result_current,
+                RESULTS_FORECAST_DAILY: result_daily,
+            }
+            return self.data
 
         except ValueError as err:
             _LOGGER.error("Data validation error: %s", err)
@@ -186,24 +188,16 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Unexpected error fetching MetService data: %s", repr(err))
             raise UpdateFailed(f"Unexpected error: {err}") from err
-        # finally:
-            # _LOGGER.info(f"MetService data updated: {self.data}")
 
     async def get_public_weather(self):
         """Get weather data from public API."""
-        headers = {
-            "Accept-Encoding": "gzip",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-        }
+        headers = self._PUBLIC_HEADERS
         try:
             async with async_timeout.timeout(10):
                 url = f"{self._api_url}{self.location}"
-                _LOGGER.info(f"Fetching MetService data from {url}")
+                _LOGGER.info("Fetching MetService public data from %s", url)
                 response = await self._session.get(url, headers=headers)
-                _LOGGER.debug(f"Received MetService data from {url}: {response}")
                 result_current = await response.json(content_type=None)
-                _LOGGER.debug(f"result_current is: {result_current}")
                 if result_current is None:
                     raise ValueError("No current weather data received.")
                 self._check_errors(url, result_current)
@@ -229,25 +223,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 self._check_errors(url, result_daily)
                 await self.expand_data_urls(result_daily)
             result_current['weather_warnings'] = warnings_text
-            # Fetch pollen data (non-fatal)
             result_current['pollen'] = await self.get_pollen_data()
-            result = {}
             if self._enable_tides:
-                await self.expand_data_urls(result_current)
-                await self.expand_data_urls(result_daily)
-                result_tides = await self.get_tides()
-                result_current['tideImport'] = result_tides
-                result = {
-                    RESULTS_CURRENT: result_current,
-                    RESULTS_FORECAST_DAILY: result_daily,
-                }
-            else:
-                result = {
-                    RESULTS_CURRENT: result_current,
-                    RESULTS_FORECAST_DAILY: result_daily,
-                }
-            self.data = result
-            return result
+                result_current['tideImport'] = await self.get_tides()
+            self.data = {
+                RESULTS_CURRENT: result_current,
+                RESULTS_FORECAST_DAILY: result_daily,
+            }
+            return self.data
 
         except ValueError as err:
             _LOGGER.error("Data validation error: %s", err)
@@ -258,21 +241,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Unexpected error fetching MetService data: %s", repr(err))
             raise UpdateFailed(f"Unexpected error: {err}") from err
-        # finally:
-        #     _LOGGER.info(f"MetService data updated: {self.data}")
 
     async def get_tides(self):
         """Get tides data. Returns None if unavailable rather than raising."""
-        headers = {
-            "Accept-Encoding": "gzip",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-        }
         try:
             async with async_timeout.timeout(10):
-                url = f"{self._tide_url}"
-                _LOGGER.info(f"Fetching tides data from {url}")
-                response = await self._session.get(url, headers=headers)
+                url = self._tide_url
+                _LOGGER.info("Fetching tides data from %s", url)
+                response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
                     _LOGGER.warning("Tides endpoint returned HTTP %s — tides data will be unavailable", response.status)
                     return None
@@ -323,17 +299,12 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
 
     async def get_pollen_data(self) -> dict:
         """Fetch pollen/allergen data from MetService allergens endpoint."""
-        headers = {
-            "Accept-Encoding": "gzip",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-        }
         empty = {"pollenLevels": {"level": None, "type": None}}
         try:
             async with async_timeout.timeout(10):
                 url = f"{self._api_url}{self._location}/airborne-allergens"
-                _LOGGER.info(f"Fetching pollen data from {url}")
-                response = await self._session.get(url, headers=headers)
+                _LOGGER.info("Fetching pollen data from %s", url)
+                response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
                     _LOGGER.debug("Pollen endpoint returned HTTP %s — pollen data unavailable", response.status)
                     return empty
@@ -396,7 +367,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             result = self.get_from_dict(self.data[RESULTS_CURRENT], keys)
             return result
         except Exception as e:
-            _LOGGER.error(f"Error retrieving public sensor '{field}': {e}")
+            _LOGGER.error("Error retrieving public sensor '%s': %s", field, e)
             return None  # Return a dummy value if an error occurs
 
     def get_current_mobile(self, field):
@@ -406,7 +377,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             result = self.get_from_dict(self.data[RESULTS_CURRENT], keys)
             return result
         except Exception as e:
-            _LOGGER.error(f"Error retrieving mobile sensor '{field}': {e}")
+            _LOGGER.error("Error retrieving mobile sensor '%s': %s", field, e)
             return None  # Return a dummy value if an error occurs
 
     def get_forecast_daily_public(self, field, day):
@@ -420,7 +391,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             result = self.get_from_dict(this_day, keys)
             return result
         except Exception as e:
-            _LOGGER.error(f"Error retrieving public forecast daily sensor '{field}' for day {day}: {e}")
+            _LOGGER.error("Error retrieving public forecast daily sensor '%s' for day %s: %s", field, day, e)
             return None
 
     def get_forecast_daily_mobile(self, field, day):
@@ -434,7 +405,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             result = self.get_from_dict(this_day, keys)
             return result
         except Exception as e:
-            _LOGGER.error(f"Error retrieving mobile forecast daily sensor '{field}' for day {day}: {e}")
+            _LOGGER.error("Error retrieving mobile forecast daily sensor '%s' for day %s: %s", field, day, e)
             return None
 
     @classmethod
@@ -456,7 +427,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                     async with async_timeout.timeout(10):
                         response = await self._session.get(full_url)
                         if response.status != 200:
-                            _LOGGER.error(f"Error fetching {full_url}: HTTP {response.status}")
+                            _LOGGER.error("Error fetching %s: HTTP %s", full_url, response.status)
                             if parent is not None and key is not None:
                                 parent[key] = None  # Handle as needed
                             return
@@ -467,7 +438,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                     # Continue processing in case there are nested dataUrls
                     await self.expand_data_urls(result, parent=parent, key=key)
                 except Exception as e:
-                    _LOGGER.error(f"Error fetching dataUrl {full_url}: {e}")
+                    _LOGGER.error("Error fetching dataUrl %s: %s", full_url, e)
                     if parent is not None and key is not None:
                         parent[key] = None  # Handle as needed
             else:
