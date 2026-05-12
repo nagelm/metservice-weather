@@ -55,6 +55,7 @@ class WeatherUpdateCoordinatorConfig:
     longitude: str
     tide_url: str
     boating_url: str
+    surf_url: str
     update_interval = MIN_TIME_BETWEEN_UPDATES
 
 
@@ -76,6 +77,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         self._longitude = config.longitude
         self._tide_url = config.tide_url
         self._boating_url = config.boating_url
+        self._surf_url = config.surf_url
         self._unit_system_api = config.unit_system_api
         self._base_url = 'https://www.metservice.com'
         self.unit_system = config.unit_system
@@ -119,6 +121,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
     def enable_boating(self) -> bool:
         """Return whether boating data is configured."""
         return bool(self._boating_url)
+
+    @property
+    def enable_surf(self) -> bool:
+        """Return whether surf data is configured."""
+        return bool(self._surf_url)
 
     @property
     def tide_url(self) -> str:
@@ -180,6 +187,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 result_current['tideImport'] = await self.get_tides()
             if self._boating_url:
                 result_current['boating_data'] = await self.get_boating_data()
+            if self._surf_url:
+                result_current['surf_data'] = await self.get_surf_data()
             self.data = {
                 RESULTS_CURRENT: result_current,
                 RESULTS_FORECAST_DAILY: result_daily,
@@ -303,6 +312,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 result_current['tideImport'] = await self.get_tides()
             if self._boating_url:
                 result_current['boating_data'] = await self.get_boating_data()
+            if self._surf_url:
+                result_current['surf_data'] = await self.get_surf_data()
             self.data = {
                 RESULTS_CURRENT: result_current,
                 RESULTS_FORECAST_DAILY: result_daily,
@@ -395,6 +406,75 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             return {}
         except Exception as err:
             _LOGGER.warning("Unexpected error fetching boating data: %s — boating will be unavailable", repr(err))
+            return {}
+
+    async def get_surf_data(self) -> dict:
+        """Get surf conditions for the configured location.
+
+        The coordinator stores the location-specific surf URL (e.g.
+        ``…/surf/locations/waihi-beach``).  To get live data we fetch the
+        regional surf page (strip ``/locations/…``) and find the matching
+        marker, which carries current conditions directly in its ``value``
+        block.  This avoids relying on location-specific pages that return
+        HTTP 400 for some stations.
+        """
+        try:
+            # Derive regional surf URL from the stored location URL.
+            import re as _re
+            regional_url = _re.sub(r'/locations/[^/]+$', '', self._surf_url.rstrip('/'))
+            location_path = self._surf_url.split("publicData/webdata")[-1]
+
+            _LOGGER.info("Fetching surf data from %s", regional_url)
+            async with async_timeout.timeout(10):
+                response = await self._session.get(regional_url, headers=self._PUBLIC_HEADERS)
+                if response.status != 200:
+                    _LOGGER.warning("Surf endpoint returned HTTP %s — surf data unavailable", response.status)
+                    return {}
+                data = await response.json(content_type=None)
+
+            # Find the marker whose link URL matches our stored location path.
+            all_markers = (
+                data.get("layout", {})
+                .get("primary", {})
+                .get("map", {})
+                .get("markers", [])
+            )
+            marker = None
+            for m in all_markers:
+                try:
+                    if m["action"]["modules"][0]["link"]["url"] == location_path:
+                        marker = m
+                        break
+                except (KeyError, IndexError, TypeError):
+                    continue
+
+            if not marker:
+                _LOGGER.warning("Could not find surf marker for %s — surf data unavailable", location_path)
+                return {}
+
+            value = marker.get("action", {}).get("modules", [{}])[0].get("value", {})
+            swell = value.get("swell", {})
+            wind = value.get("wind", {})
+            view = marker.get("view", {})
+
+            return {
+                "surf_conditions": view.get("text", ""),
+                "surf_rating": value.get("rating"),
+                "surf_wave_height": value.get("waveHeight"),
+                "surf_set_face": value.get("setFace"),
+                "surf_swell_direction": swell.get("direction"),
+                "surf_swell_height": swell.get("swellHeight"),
+                "surf_wind_direction": wind.get("direction"),
+                "surf_wind_speed": wind.get("averageSpeed"),
+                "surf_wind_gust": wind.get("gustSpeed"),
+                "surf_period": value.get("period"),
+            }
+
+        except (asyncio.TimeoutError, aiohttp.ClientError) as err:
+            _LOGGER.warning("Error fetching surf data: %s — surf will be unavailable", repr(err))
+            return {}
+        except Exception as err:
+            _LOGGER.warning("Unexpected error fetching surf data: %s — surf will be unavailable", repr(err))
             return {}
 
     @staticmethod

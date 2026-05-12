@@ -57,6 +57,31 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
+## v0.9.15
+
+### Config flow redesign — single marine region, three independent location selectors
+
+- **Single marine region** — the setup screen now has one "Marine region" dropdown (with "None — skip marine data") that replaces the previous separate tide-region and boating-region selectors; the chosen region is shared across all three marine services
+- **Three independent location selectors on page 2** — after selecting a region, a second screen shows Tide location, Boating location, and Surf location, each with a "None — skip" option; sensors are only registered for services where a location was chosen
+- **Backward compatible** — existing config entries continue to work; the coordinator reads legacy `tide_region_url` / `boating_region` keys as a fallback so old entries need not be reconfigured
+
+### Surf sensors (new, public API)
+
+When a surf location is configured, 10 new sensors are registered:
+- **Surf Conditions** — "Good", "Medium", or "Bad"
+- **Surf Rating** — 1–10 numeric quality score
+- **Surf Wave Height** — metres
+- **Surf Set Face** — face height in metres
+- **Surf Swell Direction** — cardinal direction (e.g. "SW")
+- **Surf Swell Height** — metres
+- **Surf Wind Direction** — cardinal direction
+- **Surf Wind Speed / Gust** — knots
+- **Surf Period** — wave period in seconds
+
+Data is fetched live from the MetService regional surf page on each coordinator update cycle. All surf sensors are excluded from entity registration when no surf location is configured.
+
+---
+
 ## v0.9.14
 
 - **Normalise drying index sensors so all three always carry a value** — surveyed all MetService location patterns and found three distinct real-world states: good day (morning and afternoon both have hours), mixed day (morning has hours, afternoon shows "Wet"), and wet all day (morning shows bare "Wet all day" with no prefix, afternoon entry is replaced by "Next good day: Thursday"). The coordinator now handles all three: `Clothes Drying Time - Afternoon` mirrors morning's "Wet all day" on a complete washout instead of going unavailable; `Clothes Drying - Next Good Day` shows "Today" whenever either morning or afternoon is usable, and a day name only on a full washout.
