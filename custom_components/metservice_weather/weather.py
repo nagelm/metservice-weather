@@ -424,6 +424,8 @@ class MetServiceForecastPublic(MetServicePublic):
             daily_temp_low = self.coordinator.get_forecast_daily_public("daily_temp_low", day)
             daily_datetime = self.coordinator.get_forecast_daily_public("daily_datetime", day)
             day_description = self.coordinator.get_forecast_daily_public("daily_description", day)
+            daily_precip_low = self.coordinator.get_forecast_daily_public("daily_rainfall_low", day)
+            daily_precip_high = self.coordinator.get_forecast_daily_public("daily_rainfall_high", day)
             if daily_temp_high is None:  # Rural areas have data in a different location
                 daily_temp_high = self.coordinator.get_forecast_daily_public("daily_bkp_temp_high", day)
             if daily_temp_low is None:
@@ -437,9 +439,14 @@ class MetServiceForecastPublic(MetServicePublic):
                 ATTR_FORECAST_TEMP_LOW: daily_temp_low,
                 ATTR_FORECAST_CONDITION: day_condition,
                 ATTR_FORECAST_TIME: daily_datetime,
+                ATTR_FORECAST_PRECIPITATION: safe_float(daily_precip_low),
             }
             if day_description:
                 entry["description"] = day_description
+            if daily_precip_low is not None:
+                entry["precipitation_low_mm"] = safe_float(daily_precip_low)
+            if daily_precip_high is not None:
+                entry["precipitation_high_mm"] = safe_float(daily_precip_high)
             forecast.append(Forecast(entry))
         return forecast
 

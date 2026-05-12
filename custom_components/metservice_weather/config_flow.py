@@ -19,11 +19,15 @@ from .const import (
     DEFAULT_LOCATION,
     LOCATIONS,
 )
-# Add constantS for the tide step
+# Add constants for the tide step
 CONF_REGION = "tide_region"
 CONF_TIDE_REGION_URL = "tide_region_url"
 CONF_TIDE_URL = "tide_url"
 CONF_ENABLE_TIDES = "enable_tides"
+# Add constants for the boating step
+CONF_ENABLE_BOATING = "enable_boating"
+CONF_BOATING_REGION_URL = "boating_region_url"
+CONF_BOATING_URL = "boating_url"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,6 +44,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         self.user_info = user_input
         self.user_info[CONF_ENABLE_TIDES] = user_input.get(CONF_ENABLE_TIDES, True)
+        self.user_info[CONF_ENABLE_BOATING] = user_input.get(CONF_ENABLE_BOATING, True)
 
         if user_input["api"] == "mobile":
             return await self.async_step_mobile()
@@ -56,6 +61,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_API, default="public"
                     ): SelectSelector(SelectSelectorConfig(options=["public", "mobile"])),
                     vol.Optional(CONF_ENABLE_TIDES, default=True): bool,
+                    vol.Optional(CONF_ENABLE_BOATING, default=True): bool,
                 }
             ),
             errors=errors or {},
@@ -108,11 +114,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self.user_info[CONF_NAME] = location_name
             self.user_info[CONF_API] = "public"
             if not self.user_info.get(CONF_ENABLE_TIDES, True):
-                # The user has opted out of tides functionality, skip to creating entry
-                return self.async_create_entry(
-                    title=self.user_info[CONF_NAME],
-                    data=self.user_info,
-                )
+                if not self.user_info.get(CONF_ENABLE_BOATING, True):
+                    return self.async_create_entry(title=self.user_info[CONF_NAME], data=self.user_info)
+                return await self.async_step_boating_region()
             return await self.async_step_tide_region()
 
     async def _show_public_form(self, errors=None):
@@ -183,11 +187,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             self.user_info[CONF_NAME] = location_name
             self.user_info[CONF_API] = "mobile"
             if not self.user_info.get(CONF_ENABLE_TIDES, True):
-                # The user has opted out of tides functionality, skip to creating entry
-                return self.async_create_entry(
-                    title=self.user_info[CONF_NAME],
-                    data=self.user_info,
-                )
+                if not self.user_info.get(CONF_ENABLE_BOATING, True):
+                    return self.async_create_entry(title=self.user_info[CONF_NAME], data=self.user_info)
+                return await self.async_step_boating_region()
             return await self.async_step_tide_region()
 
     async def _show_mobile_form(self, errors=None):
@@ -272,6 +274,116 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 return constructed
         return None
+
+    @staticmethod
+    def _get_marker_url(marker: dict, default: str) -> str:
+        """Extract URL from a map marker's action.modules[0].link.url."""
+        try:
+            return marker["action"]["modules"][0]["link"]["url"]
+        except (KeyError, IndexError, TypeError):
+            return default
+
+    def _get_boating_url_from_label(self, label: str) -> str | None:
+        """Get the boating page URL for the selected location."""
+        for index, location_label in self.boating_locations_map.items():
+            if location_label == label:
+                marker = self.boating_locations[int(index)]
+                url = self._get_marker_url(marker, "")
+                if url:
+                    return url
+                # Fallback: construct from label slug + region
+                region = self.user_info.get(CONF_BOATING_REGION_URL, "")
+                slug = label.lower().replace(" ", "-")
+                return f"/{region}/boating/locations/{slug}"
+        return None
+
+    async def async_step_boating_region(self, user_input=None):
+        """Handle selecting a boating region."""
+        if user_input is None:
+            try:
+                session = async_create_clientsession(self.hass)
+                with async_timeout.timeout(10):
+                    response = await session.get('https://www.metservice.com/publicData/webdata/marine')
+                self.boating_regions = await response.json(content_type=None)
+                self.boating_regions = self.boating_regions['layout']['search']['searchLocations'][0]['items']
+            except Exception:
+                _LOGGER.exception("Failed to fetch marine regions for boating setup")
+                return self.async_abort(reason="boating_unavailable")
+
+            return self.async_show_form(
+                step_id="boating_region",
+                data_schema=self._async_generate_select_schema_region(self.boating_regions, CONF_BOATING_REGION_URL),
+            )
+        selected_label = user_input[CONF_BOATING_REGION_URL]
+        selected_region = next((item for item in self.boating_regions if item['heading']['label'] == selected_label), None)
+        self.user_info[CONF_BOATING_REGION_URL] = selected_region['heading']['url'].lstrip('/') if selected_region else None
+        return await self.async_step_boating_location()
+
+    async def async_step_boating_location(self, user_input=None):
+        """Handle selecting a specific boating location within the region."""
+        if user_input is None:
+            region = self.user_info[CONF_BOATING_REGION_URL]
+            # region is like "marine/regions/east-auckland"
+            region_slug = region.split('/')[-1]  # "east-auckland"
+            url = f"https://www.metservice.com/publicData/webdata/{region}/boating"
+            try:
+                session = async_create_clientsession(self.hass)
+                with async_timeout.timeout(10):
+                    response = await session.get(url)
+                if response.status != 200:
+                    _LOGGER.error("Boating location fetch returned HTTP %s for %s", response.status, url)
+                    return self.async_abort(reason="boating_unavailable")
+                data = await response.json(content_type=None)
+                all_markers = data.get("layout", {}).get("primary", {}).get("map", {}).get("markers", [])
+                prefix = f"/marine/regions/{region_slug}/boating/locations/"
+                # Try to filter by resolved marker URL. MetService often lazy-loads marker
+                # action URLs via dataUrl — if that resolution hasn't happened the URL will
+                # be empty and nothing would match. Fall back to all markers in that case
+                # and rely on slug-based URL construction in _get_boating_url_from_label.
+                resolved = [
+                    m for m in all_markers
+                    if self._get_marker_url(m, "").startswith(prefix)
+                ]
+                self.boating_locations = resolved if resolved else [
+                    m for m in all_markers
+                    if isinstance(m.get("label"), dict) and m["label"].get("text")
+                ]
+                if not self.boating_locations:
+                    _LOGGER.error("No boating locations found for region %s", region_slug)
+                    return self.async_abort(reason="boating_unavailable")
+            except Exception:
+                _LOGGER.exception("Failed to fetch boating locations from %s", url)
+                return self.async_abort(reason="boating_unavailable")
+
+            self.boating_locations_map = {
+                str(index): m["label"]["text"]
+                for index, m in enumerate(self.boating_locations)
+                if isinstance(m.get("label"), dict) and m["label"].get("text")
+            }
+            select_opts = [{"value": label, "label": label} for label in self.boating_locations_map.values()]
+            return self.async_show_form(
+                step_id="boating_location",
+                data_schema=vol.Schema({
+                    vol.Required(CONF_BOATING_URL): SelectSelector(SelectSelectorConfig(options=select_opts)),
+                }),
+            )
+        else:
+            selected_label = user_input[CONF_BOATING_URL]
+            boating_url = self._get_boating_url_from_label(selected_label)
+            if not boating_url:
+                _LOGGER.error("Could not find URL for boating location: %s", selected_label)
+                select_opts = [{"value": label, "label": label} for label in self.boating_locations_map.values()]
+                return self.async_show_form(
+                    step_id="boating_location",
+                    data_schema=vol.Schema({
+                        vol.Required(CONF_BOATING_URL): SelectSelector(SelectSelectorConfig(options=select_opts)),
+                    }),
+                    errors={"base": "tide_location_not_found"},
+                )
+            full_url = f"https://www.metservice.com/publicData/webdata/{boating_url.lstrip('/')}"
+            self.user_info[CONF_BOATING_URL] = full_url
+
+        return self.async_create_entry(title=self.user_info[CONF_NAME], data=self.user_info)
 
     async def async_step_tide_region(self, user_input=None):
         """Handle selecting a tide region."""
@@ -371,7 +483,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     errors={"base": "unknown_error"},
                 )
 
-        # Now you can create the entry with all the necessary information
+        # Now create the entry or continue to boating setup
+        if self.user_info.get(CONF_ENABLE_BOATING, True):
+            return await self.async_step_boating_region()
         return self.async_create_entry(
             title=self.user_info[CONF_NAME],
             data=self.user_info,

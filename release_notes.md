@@ -57,6 +57,12 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
+### Feature additions (v0.9.6)
+
+- **Rainfall sensor** — new `Rainfall` sensor for public API users, reading from `observations.rain.rainfall` (resolves [#74](https://github.com/ciejer/metservice-weather/issues/74))
+- **Daily forecast precipitation** — `ATTR_FORECAST_PRECIPITATION` now populated in daily forecast entries from `rainFall1` (low estimate); additional `precipitation_low_mm` and `precipitation_high_mm` attributes for days 3–7 where MetService provides range estimates
+- **Boating/surf conditions** — optional boating integration added to the config flow; adds `Boating Conditions` and `Boating Forecast` sensors for public API users (resolves [#70](https://github.com/ciejer/metservice-weather/issues/70), [#126](https://github.com/ciejer/metservice-weather/issues/126)); the config flow guides through region and location selection using the same marker/slug approach as tides; marker URL lazy-loading is handled with a slug-construction fallback so all MetService boating stations are selectable
+
 ### Code quality improvements
 
 - Remove three duplicate copies of `get_from_dict` — sensor data fetching now calls coordinator methods directly, eliminating ~80 lines of repeated code

@@ -29,6 +29,7 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfPressure,
     UnitOfSpeed,
+    UnitOfPrecipitationDepth,
 )
 from homeassistant.helpers.typing import StateType
 
@@ -176,6 +177,15 @@ current_condition_sensor_descriptions_public = [
         value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
+        key="rainfall",
+        name="Rainfall",
+        icon="mdi:weather-rainy",
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.PRECIPITATION,
+        unit_fn=lambda _: UnitOfPrecipitationDepth.MILLIMETERS,
+        value_fn=lambda data, _: _safe_float(data),
+    ),
+    WeatherSensorEntityDescription(
         key="pressureTendencyTrend",
         name="Pressure Tendency Trend",
         icon="mdi:gauge",
@@ -241,6 +251,20 @@ current_condition_sensor_descriptions_public = [
         icon="mdi:beach",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: _next_tide_time(data, "LOW"),
+    ),
+    WeatherSensorEntityDescription(
+        key="boating_status",
+        name="Boating Conditions",
+        icon="mdi:sail-boat",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="boating_forecast",
+        name="Boating Forecast",
+        icon="mdi:sail-boat",
+        value_fn=lambda data, _: (
+            f"{data[:252]}..." if isinstance(data, str) and len(data) > 255 else (data if data else None)
+        ),
     ),
 ]
 
