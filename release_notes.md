@@ -57,6 +57,12 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
+### Config flow improvements (v0.9.7)
+
+- **Remove enable_tides / enable_boating toggles** — the two boolean toggle fields on the initial setup screen are gone; tides and boating are now optional steps that always appear in the flow with "None — skip tides / boating" as the first option, defaulting to skipped; no separate toggle needed and no ambiguity about what will happen
+- **Reconfigure support** — a "Reconfigure" button now appears on the integration card; clicking it re-runs the full flow (location/name pre-filled, tide/boating region pre-selected to match the current configuration) and updates the entry in place without requiring delete + re-add; changing from public ↔ mobile API still requires delete + re-add since entity unique IDs are API-type-specific
+- **Backwards compatibility** — existing entries continue to work unchanged; the coordinator now drives tide/boating fetching from URL presence rather than the old boolean flags, which gives identical runtime behaviour for all existing entries
+
 ### Feature additions (v0.9.6)
 
 - **Rainfall sensor** — new `Rainfall` sensor for public API users, reading from `observations.rain.rainfall` (resolves [#74](https://github.com/ciejer/metservice-weather/issues/74))

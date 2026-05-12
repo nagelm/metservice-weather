@@ -53,9 +53,7 @@ class WeatherUpdateCoordinatorConfig:
     location_name: str
     latitude: str
     longitude: str
-    enable_tides: bool
     tide_url: str
-    enable_boating: bool
     boating_url: str
     update_interval = MIN_TIME_BETWEEN_UPDATES
 
@@ -76,9 +74,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         self._location_name = config.location_name
         self._latitude = config.latitude
         self._longitude = config.longitude
-        self._enable_tides = config.enable_tides
         self._tide_url = config.tide_url
-        self._enable_boating = config.enable_boating
         self._boating_url = config.boating_url
         self._unit_system_api = config.unit_system_api
         self._base_url = 'https://www.metservice.com'
@@ -115,12 +111,12 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         return self._api_type
 
     @property
-    def enable_tides(self):
-        """Return if tides data is enabled."""
-        return self._enable_tides
+    def enable_tides(self) -> bool:
+        """Return whether tides data is configured."""
+        return bool(self._tide_url)
 
     @property
-    def tide_url(self):
+    def tide_url(self) -> str:
         """Return the tide URL."""
         return self._tide_url
 
@@ -175,10 +171,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             await self.expand_data_urls(result_current)
             await self.expand_data_urls(result_daily)
             result_current['weather_warnings'] = warnings_text
-            if self._enable_tides:
-                result_tides = await self.get_tides()
-                result_current['tideImport'] = result_tides
-            if self._enable_boating:
+            if self._tide_url:
+                result_current['tideImport'] = await self.get_tides()
+            if self._boating_url:
                 result_current['boating_data'] = await self.get_boating_data()
             self.data = {
                 RESULTS_CURRENT: result_current,
@@ -232,9 +227,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             await self.expand_data_urls(result_daily)
             result_current['weather_warnings'] = warnings_text
             result_current['pollen'] = await self.get_pollen_data()
-            if self._enable_tides:
+            if self._tide_url:
                 result_current['tideImport'] = await self.get_tides()
-            if self._enable_boating:
+            if self._boating_url:
                 result_current['boating_data'] = await self.get_boating_data()
             self.data = {
                 RESULTS_CURRENT: result_current,
