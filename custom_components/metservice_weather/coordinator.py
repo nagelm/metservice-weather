@@ -55,6 +55,8 @@ class WeatherUpdateCoordinatorConfig:
     longitude: str
     enable_tides: bool
     tide_url: str
+    enable_boating: bool
+    boating_url: str
     update_interval = MIN_TIME_BETWEEN_UPDATES
 
 
@@ -76,6 +78,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         self._longitude = config.longitude
         self._enable_tides = config.enable_tides
         self._tide_url = config.tide_url
+        self._enable_boating = config.enable_boating
+        self._boating_url = config.boating_url
         self._unit_system_api = config.unit_system_api
         self._base_url = 'https://www.metservice.com'
         self.unit_system = config.unit_system
@@ -174,6 +178,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             if self._enable_tides:
                 result_tides = await self.get_tides()
                 result_current['tideImport'] = result_tides
+            if self._enable_boating:
+                result_current['boating_data'] = await self.get_boating_data()
             self.data = {
                 RESULTS_CURRENT: result_current,
                 RESULTS_FORECAST_DAILY: result_daily,
@@ -228,6 +234,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             result_current['pollen'] = await self.get_pollen_data()
             if self._enable_tides:
                 result_current['tideImport'] = await self.get_tides()
+            if self._enable_boating:
+                result_current['boating_data'] = await self.get_boating_data()
             self.data = {
                 RESULTS_CURRENT: result_current,
                 RESULTS_FORECAST_DAILY: result_daily,
@@ -283,6 +291,44 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.warning("Unexpected error fetching tides data: %s — tides will be unavailable", repr(err))
             return None
+
+    async def get_boating_data(self) -> dict:
+        """Get boating/surf conditions. Returns empty dict if unavailable."""
+        try:
+            async with async_timeout.timeout(10):
+                url = self._boating_url
+                _LOGGER.info("Fetching boating data from %s", url)
+                response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
+                if response.status != 200:
+                    _LOGGER.warning("Boating endpoint returned HTTP %s — boating data unavailable", response.status)
+                    return {}
+                data = await response.json(content_type=None)
+            modules = (
+                data.get("layout", {})
+                .get("primary", {})
+                .get("slots", {})
+                .get("main", {})
+                .get("modules", [])
+            )
+            if not modules:
+                return {}
+            days = modules[0].get("days", [])
+            if not days:
+                return {}
+            today = days[0]
+            return {
+                "boating_status": today.get("view", {}).get("text", ""),
+                "boating_status_raw": today.get("view", {}).get("status", ""),
+                "boating_forecast": today.get("forecast", {}).get("text", ""),
+                "boating_issued_at": today.get("forecast", {}).get("issuedAt", ""),
+                "boating_table": today.get("table", {}).get("columns", []),
+            }
+        except (asyncio.TimeoutError, aiohttp.ClientError) as err:
+            _LOGGER.warning("Error fetching boating data: %s — boating will be unavailable", repr(err))
+            return {}
+        except Exception as err:
+            _LOGGER.warning("Unexpected error fetching boating data: %s — boating will be unavailable", repr(err))
+            return {}
 
     @staticmethod
     def _parse_pollen_html(html: str) -> dict:
