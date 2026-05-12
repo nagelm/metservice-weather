@@ -41,12 +41,10 @@ from homeassistant.components.weather import (
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers import sun as sun_helper
 
 _LOGGER = logging.getLogger(__name__)
-
-ENTITY_ID_FORMAT = WEATHER_DOMAIN + ".{}"
 
 def safe_float(value):
     """Safely convert a value to float, return None if conversion fails."""
@@ -135,9 +133,11 @@ class MetServiceMobile(SingleCoordinatorWeatherEntity):
     @property
     def condition(self) -> str:
         """Return the current condition."""
-        if self.coordinator.get_current_mobile(FIELD_CONDITIONS) in CONDITION_MAP:
-            return CONDITION_MAP[self.coordinator.get_current_mobile(FIELD_CONDITIONS)]
-        return self.coordinator.get_current_mobile(FIELD_CONDITIONS)
+        raw = self.coordinator.get_current_mobile(FIELD_CONDITIONS)
+        mapped = CONDITION_MAP.get(raw, raw)
+        if mapped == "sunny" and not sun_helper.is_up(self.hass):
+            return "clear-night"
+        return mapped
 
 
 class MetServiceForecastMobile(MetServiceMobile):
@@ -148,9 +148,6 @@ class MetServiceForecastMobile(MetServiceMobile):
     def __init__(self, coordinator: WeatherUpdateCoordinator):
         """Initialize the forecast sensor."""
         super().__init__(coordinator)
-        self.entity_id = generate_entity_id(
-            ENTITY_ID_FORMAT, f"{coordinator.location_name}", hass=coordinator.hass
-        )
         self._attr_unique_id = f"{coordinator.location_name},{WEATHER_DOMAIN}".lower()
 
     @property
@@ -178,7 +175,7 @@ class MetServiceForecastMobile(MetServiceMobile):
         return self.forecast_hourly
 
     async def async_forecast_daily(self) -> list[Forecast] | None:
-        """Return hourly forecast."""
+        """Return daily forecast."""
         return self.forecast_daily
 
     @property
@@ -198,25 +195,19 @@ class MetServiceForecastMobile(MetServiceMobile):
             rain_fall = safe_float(this_hour.get("rainFall"))
             wind_speed = safe_float(this_hour.get("windSpeed"))
             wind_dir = this_hour.get("windDir")
+            is_daytime = 7 < datetime.fromisoformat(this_hour["dateISO"]).hour < 19
 
             if rain_fall is not None and rain_fall > 0:
-                # rainy
                 if rain_fall > 6:
-                    # pouring
                     icon = "pouring"
                 else:
                     icon = "rainy"
+            elif wind_speed is not None and wind_speed > 40:
+                icon = "windy"
+            elif is_daytime:
+                icon = "partlycloudy"
             else:
-                # clear
-                if wind_speed is not None and wind_speed > 40:
-                    # windy
-                    icon = "windy"
-                if 7 < datetime.fromisoformat(this_hour["dateISO"]).hour < 19:
-                    # daytime
-                    icon = "partlycloudy"
-                else:
-                    # nighttime
-                    icon = "clear-night"
+                icon = "clear-night"
 
             forecast.append(
                 Forecast(
@@ -245,20 +236,20 @@ class MetServiceForecastMobile(MetServiceMobile):
             day_condition = self.coordinator.get_forecast_daily_mobile("daily_condition", day)
             if day_condition in CONDITION_MAP:
                 day_condition = CONDITION_MAP[day_condition]
-            forecast.append(
-                Forecast(
-                    {
-                        ATTR_FORECAST_TEMP: self.coordinator.get_forecast_daily_mobile(
-                            "daily_temp_high", day
-                        ),
-                        ATTR_FORECAST_TEMP_LOW: self.coordinator.get_forecast_daily_mobile(
-                            "daily_temp_low", day
-                        ),
-                        ATTR_FORECAST_CONDITION: day_condition,
-                        ATTR_FORECAST_TIME: self.coordinator.get_forecast_daily_mobile("daily_datetime", day),
-                    }
-                )
-            )
+            day_description = self.coordinator.get_forecast_daily_mobile("daily_description", day)
+            entry: dict = {
+                ATTR_FORECAST_TEMP: self.coordinator.get_forecast_daily_mobile(
+                    "daily_temp_high", day
+                ),
+                ATTR_FORECAST_TEMP_LOW: self.coordinator.get_forecast_daily_mobile(
+                    "daily_temp_low", day
+                ),
+                ATTR_FORECAST_CONDITION: day_condition,
+                ATTR_FORECAST_TIME: self.coordinator.get_forecast_daily_mobile("daily_datetime", day),
+            }
+            if day_description:
+                entry["description"] = day_description
+            forecast.append(Forecast(entry))
         return forecast
 
 class MetServicePublic(SingleCoordinatorWeatherEntity):
@@ -322,9 +313,11 @@ class MetServicePublic(SingleCoordinatorWeatherEntity):
     @property
     def condition(self) -> str:
         """Return the current condition."""
-        if self.coordinator.get_current_public(FIELD_CONDITIONS) in CONDITION_MAP:
-            return CONDITION_MAP[self.coordinator.get_current_public(FIELD_CONDITIONS)]
-        return self.coordinator.get_current_public(FIELD_CONDITIONS)
+        raw = self.coordinator.get_current_public(FIELD_CONDITIONS)
+        mapped = CONDITION_MAP.get(raw, raw)
+        if mapped == "sunny" and not sun_helper.is_up(self.hass):
+            return "clear-night"
+        return mapped
 
 
 class MetServiceForecastPublic(MetServicePublic):
@@ -335,9 +328,6 @@ class MetServiceForecastPublic(MetServicePublic):
     def __init__(self, coordinator: WeatherUpdateCoordinator):
         """Initialize the forecast sensor."""
         super().__init__(coordinator)
-        self.entity_id = generate_entity_id(
-            ENTITY_ID_FORMAT, f"{coordinator.location_name}", hass=coordinator.hass
-        )
         self._attr_unique_id = f"{coordinator.location_name},{WEATHER_DOMAIN}".lower()
 
     @property
@@ -399,25 +389,19 @@ class MetServiceForecastPublic(MetServicePublic):
             rainfall = safe_float(this_hour.get("rainfall"))
             wind_speed = safe_float(this_hour["wind"].get("speed"))
             wind_dir = this_hour["wind"].get("direction")
+            is_daytime = 7 < datetime.fromisoformat(this_hour["date"]).hour < 19
 
             if rainfall is not None and rainfall > 0:
-                # rainy
                 if rainfall > 6:
-                    # pouring
                     icon = "pouring"
                 else:
                     icon = "rainy"
+            elif wind_speed is not None and wind_speed > 40:
+                icon = "windy"
+            elif is_daytime:
+                icon = "partlycloudy"
             else:
-                # clear
-                if wind_speed is not None and wind_speed > 40:
-                    # windy
-                    icon = "windy"
-                if 7 < datetime.fromisoformat(this_hour["date"]).hour < 19:
-                    # daytime
-                    icon = "partlycloudy"
-                else:
-                    # nighttime
-                    icon = "clear-night"
+                icon = "clear-night"
 
             forecast.append(
                 Forecast(
@@ -446,7 +430,8 @@ class MetServiceForecastPublic(MetServicePublic):
             daily_temp_high = self.coordinator.get_forecast_daily_public("daily_temp_high", day)
             daily_temp_low = self.coordinator.get_forecast_daily_public("daily_temp_low", day)
             daily_datetime = self.coordinator.get_forecast_daily_public("daily_datetime", day)
-            if daily_temp_high is None: #Rural areas have data in a different location
+            day_description = self.coordinator.get_forecast_daily_public("daily_description", day)
+            if daily_temp_high is None:  # Rural areas have data in a different location
                 daily_temp_high = self.coordinator.get_forecast_daily_public("daily_bkp_temp_high", day)
             if daily_temp_low is None:
                 daily_temp_low = self.coordinator.get_forecast_daily_public("daily_bkp_temp_low", day)
@@ -454,15 +439,14 @@ class MetServiceForecastPublic(MetServicePublic):
                 daily_datetime = self.coordinator.get_forecast_daily_public("daily_bkp_datetime", day)
             if day_condition in CONDITION_MAP:
                 day_condition = CONDITION_MAP[day_condition]
-            forecast.append(
-                Forecast(
-                    {
-                        ATTR_FORECAST_TEMP: daily_temp_high,
-                        ATTR_FORECAST_TEMP_LOW: daily_temp_low,
-                        ATTR_FORECAST_CONDITION: day_condition,
-                        ATTR_FORECAST_TIME: daily_datetime,
-                    }
-                )
-            )
+            entry: dict = {
+                ATTR_FORECAST_TEMP: daily_temp_high,
+                ATTR_FORECAST_TEMP_LOW: daily_temp_low,
+                ATTR_FORECAST_CONDITION: day_condition,
+                ATTR_FORECAST_TIME: daily_datetime,
+            }
+            if day_description:
+                entry["description"] = day_description
+            forecast.append(Forecast(entry))
         return forecast
 

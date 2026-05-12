@@ -6,6 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
+import re
 from typing import Any
 
 import aiohttp
@@ -228,6 +229,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 self._check_errors(url, result_daily)
                 await self.expand_data_urls(result_daily)
             result_current['weather_warnings'] = warnings_text
+            # Fetch pollen data (non-fatal)
+            result_current['pollen'] = await self.get_pollen_data()
             result = {}
             if self._enable_tides:
                 await self.expand_data_urls(result_current)
@@ -259,7 +262,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         #     _LOGGER.info(f"MetService data updated: {self.data}")
 
     async def get_tides(self):
-        """Get tides data."""
+        """Get tides data. Returns None if unavailable rather than raising."""
         headers = {
             "Accept-Encoding": "gzip",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -270,26 +273,87 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 url = f"{self._tide_url}"
                 _LOGGER.info(f"Fetching tides data from {url}")
                 response = await self._session.get(url, headers=headers)
+                if response.status != 200:
+                    _LOGGER.warning("Tides endpoint returned HTTP %s — tides data will be unavailable", response.status)
+                    return None
                 result_tides = await response.json(content_type=None)
                 if result_tides is None:
-                    raise ValueError("No tides data received.")
+                    _LOGGER.warning("No tides data received")
+                    return None
                 self._check_errors(url, result_tides)
             await self.expand_data_urls(result_tides)
-            tide_data = result_tides["layout"]["primary"]["slots"]["main"]["modules"][0]["tideData"]
+            # Try multiple known path variants for the tideData key
+            for path in [
+                ["layout", "primary", "slots", "main", "modules"],
+                ["layout", "primary", "slots", "left-major", "modules"],
+            ]:
+                try:
+                    modules = result_tides
+                    for key in path:
+                        modules = modules[key]
+                    for module in modules:
+                        if "tideData" in module:
+                            return module["tideData"]
+                except (KeyError, TypeError):
+                    continue
+            _LOGGER.warning("Could not locate tideData in response — tides data will be unavailable")
+            return None
 
-            return tide_data
-
-        except ValueError as err:
-            _LOGGER.error("Data validation error in tides: %s", err)
-            raise UpdateFailed(f"Data validation error in tides: {err}") from err
         except (asyncio.TimeoutError, aiohttp.ClientError) as err:
-            _LOGGER.error("Error fetching tides data: %s", repr(err))
-            raise UpdateFailed(f"Error fetching tides data: {err}") from err
+            _LOGGER.warning("Error fetching tides data: %s — tides will be unavailable", repr(err))
+            return None
         except Exception as err:
-            _LOGGER.error("Unexpected error fetching tides data: %s", repr(err))
-            raise UpdateFailed(f"Unexpected error in tides: {err}") from err
-        # finally:
-        #     _LOGGER.info(f"Tides data updated: {tide_data if 'tide_data' in locals() else 'No tides data'}")
+            _LOGGER.warning("Unexpected error fetching tides data: %s — tides will be unavailable", repr(err))
+            return None
+
+    @staticmethod
+    def _parse_pollen_html(html: str) -> dict:
+        """Extract pollen level and plant types from MetService allergen HTML."""
+        level = None
+        plants = None
+        # Match <span class="status-...">Level</span>
+        level_match = re.search(r'<span[^>]*class="status-[^"]*"[^>]*>([^<]+)</span>', html)
+        if level_match:
+            level = level_match.group(1).strip()
+        # Plant types appear after the closing </span> tag
+        plants_match = re.search(r'</span>(?:<br\s*/?>|</br>)(.*?)(?:<br\s*/?>|</br>|$)', html, re.IGNORECASE)
+        if plants_match:
+            plants = plants_match.group(1).strip()
+        return {"level": level, "type": plants}
+
+    async def get_pollen_data(self) -> dict:
+        """Fetch pollen/allergen data from MetService allergens endpoint."""
+        headers = {
+            "Accept-Encoding": "gzip",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+        }
+        empty = {"pollenLevels": {"level": None, "type": None}}
+        try:
+            async with async_timeout.timeout(10):
+                url = f"{self._api_url}{self._location}/airborne-allergens"
+                _LOGGER.info(f"Fetching pollen data from {url}")
+                response = await self._session.get(url, headers=headers)
+                if response.status != 200:
+                    _LOGGER.debug("Pollen endpoint returned HTTP %s — pollen data unavailable", response.status)
+                    return empty
+                result = await response.json(content_type=None)
+            # Search all modules for the pollen iconWithText content block
+            modules = (
+                result.get("layout", {})
+                .get("primary", {})
+                .get("slots", {})
+                .get("main", {})
+                .get("modules", [])
+            )
+            for module in modules:
+                for item in module.get("content", []):
+                    if item.get("iconName") == "pollen" and "html" in item:
+                        parsed = self._parse_pollen_html(item["html"])
+                        return {"pollenLevels": parsed}
+        except Exception as err:
+            _LOGGER.debug("Could not fetch pollen data: %s", repr(err))
+        return empty
 
     def _check_errors(self, url: str, response: dict):
         """Check for errors in the API response."""

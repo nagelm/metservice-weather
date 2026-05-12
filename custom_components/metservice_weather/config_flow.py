@@ -235,11 +235,14 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_tide_region(self, user_input=None):
         """Handle selecting a tide region."""
         if user_input is None:
-            # Make the REST call to get the list of regions
-            session = async_create_clientsession(self.hass)
-            response = await session.get('https://www.metservice.com/publicData/webdata/marine')
-            regions_data = await response.json()
-            self.regions = regions_data['layout']['search']['searchLocations'][0]['items']
+            try:
+                session = async_create_clientsession(self.hass)
+                response = await session.get('https://www.metservice.com/publicData/webdata/marine')
+                regions_data = await response.json(content_type=None)
+                self.regions = regions_data['layout']['search']['searchLocations'][0]['items']
+            except Exception:
+                _LOGGER.exception("Failed to fetch marine regions for tides setup")
+                return self.async_abort(reason="tides_unavailable")
 
             return self.async_show_form(
                 step_id="tide_region",
@@ -248,19 +251,40 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         # Save the selected region's URL and move to the next step
         selected_label = user_input[CONF_REGION]
         selected_region = next((item for item in self.regions if item['heading']['label'] == selected_label), None)
-        self.user_info[CONF_TIDE_REGION_URL] = selected_region['heading']['url'] if selected_region else None
+        self.user_info[CONF_TIDE_REGION_URL] = selected_region['heading']['url'].lstrip('/') if selected_region else None
         return await self.async_step_tide_location()
 
     async def async_step_tide_location(self, user_input=None):
         """Handle selecting a specific tide location within the region."""
         if user_input is None:
             region = self.user_info[CONF_TIDE_REGION_URL]
-            # Make the REST call for the locations within the selected region
             url = f"https://www.metservice.com/publicData/webdata/{region}/tides"
-            session = async_create_clientsession(self.hass)
-            response = await session.get(url)
-            locations_data = await response.json()
-            self.locations = locations_data['layout']['primary']['map']['modules'][0]['markers']  # Adjust this based on the actual structure of the response
+            try:
+                session = async_create_clientsession(self.hass)
+                response = await session.get(url)
+                locations_data = await response.json(content_type=None)
+                if response.status != HTTPStatus.OK:
+                    _LOGGER.error("Tides location fetch returned HTTP %s for %s", response.status, url)
+                    return self.async_abort(reason="tides_unavailable")
+                # Try to find markers in the map module
+                map_modules = (
+                    locations_data.get("layout", {})
+                    .get("primary", {})
+                    .get("map", {})
+                    .get("modules", [])
+                )
+                self.locations = None
+                for module in map_modules:
+                    if "markers" in module:
+                        self.locations = module["markers"]
+                        break
+                if not self.locations:
+                    _LOGGER.error("Could not find tide location markers in response from %s", url)
+                    return self.async_abort(reason="tides_unavailable")
+            except Exception:
+                _LOGGER.exception("Failed to fetch tide locations from %s", url)
+                return self.async_abort(reason="tides_unavailable")
+
             return self.async_show_form(
                 step_id="tide_location",
                 data_schema=self._async_generate_select_schema_location(self.locations, CONF_TIDE_URL),
@@ -269,41 +293,40 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             # User has selected a location, find the URL and save the data to finish the config flow
             selected_label = user_input[CONF_TIDE_URL]
             tide_url = self.get_tide_location_url_from_label(selected_label)
-            if tide_url:
-                session = async_create_clientsession(self.hass)
-                tide_url = f"https://www.metservice.com/publicData/webdata/{tide_url}"
-                self.user_info[CONF_TIDE_URL] = tide_url
-                try:
-                    with async_timeout.timeout(10):
-                        # Use English and US units for the initial test API call. User-supplied units and language will be used for
-                        # the created entities.
-                        headers = {
-                            "Accept-Encoding": "gzip",
-                            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
-                        }
-                        response = await session.get(tide_url, headers=headers)
-                    # _LOGGER.debug(response.status)
-                    if response.status != HTTPStatus.OK:
-                        # 401 status is most likely bad api_key or api usage limit exceeded
-
-                        _LOGGER.error(
-                            "MetService config responded with HTTP error %s: %s",
-                            response.status,
-                            response.reason,
-                        )
-                        raise Exception
-                except Exception:  # pylint: disable=broad-except
-                    _LOGGER.exception("Unexpected exception")
-                    return self.async_show_form(
-                        step_id="tide_location",
-                        data_schema=self._async_generate_select_schema_location(self.locations, CONF_TIDE_URL),
-                    )
-
-            else:
-                # Handle error case where URL is not found
+            if not tide_url:
+                _LOGGER.error("Could not find URL for selected tide location: %s", selected_label)
                 return self.async_show_form(
                     step_id="tide_location",
                     data_schema=self._async_generate_select_schema_location(self.locations, CONF_TIDE_URL),
+                    errors={"base": "tide_location_not_found"},
+                )
+            session = async_create_clientsession(self.hass)
+            tide_url = f"https://www.metservice.com/publicData/webdata/{tide_url.lstrip('/')}"
+            self.user_info[CONF_TIDE_URL] = tide_url
+            try:
+                with async_timeout.timeout(10):
+                    headers = {
+                        "Accept-Encoding": "gzip",
+                        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                    }
+                    response = await session.get(tide_url, headers=headers)
+                if response.status != HTTPStatus.OK:
+                    _LOGGER.error(
+                        "Tide location validation returned HTTP %s: %s",
+                        response.status,
+                        response.reason,
+                    )
+                    return self.async_show_form(
+                        step_id="tide_location",
+                        data_schema=self._async_generate_select_schema_location(self.locations, CONF_TIDE_URL),
+                        errors={"base": "cannot_connect"},
+                    )
+            except Exception:
+                _LOGGER.exception("Unexpected exception validating tide location URL")
+                return self.async_show_form(
+                    step_id="tide_location",
+                    data_schema=self._async_generate_select_schema_location(self.locations, CONF_TIDE_URL),
+                    errors={"base": "unknown_error"},
                 )
 
         # Now you can create the entry with all the necessary information
