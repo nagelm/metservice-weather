@@ -1,0 +1,66 @@
+> **This is a personal fork of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather), which is the original and primary work. Full credit to [@ciejer](https://github.com/ciejer) for building and maintaining this integration. This fork applies a collection of open issues, PRs, and quality improvements that have not yet landed upstream.**
+
+---
+
+## What's included from upstream (ciejer/metservice-weather)
+
+All upstream changes through the point of forking are included, covering the full development history of the integration:
+
+- **Mobile API support** — parallel mobile and public API implementations with separate config flows
+- **Tides integration** — configurable tide location selection via a multi-step config flow with region and location pickers
+- **Hourly and daily forecasts** — full `WeatherEntityFeature.FORECAST_HOURLY` and `FORECAST_DAILY` support
+- **Weather warnings and fire danger** — live warnings fetched from the MetService warnings service and surfaced as sensors
+- **Pollen, drying index, UV, pressure trend** — extended sensor set well beyond the core weather fields
+- **Dynamic `dataUrl` expansion** — recursive fetching of MetService's lazily-loaded nested API structure
+- **Rural/regional location support** — backup data paths for locations that structure API responses differently
+- **Device grouping** — all entities grouped under a single HA device ([#109](https://github.com/ciejer/metservice-weather/pull/109))
+- **Reduced logging verbosity** — debug-level logging for non-critical paths ([#95](https://github.com/ciejer/metservice-weather/pull/95))
+- **HACS compatibility** — zip-based release workflow, country code, hacsfest validation
+
+---
+
+## Changes in this fork (nagelm/metservice-weather)
+
+### Fixes for open upstream issues and PRs
+
+- **Fix entity ID collisions breaking HA 2026.2+** — removed `generate_entity_id()` calls that produced invalid entity IDs; entities now rely solely on `unique_id` as intended by HA. Resolves [#157](https://github.com/ciejer/metservice-weather/issues/157)
+
+- **Fix `clear-night` condition never appearing** — when the current condition maps to `sunny` but the sun is below the horizon, the weather entity now correctly returns `clear-night`. Resolves [#152](https://github.com/ciejer/metservice-weather/issues/152)
+
+- **Fix tides config flow crashing on setup** — the marine region fetch had no error handling or timeout; a failed response caused an unhandled exception. The region URL also had a leading `/` that created double-slash URLs. Fixed with proper try/except, `async_timeout`, and `lstrip('/')`. Resolves [#113](https://github.com/ciejer/metservice-weather/issues/113)
+
+- **Fix pollen data after MetService API restructure** — MetService moved pollen from a structured JSON field to an HTML content block at a new `/airborne-allergens` endpoint. Pollen is now fetched from the correct endpoint and parsed with regex. Resolves [#132](https://github.com/ciejer/metservice-weather/issues/132)
+
+- **Add forecast descriptions to daily forecast entries** — each day in the daily forecast now includes a `description` field containing the plain-English forecast text, surfaced via the weather entity and as a dedicated sensor. Resolves [#96](https://github.com/ciejer/metservice-weather/issues/96)
+
+- **Fix hourly forecast condition icon logic** — the `windy` icon was silently overwritten by `partlycloudy` because the icon selection chain used `if/if` instead of `if/elif`. Wind conditions are now correctly preserved. Resolves [#149](https://github.com/ciejer/metservice-weather/issues/149)
+
+### Additional bug fixes
+
+- Fix mobile API: `native_pressure` and `humidity` on the weather entity were reading from the public API data path — always returning `None` for mobile API users
+- Fix tide sensor `IndexError` crash when all tides for the current day have already passed
+- Fix humidity sensor returning `0` for valid `0%` humidity readings due to `cast(int, data) or 0` falsy short-circuit
+- Fix mobile drying index sensor crashing with `AttributeError` when data is `None` (e.g. in winter when no drying index is published)
+- Fix mobile hourly forecast off-by-one: `range(len-1)` was silently dropping the last forecast hour
+- Fix hourly and daily forecasts crashing for rural/regional locations due to missing backup sensor map keys (`hourly_bkp_obs`, `hourly_bkp_skip`, `hourly_bkp_temp`, `daily_bkp_datetime`)
+- Fix `expand_data_urls` sub-requests sending no `User-Agent` header, which MetService may reject
+- Fix `expand_data_urls` calls running inside `async_timeout` blocks — sub-requests each have their own timeout so the outer 10s limit was causing spurious failures when MetService returns many nested data URLs
+- Fix tide region fetch in config flow having no timeout (could hang the config flow indefinitely)
+- Fix `DEFAULT_LOCATION` not matching the SelectSelector value format (no location was pre-selected in the public API setup form)
+- Add recursion depth limit (10) to `expand_data_urls` to guard against malformed or circular API responses
+- Add `None` guard to hourly forecast so missing data returns an empty list cleanly rather than crashing
+- Fix `expand_data_urls` recursion depth counter incorrectly incrementing on every dict/list traversal step rather than only on dataUrl expansion hops — caused hundreds of false-positive warnings per update cycle and log throttling in HA 2026.5
+- Fix weather warnings sensor showing `unknown` state instead of "No warnings" when no active warnings — empty `warnings_text` string was falsy and bypassed the sensor value function
+
+### Code quality improvements
+
+- Remove three duplicate copies of `get_from_dict` — sensor data fetching now calls coordinator methods directly, eliminating ~80 lines of repeated code
+- Change `units_of_measurement` from a fragile integer-indexed tuple to a named dict keyed by string constants
+- Consolidate shared public API headers into a single `_PUBLIC_HEADERS` class constant (was duplicated across three methods)
+- Refactor `__init__.py` to eliminate near-identical public/mobile setup blocks
+- Replace hardcoded `AUCKLAND_TIMEZONE` with `dt_util.utcnow()` for tide time comparisons, removing a NZ-specific assumption
+- Fix weather warnings truncation to be consistent with description sensor (both now max 255 chars)
+- Remove dead `RESULTS_FORECAST_HOURLY` constant
+- Remove all commented-out sensor descriptions
+- Fix all f-string logger calls to use `%s` formatting (avoids string evaluation when the log level would filter the message)
+- Clean up stale debug log comments and unreachable code throughout

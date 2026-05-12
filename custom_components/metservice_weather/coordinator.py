@@ -211,10 +211,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                     raise ValueError("No warnings data received.")
                 self._check_errors(url, result_warnings)
             await self.expand_data_urls(result_warnings)
-            warnings_text = '\n'.join([
+            warnings_list = [
                 f"{warning['name']}, {warning['text']}, {warning['threatPeriod']}"
                 for warning in result_warnings.get('warnings', [])
-            ])
+            ]
+            warnings_text = '\n'.join(warnings_list) if warnings_list else "No warnings"
             async with async_timeout.timeout(10):
                 url = f"{self._api_url}{self.location}/7-days"
                 response = await self._session.get(url, headers=headers)
@@ -416,7 +417,12 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
 
 
     async def expand_data_urls(self, data, parent=None, key=None, _depth=0):
-        """Recursively expand dataUrl entries in the data, replacing the entire object."""
+        """Recursively expand dataUrl entries in the data, replacing the entire object.
+
+        _depth counts only dataUrl expansion hops, not structural traversal steps,
+        so the recursion guard fires on genuinely circular/runaway URL chains rather
+        than on deeply nested but normal JSON objects.
+        """
         if _depth > 10:
             _LOGGER.warning("expand_data_urls: max recursion depth reached, stopping")
             return
@@ -435,7 +441,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                         result = await response.json(content_type=None)
                     if parent is not None and key is not None:
                         parent[key] = result
-                    # Continue in case there are nested dataUrls
+                    # Increment depth only when following a dataUrl hop, not during
+                    # structural traversal, so the guard catches URL expansion cycles.
                     await self.expand_data_urls(result, parent=parent, key=key, _depth=_depth + 1)
                 except Exception as e:
                     _LOGGER.error("Error fetching dataUrl %s: %s", full_url, e)
@@ -443,8 +450,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                         parent[key] = None
             else:
                 for k in list(data.keys()):
-                    await self.expand_data_urls(data[k], parent=data, key=k, _depth=_depth + 1)
+                    # Pass _depth unchanged — traversing dict keys is not a URL hop.
+                    await self.expand_data_urls(data[k], parent=data, key=k, _depth=_depth)
         elif isinstance(data, list):
             for idx, item in enumerate(data):
-                await self.expand_data_urls(item, parent=data, key=idx, _depth=_depth + 1)
+                # Pass _depth unchanged — traversing list items is not a URL hop.
+                await self.expand_data_urls(item, parent=data, key=idx, _depth=_depth)
 
