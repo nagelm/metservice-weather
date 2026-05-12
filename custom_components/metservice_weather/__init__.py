@@ -7,7 +7,6 @@ from homeassistant.const import (
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_LOCATION,
-    CONF_API_KEY,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -32,7 +31,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     else:
         api_url = MOBILE_URL
         warnings_url = MOBILE_WARNINGS_URL
-        api_key = entry.data[CONF_API_KEY]
+        # "mobile_api_key" is the current key; "api_key" is the legacy name
+        api_key = entry.data.get("mobile_api_key", entry.data.get("api_key", ""))
         location = entry.data[CONF_NAME]
 
     config = WeatherUpdateCoordinatorConfig(

@@ -5,18 +5,18 @@
         "title": "MetService Weather",
         "description": "Configure your MetService NZ weather integration.",
         "data": {
-          "location": "Weather location",
           "name": "Integration name",
+          "location": "Weather location",
           "tide_region": "Tide information region",
-          "boating_region_url": "Boating conditions region",
-          "use_mobile": "Use legacy mobile API",
-          "api_key": "Mobile API key"
+          "boating_region": "Boating conditions region",
+          "use_mobile": "Override public web data with mobile API (default: false)",
+          "mobile_api_key": "Mobile API key"
         },
         "data_description": {
           "tide_region": "Select a marine region to get local tide times. Choose \"None — skip\" if you don't need tides.",
-          "boating_region_url": "Select a marine region to get boating and surf conditions. Choose \"None — skip\" if you don't need this.",
-          "use_mobile": "Only useful if your location is not in the list above, or if you want weather data to follow your current GPS position rather than a fixed location. Requires a private API key extracted from the MetService mobile app — see the repository README for instructions.",
-          "api_key": "Required only when the legacy mobile API option above is enabled."
+          "boating_region": "Select a marine region to get boating and surf conditions. Choose \"None — skip\" if you don't need this.",
+          "use_mobile": "Only useful if your location is not in the list above, or if you want weather data to follow your current GPS position rather than a fixed location. Requires a private API key extracted from the MetService mobile app — see the README for instructions.",
+          "mobile_api_key": "Required only when the mobile API override above is enabled. See the README for how to obtain this key."
         }
       },
       "locations": {
@@ -32,14 +32,12 @@
       "invalid_api_key": "[%key:common::config_flow::error::invalid_api_key%]",
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "unknown_error": "[%key:common::config_flow::error::unknown%]",
-      "api_key_required": "An API key is required when using the legacy mobile API.",
+      "api_key_required": "A mobile API key is required when using the mobile API override.",
       "tide_location_not_found": "Could not determine the URL for the selected tide station.",
       "boating_location_not_found": "Could not determine the URL for the selected boating location."
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
-      "tides_unavailable": "Could not reach the MetService marine service. Check your connection and try again.",
-      "boating_unavailable": "Could not reach the MetService marine service. Check your connection and try again.",
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]"
     }
   }
