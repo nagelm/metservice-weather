@@ -209,19 +209,27 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def _async_generate_select_schema_region(self, options: list[dict], field_name: str) -> vol.Schema:
         """Generate a schema with a dynamic SelectSelector based on options provided."""
-        select_options = {opt['heading']['label']: opt['heading']['url'] for opt in options}
+        select_opts = [
+            {"value": opt["heading"]["label"], "label": opt["heading"]["label"]}
+            for opt in options
+        ]
         return vol.Schema(
             {
-                vol.Required(field_name): SelectSelector(SelectSelectorConfig(options=list(select_options.keys()))),
+                vol.Required(field_name): SelectSelector(SelectSelectorConfig(options=select_opts)),
             }
         )
+
     @callback
     def _async_generate_select_schema_location(self, options: list[dict], field_name: str) -> vol.Schema:
         """Generate a schema with a dynamic SelectSelector based on options provided."""
-        self.locations_map = {str(index): opt['label'] for index, opt in enumerate(options)}
+        self.locations_map = {str(index): opt["label"] for index, opt in enumerate(options)}
+        select_opts = [
+            {"value": label, "label": label}
+            for label in self.locations_map.values()
+        ]
         return vol.Schema(
             {
-                vol.Required(field_name): SelectSelector(SelectSelectorConfig(options=list(self.locations_map.values()))),
+                vol.Required(field_name): SelectSelector(SelectSelectorConfig(options=select_opts)),
             }
         )
     def get_tide_location_url_from_label(self, label):
