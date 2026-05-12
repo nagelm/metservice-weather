@@ -238,13 +238,19 @@ current_condition_sensor_descriptions_public = [
         key="drying_index_morning",
         name="Clothes Drying Time - Morning",
         icon="mdi:tshirt-crew",
-        value_fn=lambda data, _: cast(str, data.replace("Morning: ", "")) if data else None,
+        value_fn=lambda data, _: cast(str, data) if data else None,
     ),
     WeatherSensorEntityDescription(
         key="drying_index_afternoon",
         name="Clothes Drying Time - Afternoon",
         icon="mdi:tshirt-crew",
-        value_fn=lambda data, _: cast(str, data.replace("Afternoon: ", "")) if data else None,
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="drying_next_good_day",
+        name="Clothes Drying - Next Good Day",
+        icon="mdi:calendar-check",
+        value_fn=lambda data, _: cast(str, data) if data else None,
     ),
     WeatherSensorEntityDescription(
         key="tides_high",

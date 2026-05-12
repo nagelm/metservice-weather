@@ -60,8 +60,9 @@ SENSOR_MAP_MOBILE: Final[dict[str, str]] = {
 SENSOR_MAP_PUBLIC: Final[dict[str, str]] = {
     "pollen_levels": "pollen.pollenLevels.level",
     "pollen_type": "pollen.pollenLevels.type",
-    "drying_index_morning": "dryingIndex.dryingState.0.text",
-    "drying_index_afternoon": "dryingIndex.dryingState.1.text",
+    "drying_index_morning": "drying_morning",
+    "drying_index_afternoon": "drying_afternoon",
+    "drying_next_good_day": "drying_next_good_day",
     FIELD_TEMP: "observations.temperature.0.current",
     FIELD_HUMIDITY: "observations.rain.0.relativeHumidity",
     FIELD_PRESSURE: "observations.pressure.0.atSeaLevel",
