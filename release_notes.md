@@ -57,13 +57,13 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
-## v1.0.2
+## v0.9.12
 
 - **Remove Clothing Layers and Clothing Windproof Layers sensors** — `Clothing Layers` produced unreliable data (the `layers` key in the API collides with other uses of that word in the page JSON, causing the wrong value to be returned); `Clothing Windproof Layers` was marginal value. Both removed.
 
 ---
 
-## v1.0.1
+## v0.9.11
 
 ### Feature additions
 
@@ -75,13 +75,11 @@ All upstream changes through the point of forking are included, covering the ful
 
 ---
 
-## v1.0.0 — New sensors
+## v0.9.10 — New sensors
 
 ### Feature additions
 
 - **Wind Strength** — new `Wind Strength` sensor (public API) exposing MetService's Beaufort-scale text description ("Light winds", "Fresh", "Near gale", etc.) from the current conditions module; was fetched but never surfaced
-
-- **Clothing Layers / Windproof Layers** — two new sensors (public API) exposing MetService's clothing recommendation from the current conditions module: number of layers to wear today and whether windproof layers are needed
 
 - **Today's High / Low Temperature** — two new sensors (public API) exposing the observed or forecast high and low temperature for the current day from the current conditions module
 
