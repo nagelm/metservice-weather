@@ -57,6 +57,14 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
+### Config flow improvements (v0.9.8)
+
+- **Single setup screen** — the entire configuration now fits in at most two screens: one main screen (location, name, tide region, boating region, optional mobile API toggle + key) and one optional marine locations screen (only shown if a tide or boating region was selected); previous versions required up to six separate screens
+- **Marine location fetch parallelised** — tide and boating location lists are fetched simultaneously so the second screen appears immediately
+- **Legacy mobile API** — moved from a top-level choice to an opt-in checkbox at the bottom of the main setup screen with descriptive help text explaining when it is and is not useful; public API remains the default
+- **Field help text** — all fields now have descriptions rendered below them in the HA UI via the translations file, including a clear explanation of the mobile API use case and where to obtain the API key
+- **Reconfigure pre-fills all fields** — the main setup screen pre-fills location, name, region selectors, and the mobile toggle from the existing entry; the locations screen always shows fresh options fetched from MetService
+
 ### Config flow improvements (v0.9.7)
 
 - **Remove enable_tides / enable_boating toggles** — the two boolean toggle fields on the initial setup screen are gone; tides and boating are now optional steps that always appear in the flow with "None — skip tides / boating" as the first option, defaulting to skipped; no separate toggle needed and no ambiguity about what will happen
