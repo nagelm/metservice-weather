@@ -33,6 +33,26 @@ from homeassistant.const import (
 from homeassistant.helpers.typing import StateType
 
 
+def _safe_float(data) -> float | None:
+    """Convert data to float, returning None for non-numeric values like 'n/a'."""
+    if data is None:
+        return None
+    try:
+        return float(data)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_int(data) -> int | None:
+    """Convert data to int, returning None for non-numeric values like 'n/a'."""
+    if data is None:
+        return None
+    try:
+        return int(data)
+    except (ValueError, TypeError):
+        return None
+
+
 def _next_tide_time(data: list | None, tide_type: str) -> datetime.datetime | None:
     """Return the next upcoming tide of the given type, or None if unavailable."""
     if not isinstance(data, list):
@@ -88,7 +108,7 @@ current_condition_sensor_descriptions_public = [
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
         unit_fn=lambda _: PERCENTAGE,
-        value_fn=lambda data, _: int(data) if data is not None else None,
+        value_fn=lambda data, _: _safe_int(data),
     ),
     WeatherSensorEntityDescription(
         key="uvIndex",
@@ -111,7 +131,7 @@ current_condition_sensor_descriptions_public = [
         unit_fn=lambda metric: UnitOfTemperature.CELSIUS
         if metric
         else UnitOfTemperature.FAHRENHEIT,
-        value_fn=lambda data, _: cast(float, data),
+        value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
         key=FIELD_TEMP,
@@ -122,7 +142,7 @@ current_condition_sensor_descriptions_public = [
         unit_fn=lambda metric: UnitOfTemperature.CELSIUS
         if metric
         else UnitOfTemperature.FAHRENHEIT,
-        value_fn=lambda data, _: cast(float, data),
+        value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
         key=FIELD_PRESSURE,
@@ -131,7 +151,7 @@ current_condition_sensor_descriptions_public = [
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.PRESSURE,
         unit_fn=lambda metric: UnitOfPressure.MBAR if metric else UnitOfPressure.INHG,
-        value_fn=lambda data, _: cast(float, data),
+        value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
         key=FIELD_WINDGUST,
@@ -142,7 +162,7 @@ current_condition_sensor_descriptions_public = [
         unit_fn=lambda metric: UnitOfSpeed.KILOMETERS_PER_HOUR
         if metric
         else UnitOfSpeed.MILES_PER_HOUR,
-        value_fn=lambda data, _: cast(float, data),
+        value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
         key=FIELD_WINDSPEED,
@@ -153,7 +173,7 @@ current_condition_sensor_descriptions_public = [
         unit_fn=lambda metric: UnitOfSpeed.KILOMETERS_PER_HOUR
         if metric
         else UnitOfSpeed.MILES_PER_HOUR,
-        value_fn=lambda data, _: cast(float, data),
+        value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
         key="pressureTendencyTrend",
@@ -251,7 +271,7 @@ current_condition_sensor_descriptions_mobile = [
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
         unit_fn=lambda _: PERCENTAGE,
-        value_fn=lambda data, _: int(data) if data is not None else None,
+        value_fn=lambda data, _: _safe_int(data),
     ),
     WeatherSensorEntityDescription(  # UV index from main endpoint is UV Alert from mobile endpoint
         key="uvAlert",
@@ -272,7 +292,7 @@ current_condition_sensor_descriptions_mobile = [
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.TEMPERATURE,
         unit_fn=lambda metric: UnitOfTemperature.CELSIUS if metric else UnitOfTemperature.FAHRENHEIT,
-        value_fn=lambda data, _: cast(float, data),
+        value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
         key=FIELD_PRESSURE,
@@ -281,7 +301,7 @@ current_condition_sensor_descriptions_mobile = [
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.PRESSURE,
         unit_fn=lambda metric: UnitOfPressure.MBAR if metric else UnitOfPressure.INHG,
-        value_fn=lambda data, _: cast(float, data),
+        value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
         key=FIELD_WINDGUST,
@@ -290,7 +310,7 @@ current_condition_sensor_descriptions_mobile = [
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.WIND_SPEED,
         unit_fn=lambda metric: UnitOfSpeed.KILOMETERS_PER_HOUR if metric else UnitOfSpeed.MILES_PER_HOUR,
-        value_fn=lambda data, _: cast(float, data),
+        value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
         key=FIELD_WINDSPEED,
@@ -299,7 +319,7 @@ current_condition_sensor_descriptions_mobile = [
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.WIND_SPEED,
         unit_fn=lambda metric: UnitOfSpeed.KILOMETERS_PER_HOUR if metric else UnitOfSpeed.MILES_PER_HOUR,
-        value_fn=lambda data, _: cast(float, data),
+        value_fn=lambda data, _: _safe_float(data),
     ),
     WeatherSensorEntityDescription(
         key="pressureTendencyTrend",

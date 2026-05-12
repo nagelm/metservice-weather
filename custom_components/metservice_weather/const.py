@@ -117,7 +117,8 @@ CONDITION_MAP: Final[dict[str, str]] = {
     "showers": "rainy",
     "snow": "snowy",
     "thunder": "lightning",
-    "wind-rain": "exceptional",
+    "wind-rain": "pouring",
+    "rain-wind": "pouring",
     "windy": "windy"
 }
 
