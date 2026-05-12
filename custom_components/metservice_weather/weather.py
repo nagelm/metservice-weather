@@ -184,11 +184,9 @@ class MetServiceForecastMobile(MetServiceMobile):
 
         forecast = []
         hourly_readings = self.coordinator.get_current_mobile("hourly_base")
-        for hour in range(
-            0,
-            len(hourly_readings)-1,
-            1,
-        ):
+        if not hourly_readings:
+            return forecast
+        for hour in range(len(hourly_readings)):
             this_hour = hourly_readings[hour]
 
             rain_fall = safe_float(this_hour.get("rainFall"))
@@ -355,7 +353,7 @@ class MetServiceForecastPublic(MetServicePublic):
         return self.forecast_hourly
 
     async def async_forecast_daily(self) -> list[Forecast] | None:
-        """Return hourly forecast."""
+        """Return daily forecast."""
         return self.forecast_daily
 
     @property
@@ -375,11 +373,10 @@ class MetServiceForecastPublic(MetServicePublic):
         if hourly_readings is None:
             hourly_readings = self.coordinator.get_current_public("hourly_bkp_temp")
 
-        for hour in range(
-            hourly_skip,
-            hourly_obs + hourly_skip,
-            1,
-        ):
+        if not hourly_readings or hourly_obs is None or hourly_skip is None:
+            return forecast
+
+        for hour in range(hourly_skip, hourly_obs + hourly_skip):
             this_hour = hourly_readings[hour]
 
             rainfall = safe_float(this_hour.get("rainfall"))

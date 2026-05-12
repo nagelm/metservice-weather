@@ -24,9 +24,6 @@ from .const import (
     CONF_ATTRIBUTION,
     DOMAIN,
     MANUFACTURER,
-    RESULTS_CURRENT,
-    SENSOR_MAP_MOBILE,
-    SENSOR_MAP_PUBLIC,
 )
 from .weather_current_conditions_sensors import (
     current_condition_sensor_descriptions_public,
@@ -91,23 +88,17 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
         )
         self._unit_system = coordinator.unit_system
         if self.coordinator.api_type == 'mobile':
-            self._sensor_data = _get_sensor_data_mobile(
-                coordinator.data, description.key, self._unit_system
-            )
+            self._sensor_data = coordinator.get_current_mobile(description.key)
         else:
-            self._sensor_data = _get_sensor_data_public(
-                coordinator.data, description.key, self._unit_system
-            )
+            self._sensor_data = coordinator.get_current_public(description.key)
         self._attr_native_unit_of_measurement = self.entity_description.unit_fn(
             self.coordinator.hass.config.units is METRIC_SYSTEM
         )
 
-        # _LOGGER.info(f"Initialized sensor '{self.name}' with data: {self._sensor_data}")
-
     @property
     def available(self) -> bool:
         """Return if weather data is available."""
-        return self.coordinator.data is not None #and RESULTS_CURRENT in self.coordinator.data
+        return self.coordinator.data is not None
 
     @property
     def name(self):
@@ -118,29 +109,23 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
     def native_value(self) -> StateType:
         """Return the state."""
         if not self._sensor_data:
-            _LOGGER.debug(f"Sensor '{self.name}' has no data.")
-            return None  # Return None instead of "Unknown"
+            _LOGGER.debug("Sensor '%s' has no data.", self.name)
+            return None
         try:
-            value = self.entity_description.value_fn(self._sensor_data, self._unit_system)
-            # _LOGGER.debug(f"Sensor '{self.name}' state: {value}")
-            return value
+            return self.entity_description.value_fn(self._sensor_data, self._unit_system)
         except Exception as e:
-            _LOGGER.error(f"Error processing state for sensor '{self.name}': {e}")
-            return None  # Return None instead of "Unknown"
-
+            _LOGGER.error("Error processing state for sensor '%s': %s", self.name, e)
+            return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes."""
         if not self._sensor_data:
-            _LOGGER.debug(f"Sensor '{self.name}' has no attributes data.")
             return {}
         try:
-            attributes = self.entity_description.attr_fn(self._sensor_data)
-            # _LOGGER.info(f"Sensor '{self.name}' attributes: {attributes}")
-            return attributes
+            return self.entity_description.attr_fn(self._sensor_data)
         except Exception as e:
-            _LOGGER.error(f"Error processing attributes for sensor '{self.name}': {e}")
+            _LOGGER.error("Error processing attributes for sensor '%s': %s", self.name, e)
             return {}
 
 
@@ -148,88 +133,7 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle data update."""
         if self.coordinator.api_type == 'mobile':
-            self._sensor_data = _get_sensor_data_mobile(
-                self.coordinator.data, self.entity_description.key, self._unit_system
-            )
+            self._sensor_data = self.coordinator.get_current_mobile(self.entity_description.key)
         else:
-            self._sensor_data = _get_sensor_data_public(
-                self.coordinator.data, self.entity_description.key, self._unit_system
-            )
-        # _LOGGER.info(f"Updated sensor '{self.name}' with data: {self._sensor_data}")
+            self._sensor_data = self.coordinator.get_current_public(self.entity_description.key)
         self.async_write_ha_state()
-
-
-def _get_sensor_data_mobile(sensors: dict[str, Any], kind: str, unit_system: str) -> Any:
-    """Get sensor data."""
-
-    def get_from_dict(data_dict, map_list):
-        if not map_list:
-            return data_dict
-        if isinstance(data_dict, list):
-            for idx, item in enumerate(data_dict):
-                if map_list[0].isdigit() and idx == int(map_list[0]):
-                    result = get_from_dict(item, map_list[1:])
-                    if result is not None:
-                        return result
-                else:
-                    result = get_from_dict(item, map_list)
-                    if result is not None:
-                        return result
-        elif isinstance(data_dict, dict):
-            for key, value in data_dict.items():
-                if key == map_list[0]:
-                    result = get_from_dict(value, map_list[1:])
-                    if result is not None:
-                        return result
-                else:
-                    result = get_from_dict(value, map_list)
-                    if result is not None:
-                        return result
-        return None
-
-    keys = SENSOR_MAP_MOBILE[kind].split(".")
-    result = get_from_dict(sensors[RESULTS_CURRENT], keys)
-    return result
-    # # windGust is often null. When it is, set it to windSpeed instead.
-    # if kind == FIELD_WINDGUST and sensors[RESULTS_CURRENT][kind] == None:
-    #     return sensors[RESULTS_CURRENT][FIELD_WINDSPEED]
-    # else:
-    #     return sensors[RESULTS_CURRENT][kind]
-
-
-def _get_sensor_data_public(sensors: dict[str, Any], kind: str, unit_system: str) -> Any:
-    """Get sensor data."""
-
-    def get_from_dict(data_dict, map_list):
-        if not map_list:
-            return data_dict
-        if isinstance(data_dict, list):
-            for idx, item in enumerate(data_dict):
-                if map_list[0].isdigit() and idx == int(map_list[0]):
-                    result = get_from_dict(item, map_list[1:])
-                    if result is not None:
-                        return result
-                else:
-                    result = get_from_dict(item, map_list)
-                    if result is not None:
-                        return result
-        elif isinstance(data_dict, dict):
-            for key, value in data_dict.items():
-                if key == map_list[0]:
-                    result = get_from_dict(value, map_list[1:])
-                    if result is not None:
-                        return result
-                else:
-                    result = get_from_dict(value, map_list)
-                    if result is not None:
-                        return result
-        return None
-
-    keys = SENSOR_MAP_PUBLIC[kind].split(".")
-    result = get_from_dict(sensors[RESULTS_CURRENT], keys)
-    return result
-    # # windGust is often null. When it is, set it to windSpeed instead.
-    # if kind == FIELD_WINDGUST and sensors[RESULTS_CURRENT][kind] == None:
-    #     return sensors[RESULTS_CURRENT][FIELD_WINDSPEED]
-    # else:
-    #     return sensors[RESULTS_CURRENT][kind]

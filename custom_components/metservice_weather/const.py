@@ -79,6 +79,10 @@ SENSOR_MAP_PUBLIC: Final[dict[str, str]] = {
     "hourly_timestamp": "graph.columns",
     "hourly_skip": "graph.series.0.count",
     "hourly_obs": "graph.series.1.count",
+    # Backup hourly paths for rural/regional locations that structure data differently
+    "hourly_bkp_temp": "graph.columns",
+    "hourly_bkp_skip": "graph.series.0.count",
+    "hourly_bkp_obs": "graph.series.1.count",
     "tides_high": "tideImport",
     "tides_low": "tideImport",
     "daily_base": "days",
@@ -89,6 +93,7 @@ SENSOR_MAP_PUBLIC: Final[dict[str, str]] = {
     "daily_condition": "condition",
     "daily_description": "forecasts.0.statement",
     "daily_datetime": "date",
+    "daily_bkp_datetime": "date",
     "weather_warnings": "weather_warnings",
     "fire_season": "fireWeatherData.fireWeather.season.short",
     "fire_danger": "fireWeatherData.fireWeather.danger.forecast",
@@ -778,16 +783,15 @@ MOBILE_URL = "https://api.metservice.com/mobile/nz/weatherData"
 MOBILE_WARNINGS_URL = "https://api.metservice.com"
 API_METRIC: Final = "metric"
 API_URL_METRIC: Final = "m"
-DEFAULT_LOCATION = "tauranga"
+DEFAULT_LOCATION = "/towns-cities/regions/bay-of-plenty/locations/tauranga"
 
-TEMPUNIT = 0
-LENGTHUNIT = 1
-SPEEDUNIT = 3
-PRESSUREUNIT = 4
+TEMPUNIT = "temperature"
+LENGTHUNIT = "length"
+SPEEDUNIT = "speed"
+PRESSUREUNIT = "pressure"
 
 RESULTS_CURRENT = "current"
 RESULTS_FORECAST_DAILY = "daily"
-RESULTS_FORECAST_HOURLY = "hourly"
 
 ICON_THERMOMETER = "mdi:thermometer"
 ICON_WIND = "mdi:weather-windy"

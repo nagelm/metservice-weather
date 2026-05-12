@@ -237,7 +237,8 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is None:
             try:
                 session = async_create_clientsession(self.hass)
-                response = await session.get('https://www.metservice.com/publicData/webdata/marine')
+                with async_timeout.timeout(10):
+                    response = await session.get('https://www.metservice.com/publicData/webdata/marine')
                 regions_data = await response.json(content_type=None)
                 self.regions = regions_data['layout']['search']['searchLocations'][0]['items']
             except Exception:
