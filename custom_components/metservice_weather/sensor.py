@@ -48,16 +48,19 @@ async def async_setup_entry(
     """Add MetService entities from a config_entry."""
     coordinator: WeatherUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     if entry.data["api"] == "mobile":
-        sensors = [
-            WeatherSensor(coordinator, description)
-            for description in SENSOR_DESCRIPTIONS_MOBILE
-        ]
+        descriptions = list(SENSOR_DESCRIPTIONS_MOBILE)
     else:
-        sensors = [
-            WeatherSensor(coordinator, description)
-            for description in SENSOR_DESCRIPTIONS_PUBLIC
-        ]
+        descriptions = list(SENSOR_DESCRIPTIONS_PUBLIC)
 
+    # Skip tide sensors when no tide location is configured
+    if not coordinator.enable_tides:
+        descriptions = [d for d in descriptions if d.key not in ("tides_high", "tides_low")]
+
+    # Skip boating sensors when no boating location is configured
+    if not coordinator.enable_boating:
+        descriptions = [d for d in descriptions if d.key not in ("boating_status", "boating_forecast")]
+
+    sensors = [WeatherSensor(coordinator, description) for description in descriptions]
     async_add_entities(sensors)
 
 

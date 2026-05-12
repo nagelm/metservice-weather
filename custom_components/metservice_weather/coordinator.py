@@ -116,6 +116,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         return bool(self._tide_url)
 
     @property
+    def enable_boating(self) -> bool:
+        """Return whether boating data is configured."""
+        return bool(self._boating_url)
+
+    @property
     def tide_url(self) -> str:
         """Return the tide URL."""
         return self._tide_url
@@ -227,6 +232,28 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             await self.expand_data_urls(result_daily)
             result_current['weather_warnings'] = warnings_text
             result_current['pollen'] = await self.get_pollen_data()
+            # Inject tomorrow's forecast from the 7-day data (day index 1).
+            # get_from_dict always returns the first match, so tomorrow's data
+            # must be explicitly extracted and injected at the root level.
+            try:
+                all_days = (
+                    result_daily.get("layout", {})
+                    .get("primary", {})
+                    .get("slots", {})
+                    .get("main", {})
+                    .get("modules", [{}])[0]
+                    .get("days", [])
+                )
+                if len(all_days) > 1:
+                    tmrw = all_days[1]
+                    tmrw_forecasts = tmrw.get("forecasts", [{}])
+                    tf = tmrw_forecasts[0] if tmrw_forecasts else {}
+                    result_current["tomorrow_condition"] = tmrw.get("condition")
+                    result_current["tomorrow_temp_high"] = tf.get("highTemp")
+                    result_current["tomorrow_temp_low"] = tf.get("lowTemp")
+                    result_current["tomorrow_description"] = tf.get("statement")
+            except Exception as _e:
+                _LOGGER.debug("Could not extract tomorrow forecast: %s", _e)
             if self._tide_url:
                 result_current['tideImport'] = await self.get_tides()
             if self._boating_url:

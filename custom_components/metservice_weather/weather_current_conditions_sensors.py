@@ -313,6 +313,39 @@ current_condition_sensor_descriptions_public = [
         unit_fn=lambda metric: UnitOfTemperature.CELSIUS if metric else UnitOfTemperature.FAHRENHEIT,
         value_fn=lambda data, _: _safe_float(data),
     ),
+    # --- Tomorrow's forecast (injected from 7-day data) ---
+    WeatherSensorEntityDescription(
+        key="tomorrow_condition",
+        name="Tomorrow — Condition",
+        icon="mdi:weather-partly-cloudy",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="tomorrow_temp_high",
+        name="Tomorrow — High Temperature",
+        icon=ICON_THERMOMETER,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        unit_fn=lambda metric: UnitOfTemperature.CELSIUS if metric else UnitOfTemperature.FAHRENHEIT,
+        value_fn=lambda data, _: _safe_float(data),
+    ),
+    WeatherSensorEntityDescription(
+        key="tomorrow_temp_low",
+        name="Tomorrow — Low Temperature",
+        icon=ICON_THERMOMETER,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        unit_fn=lambda metric: UnitOfTemperature.CELSIUS if metric else UnitOfTemperature.FAHRENHEIT,
+        value_fn=lambda data, _: _safe_float(data),
+    ),
+    WeatherSensorEntityDescription(
+        key="tomorrow_description",
+        name="Tomorrow — Description",
+        icon="mdi:note-text",
+        value_fn=lambda data, _: (
+            f"{data[:252]}..." if isinstance(data, str) and len(data) > 255 else (data if data else None)
+        ),
+    ),
     # --- Sub-day condition breakdown (from twoDayForecast module) ---
     WeatherSensorEntityDescription(
         key="breakdown_morning",

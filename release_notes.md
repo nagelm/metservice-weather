@@ -57,6 +57,18 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
+## v1.0.1
+
+### Feature additions
+
+- **Tomorrow's forecast** — four new sensors (public API): `Tomorrow — Condition`, `Tomorrow — High Temperature`, `Tomorrow — Low Temperature`, `Tomorrow — Description`; data is extracted from the 7-day forecast at update time and injected into the coordinator so the existing sensor infrastructure can access it cleanly
+
+### Bug fixes / quality
+
+- **Auto-disable tide and boating sensors** — tide sensors (`Next High Tide`, `Next Low Tide`) and boating sensors (`Boating Conditions`, `Boating Forecast`) are now excluded from entity registration entirely when no tide/boating location is configured; previously they were always registered and showed as `unavailable`, cluttering the entity list
+
+---
+
 ## v1.0.0 — New sensors
 
 ### Feature additions
