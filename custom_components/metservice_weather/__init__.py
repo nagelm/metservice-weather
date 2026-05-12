@@ -24,62 +24,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     api = entry.data["api"]
     hass.data.setdefault(DOMAIN, {})
 
-    unit_system_api = API_URL_METRIC
-    unit_system = API_METRIC
-
     if api == "public":
-
-        config = WeatherUpdateCoordinatorConfig(
-            location=entry.data[CONF_LOCATION],
-            location_name=entry.data[CONF_NAME],
-            api_type=entry.data["api"],
-            latitude = entry.data.get(CONF_LATITUDE, hass.config.latitude),
-            longitude = entry.data.get(CONF_LONGITUDE, hass.config.longitude),
-            enable_tides = entry.data.get("enable_tides", False),
-            tide_url = entry.data.get("tide_url", ""),
-            unit_system_api=unit_system_api,
-            unit_system=unit_system,
-            api_url=PUBLIC_URL,
-            warnings_url=PUBLIC_WARNINGS_URL,
-            api_key='1',
-        )
-
-        weathercoordinator = WeatherUpdateCoordinator(hass, config)
-        await weathercoordinator.async_config_entry_first_refresh()
-
-        entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-        hass.data[DOMAIN][entry.entry_id] = weathercoordinator
-
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-        return True
-    else: # mobile api
+        api_url = PUBLIC_URL
+        warnings_url = PUBLIC_WARNINGS_URL
+        api_key = ""
+        location = entry.data[CONF_LOCATION]
+    else:
+        api_url = MOBILE_URL
+        warnings_url = MOBILE_WARNINGS_URL
         api_key = entry.data[CONF_API_KEY]
+        location = entry.data[CONF_NAME]
 
-        config = WeatherUpdateCoordinatorConfig(
-            location=entry.data[CONF_NAME],
-            location_name=entry.data[CONF_NAME],
-            api_type=entry.data["api"],
-            latitude = entry.data.get(CONF_LATITUDE, hass.config.latitude),
-            longitude = entry.data.get(CONF_LONGITUDE, hass.config.longitude),
-            enable_tides = entry.data.get("enable_tides", False),
-            tide_url = entry.data.get("tide_url", ""),
-            unit_system_api=unit_system_api,
-            unit_system=unit_system,
-            api_url=MOBILE_URL,
-            warnings_url=MOBILE_WARNINGS_URL,
-            api_key=api_key,
-        )
+    config = WeatherUpdateCoordinatorConfig(
+        location=location,
+        location_name=entry.data[CONF_NAME],
+        api_type=api,
+        latitude=entry.data.get(CONF_LATITUDE, hass.config.latitude),
+        longitude=entry.data.get(CONF_LONGITUDE, hass.config.longitude),
+        enable_tides=entry.data.get("enable_tides", False),
+        tide_url=entry.data.get("tide_url", ""),
+        unit_system_api=API_URL_METRIC,
+        unit_system=API_METRIC,
+        api_url=api_url,
+        warnings_url=warnings_url,
+        api_key=api_key,
+    )
 
-        weathercoordinator = WeatherUpdateCoordinator(hass, config)
-        await weathercoordinator.async_config_entry_first_refresh()
+    weathercoordinator = WeatherUpdateCoordinator(hass, config)
+    await weathercoordinator.async_config_entry_first_refresh()
 
-        entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-        hass.data[DOMAIN][entry.entry_id] = weathercoordinator
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    hass.data[DOMAIN][entry.entry_id] = weathercoordinator
 
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-        return True
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

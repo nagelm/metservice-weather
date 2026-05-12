@@ -17,12 +17,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.const import (
-    PERCENTAGE,
     UnitOfPressure,
     UnitOfTemperature,
     UnitOfLength,
     UnitOfSpeed,
-    UnitOfVolumetricFlux,
 )
 
 from .const import (
@@ -30,6 +28,10 @@ from .const import (
     SENSOR_MAP_PUBLIC,
     RESULTS_CURRENT,
     RESULTS_FORECAST_DAILY,
+    TEMPUNIT,
+    LENGTHUNIT,
+    SPEEDUNIT,
+    PRESSUREUNIT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -79,15 +81,12 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         self.unit_system = config.unit_system
         self.data = None
         self._session = async_get_clientsession(self._hass)
-        self.units_of_measurement = (
-            UnitOfTemperature.CELSIUS,
-            UnitOfLength.MILLIMETERS,
-            UnitOfLength.METERS,
-            UnitOfSpeed.KILOMETERS_PER_HOUR,
-            UnitOfPressure.MBAR,
-            UnitOfVolumetricFlux.MILLIMETERS_PER_HOUR,
-            PERCENTAGE,
-        )
+        self.units_of_measurement = {
+            TEMPUNIT: UnitOfTemperature.CELSIUS,
+            LENGTHUNIT: UnitOfLength.MILLIMETERS,
+            SPEEDUNIT: UnitOfSpeed.KILOMETERS_PER_HOUR,
+            PRESSUREUNIT: UnitOfPressure.MBAR,
+        }
 
         super().__init__(
             hass,
@@ -167,8 +166,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 if result_daily is None:
                     raise ValueError("No daily forecast data received.")
                 self._check_errors(url, result_daily)
-                await self.expand_data_urls(result_current)
-                await self.expand_data_urls(result_daily)
+            # Expand nested dataUrl references outside the main timeout so each
+            # sub-request can use its own independent timeout.
+            await self.expand_data_urls(result_current)
+            await self.expand_data_urls(result_daily)
             result_current['weather_warnings'] = warnings_text
             if self._enable_tides:
                 result_tides = await self.get_tides()
@@ -209,11 +210,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 if result_warnings is None:
                     raise ValueError("No warnings data received.")
                 self._check_errors(url, result_warnings)
-                await self.expand_data_urls(result_warnings)
-                warnings_text = '\n'.join([
-                    f"{warning['name']}, {warning['text']}, {warning['threatPeriod']}"
-                    for warning in result_warnings.get('warnings', [])
-                ])
+            await self.expand_data_urls(result_warnings)
+            warnings_text = '\n'.join([
+                f"{warning['name']}, {warning['text']}, {warning['threatPeriod']}"
+                for warning in result_warnings.get('warnings', [])
+            ])
             async with async_timeout.timeout(10):
                 url = f"{self._api_url}{self.location}/7-days"
                 response = await self._session.get(url, headers=headers)
@@ -221,7 +222,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 if result_daily is None:
                     raise ValueError("No daily forecast data received.")
                 self._check_errors(url, result_daily)
-                await self.expand_data_urls(result_daily)
+            await self.expand_data_urls(result_daily)
             result_current['weather_warnings'] = warnings_text
             result_current['pollen'] = await self.get_pollen_data()
             if self._enable_tides:
@@ -397,7 +398,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
     def get_forecast_daily_mobile(self, field, day):
         """Get a specific key from the MetService returned data."""
         try:
-            all_days = self.data["current"]["result"]["forecastData"]["days"]
+            all_days = self.data[RESULTS_CURRENT]["result"]["forecastData"]["days"]
             if field == "":  # send a blank to get the number of days
                 return len(all_days)
             this_day = all_days[day]
@@ -414,42 +415,36 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         return datetime.fromisoformat(timestamp_val).astimezone(dt_util.get_time_zone("UTC")).isoformat()
 
 
-    async def expand_data_urls(self, data, parent=None, key=None):
+    async def expand_data_urls(self, data, parent=None, key=None, _depth=0):
         """Recursively expand dataUrl entries in the data, replacing the entire object."""
+        if _depth > 10:
+            _LOGGER.warning("expand_data_urls: max recursion depth reached, stopping")
+            return
         if isinstance(data, dict):
             if 'dataUrl' in data:
                 url = data['dataUrl']
-                if url.startswith('/'):
-                    full_url = f"{self._base_url}{url}"
-                else:
-                    full_url = url
+                full_url = f"{self._base_url}{url}" if url.startswith('/') else url
                 try:
                     async with async_timeout.timeout(10):
-                        response = await self._session.get(full_url)
+                        response = await self._session.get(full_url, headers=self._PUBLIC_HEADERS)
                         if response.status != 200:
                             _LOGGER.error("Error fetching %s: HTTP %s", full_url, response.status)
                             if parent is not None and key is not None:
-                                parent[key] = None  # Handle as needed
+                                parent[key] = None
                             return
                         result = await response.json(content_type=None)
-                    # Replace the entire object containing 'dataUrl' with the fetched data
                     if parent is not None and key is not None:
                         parent[key] = result
-                    # Continue processing in case there are nested dataUrls
-                    await self.expand_data_urls(result, parent=parent, key=key)
+                    # Continue in case there are nested dataUrls
+                    await self.expand_data_urls(result, parent=parent, key=key, _depth=_depth + 1)
                 except Exception as e:
                     _LOGGER.error("Error fetching dataUrl %s: %s", full_url, e)
                     if parent is not None and key is not None:
-                        parent[key] = None  # Handle as needed
+                        parent[key] = None
             else:
-                # Recursively process the rest of the dictionary
                 for k in list(data.keys()):
-                    await self.expand_data_urls(data[k], parent=data, key=k)
+                    await self.expand_data_urls(data[k], parent=data, key=k, _depth=_depth + 1)
         elif isinstance(data, list):
-            # Recursively process each item in the list
             for idx, item in enumerate(data):
-                await self.expand_data_urls(item, parent=data, key=idx)
-        else:
-            # Not a dict or list, do nothing
-            pass
+                await self.expand_data_urls(item, parent=data, key=idx, _depth=_depth + 1)
 
