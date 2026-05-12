@@ -64,3 +64,4 @@ All upstream changes through the point of forking are included, covering the ful
 - Remove all commented-out sensor descriptions
 - Fix all f-string logger calls to use `%s` formatting (avoids string evaluation when the log level would filter the message)
 - Clean up stale debug log comments and unreachable code throughout
+

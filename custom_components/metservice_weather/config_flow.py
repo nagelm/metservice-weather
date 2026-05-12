@@ -221,8 +221,16 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     @callback
     def _async_generate_select_schema_location(self, options: list[dict], field_name: str) -> vol.Schema:
-        """Generate a schema with a dynamic SelectSelector based on options provided."""
-        self.locations_map = {str(index): opt["label"] for index, opt in enumerate(options)}
+        """Generate a schema with a dynamic SelectSelector based on options provided.
+
+        Each marker's label is a nested object {"text": "..."}, not a plain string.
+        The display name is extracted from label.text so the SelectSelector receives
+        plain strings as option values.
+        """
+        self.locations_map = {
+            str(index): opt["label"]["text"]
+            for index, opt in enumerate(options)
+        }
         select_opts = [
             {"value": label, "label": label}
             for label in self.locations_map.values()
@@ -232,12 +240,20 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(field_name): SelectSelector(SelectSelectorConfig(options=select_opts)),
             }
         )
+
     def get_tide_location_url_from_label(self, label):
-        """Get the URL for the selected tide location."""
+        """Get the tides page URL for the selected tide location.
+
+        Each marker's action is a nested object whose URL is at
+        action.modules[0].link.url, not a plain string.
+        """
         for index, location_label in self.locations_map.items():
             if location_label == label:
-                # Assuming `self.locations` is the original list of dicts from which `locations_map` was made:
-                return self.locations[int(index)]['action']
+                try:
+                    return self.locations[int(index)]["action"]["modules"][0]["link"]["url"]
+                except (KeyError, IndexError, TypeError):
+                    _LOGGER.error("Could not extract URL from tide location marker at index %s", index)
+                    return None
         return None
 
     async def async_step_tide_region(self, user_input=None):
