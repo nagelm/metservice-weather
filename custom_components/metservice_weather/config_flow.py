@@ -244,16 +244,33 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     def get_tide_location_url_from_label(self, label):
         """Get the tides page URL for the selected tide location.
 
-        Each marker's action is a nested object whose URL is at
-        action.modules[0].link.url, not a plain string.
+        Attempts three strategies in order:
+        1. action.modules[0].link.url  (nested object when data is fully resolved)
+        2. action as a plain string    (some marker variants store a URL directly)
+        3. Construct from label slug + region URL (reliable fallback; the MetService
+           URL slug matches label.lower().replace(' ', '-') for all known stations)
         """
         for index, location_label in self.locations_map.items():
             if location_label == label:
+                marker = self.locations[int(index)]
+                # Strategy 1: nested action object
                 try:
-                    return self.locations[int(index)]["action"]["modules"][0]["link"]["url"]
+                    return marker["action"]["modules"][0]["link"]["url"]
                 except (KeyError, IndexError, TypeError):
-                    _LOGGER.error("Could not extract URL from tide location marker at index %s", index)
-                    return None
+                    pass
+                # Strategy 2: action is a plain URL string
+                action = marker.get("action")
+                if isinstance(action, str) and action.startswith("/"):
+                    return action
+                # Strategy 3: construct from label + region
+                region = self.user_info.get(CONF_TIDE_REGION_URL, "")
+                slug = label.lower().replace(" ", "-")
+                constructed = f"/{region}/tides/locations/{slug}"
+                _LOGGER.warning(
+                    "Could not extract tide URL from marker; using constructed fallback: %s",
+                    constructed,
+                )
+                return constructed
         return None
 
     async def async_step_tide_region(self, user_input=None):
