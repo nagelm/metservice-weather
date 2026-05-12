@@ -57,6 +57,14 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
+### Config flow improvements (v0.9.9)
+
+- **Renamed `api_key` → `mobile_api_key`** — the stored config entry key for the mobile API key is now `mobile_api_key`; backward compatibility retained (old entries with `api_key` continue to work)
+- **Renamed `boating_region_url` → `boating_region`** — internal field name cleaned up; backward compatibility retained via fallback read
+- **Name field moved to top of setup screen** — integration name is now the first field, matching the natural top-to-bottom reading order
+- **`use_mobile` label made more descriptive** — now reads "Override public web data with mobile API (default: false)" to make the default and intent explicit
+- **README rewritten** — full documentation of every configuration option, sensors table, reconfigure instructions, and a clear explanation of when (and when not) to use the mobile API override
+
 ### Config flow improvements (v0.9.8)
 
 - **Single setup screen** — the entire configuration now fits in at most two screens: one main screen (location, name, tide region, boating region, optional mobile API toggle + key) and one optional marine locations screen (only shown if a tide or boating region was selected); previous versions required up to six separate screens

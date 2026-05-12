@@ -6,7 +6,7 @@ from http import HTTPStatus
 import async_timeout
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.const import CONF_LOCATION, CONF_NAME, CONF_API_KEY
+from homeassistant.const import CONF_LOCATION, CONF_NAME
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -23,9 +23,10 @@ from .const import (
 CONF_TIDE_REGION_URL = "tide_region_url"
 CONF_TIDE_REGION = "tide_region"
 CONF_TIDE_URL = "tide_url"
-CONF_BOATING_REGION_URL = "boating_region_url"
+CONF_BOATING_REGION = "boating_region"
 CONF_BOATING_URL = "boating_url"
 CONF_USE_MOBILE = "use_mobile"
+CONF_MOBILE_API_KEY = "mobile_api_key"
 CONF_API = "api"
 
 _SKIP = "skip"
@@ -110,12 +111,12 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         errors = {}
         use_mobile = user_input.get(CONF_USE_MOBILE, False)
-        api_key = user_input.get(CONF_API_KEY, "").strip()
+        api_key = user_input.get(CONF_MOBILE_API_KEY, "").strip()
 
         # Validate mobile API key when mobile is selected.
         if use_mobile:
             if not api_key:
-                errors[CONF_API_KEY] = "api_key_required"
+                errors[CONF_MOBILE_API_KEY] = "api_key_required"
             else:
                 try:
                     session = async_create_clientsession(self.hass)
@@ -125,7 +126,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             headers={**_MOBILE_HEADERS, "apiKey": api_key},
                         )
                     if response.status != HTTPStatus.OK:
-                        errors[CONF_API_KEY] = "invalid_api_key"
+                        errors[CONF_MOBILE_API_KEY] = "invalid_api_key"
                 except Exception:
                     errors["base"] = "cannot_connect"
 
@@ -141,13 +142,13 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self.user_info[CONF_NAME] = user_input[CONF_NAME]
         self.user_info[CONF_API] = "mobile" if use_mobile else "public"
         if use_mobile:
-            self.user_info[CONF_API_KEY] = api_key
+            self.user_info[CONF_MOBILE_API_KEY] = api_key
         else:
-            self.user_info.pop(CONF_API_KEY, None)
+            self.user_info.pop(CONF_MOBILE_API_KEY, None)
 
         # Resolve marine region selections.
         tide_label = user_input.get(CONF_TIDE_REGION, _SKIP)
-        boating_label = user_input.get(CONF_BOATING_REGION_URL, _SKIP)
+        boating_label = user_input.get(CONF_BOATING_REGION, _SKIP)
 
         if tide_label == _SKIP:
             self.user_info[CONF_TIDE_URL] = ""
@@ -162,12 +163,12 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         if boating_label == _SKIP:
             self.user_info[CONF_BOATING_URL] = ""
-            self.user_info.pop(CONF_BOATING_REGION_URL, None)
+            self.user_info.pop(CONF_BOATING_REGION, None)
         else:
             region = next(
                 (r for r in self.regions if r["heading"]["label"] == boating_label), None
             )
-            self.user_info[CONF_BOATING_REGION_URL] = (
+            self.user_info[CONF_BOATING_REGION] = (
                 region["heading"]["url"].lstrip("/") if region else None
             )
 
@@ -201,7 +202,10 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         boating_default = _SKIP
         if submitted is None:
             current_tide_url = self.user_info.get(CONF_TIDE_REGION_URL, "")
-            current_boating_url = self.user_info.get(CONF_BOATING_REGION_URL, "")
+            # "boating_region_url" is the legacy key name used before v0.9.9
+            current_boating_url = self.user_info.get(
+                CONF_BOATING_REGION, self.user_info.get("boating_region_url", "")
+            )
             for r in self.regions:
                 url = r["heading"]["url"].lstrip("/")
                 label = r["heading"]["label"]
@@ -211,7 +215,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     boating_default = label
         else:
             tide_default = submitted.get(CONF_TIDE_REGION, _SKIP)
-            boating_default = submitted.get(CONF_BOATING_REGION_URL, _SKIP)
+            boating_default = submitted.get(CONF_BOATING_REGION, _SKIP)
 
         region_opts = [{"value": _SKIP, "label": "None — skip"}] + [
             {"value": r["heading"]["label"], "label": r["heading"]["label"]}
@@ -221,26 +225,27 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         return vol.Schema(
             {
                 vol.Required(
-                    CONF_LOCATION,
-                    default=values.get(CONF_LOCATION, DEFAULT_LOCATION),
-                ): SelectSelector(SelectSelectorConfig(options=LOCATIONS)),
-                vol.Required(
                     CONF_NAME,
                     default=values.get(CONF_NAME, self.hass.config.location_name),
                 ): str,
                 vol.Required(
+                    CONF_LOCATION,
+                    default=values.get(CONF_LOCATION, DEFAULT_LOCATION),
+                ): SelectSelector(SelectSelectorConfig(options=LOCATIONS)),
+                vol.Required(
                     CONF_TIDE_REGION, default=tide_default
                 ): SelectSelector(SelectSelectorConfig(options=region_opts)),
                 vol.Required(
-                    CONF_BOATING_REGION_URL, default=boating_default
+                    CONF_BOATING_REGION, default=boating_default
                 ): SelectSelector(SelectSelectorConfig(options=region_opts)),
                 vol.Optional(
                     CONF_USE_MOBILE,
                     default=values.get(CONF_API, "public") == "mobile",
                 ): BooleanSelector(),
+                # mobile_api_key falls back to legacy "api_key" key for old entries
                 vol.Optional(
-                    CONF_API_KEY,
-                    default=values.get(CONF_API_KEY, ""),
+                    CONF_MOBILE_API_KEY,
+                    default=values.get(CONF_MOBILE_API_KEY, values.get("api_key", "")),
                 ): str,
             }
         )
@@ -253,7 +258,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Fetch and display tide and/or boating location selectors."""
         if user_input is None:
             tide_region = self.user_info.get(CONF_TIDE_REGION_URL)
-            boating_region = self.user_info.get(CONF_BOATING_REGION_URL)
+            boating_region = self.user_info.get(CONF_BOATING_REGION)
 
             session = async_create_clientsession(self.hass)
 
@@ -293,7 +298,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if boating_region and not raw_boating:
                 _LOGGER.warning("No boating locations returned — skipping boating")
                 self.user_info[CONF_BOATING_URL] = ""
-                self.user_info.pop(CONF_BOATING_REGION_URL, None)
+                self.user_info.pop(CONF_BOATING_REGION, None)
 
             self._tide_locations = raw_tide
             self._boating_locations = raw_boating
@@ -445,7 +450,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             url = self._marker_url(marker)
             if url:
                 return url
-            region = self.user_info.get(CONF_BOATING_REGION_URL, "")
+            region = self.user_info.get(CONF_BOATING_REGION, "")
             slug = label.lower().replace(" ", "-")
             return f"/{region}/boating/locations/{slug}"
         return None
