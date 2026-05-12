@@ -254,22 +254,49 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                     result_current["tomorrow_description"] = tf.get("statement")
             except Exception as _e:
                 _LOGGER.debug("Could not extract tomorrow forecast: %s", _e)
-            # Inject drying index fields parsed by text prefix rather than
-            # array position.  MetService omits the "Afternoon:" line when
-            # conditions are poor and replaces it with "Next good day: <day>",
-            # so position-based indexing produces wrong labels.
-            # Public API: dryingIndex.dryingState is a list of {"text": "..."}.
+            # Inject drying index fields by text prefix, then normalise so
+            # that all three sensors always carry a useful value:
+            #
+            # MetService has three real-world patterns:
+            #   Good day:    ["Morning: X hrs",  "Afternoon: Y hrs"]
+            #   Mixed day:   ["Morning: X hrs",  "Afternoon: Wet"]
+            #   Wet all day: ["Wet all day",      "Next good day: <day>"]
+            #
+            # After parsing:
+            #   drying_morning    — hours, "Wet", or "Wet all day"
+            #   drying_afternoon  — hours, "Wet", or "Wet all day" (copied from
+            #                       morning when MetService omits the afternoon entry)
+            #   drying_next_good_day — "Today" when either period is usable,
+            #                          day name ("Thursday") on a complete washout
             try:
                 drying_states = self.get_from_dict(result_current, ["dryingIndex", "dryingState"])
                 if isinstance(drying_states, list):
-                    for state in drying_states:
-                        text = state.get("text", "") if isinstance(state, dict) else ""
+                    drying_morning = None
+                    drying_afternoon = None
+                    drying_next_good_day = None
+                    for entry in drying_states:
+                        text = entry.get("text", "") if isinstance(entry, dict) else ""
                         if text.startswith("Morning:"):
-                            result_current["drying_morning"] = text.removeprefix("Morning:").strip()
+                            drying_morning = text.removeprefix("Morning:").strip()
                         elif text.startswith("Afternoon:"):
-                            result_current["drying_afternoon"] = text.removeprefix("Afternoon:").strip()
+                            drying_afternoon = text.removeprefix("Afternoon:").strip()
                         elif text.lower().startswith("next good day"):
-                            result_current["drying_next_good_day"] = text.split(":", 1)[-1].strip() if ":" in text else text
+                            drying_next_good_day = text.split(":", 1)[-1].strip() if ":" in text else text
+                        elif text:
+                            # No recognised prefix — MetService uses bare "Wet all day"
+                            # for the morning slot on a complete washout.
+                            drying_morning = text
+                    # When MetService omits the afternoon (wet-all-day case),
+                    # mirror the morning value so the sensor is never empty.
+                    if drying_afternoon is None and drying_morning is not None:
+                        drying_afternoon = drying_morning
+                    # When there is no "next good day" entry, today itself is
+                    # a usable drying day.
+                    if drying_next_good_day is None:
+                        drying_next_good_day = "Today"
+                    result_current["drying_morning"] = drying_morning
+                    result_current["drying_afternoon"] = drying_afternoon
+                    result_current["drying_next_good_day"] = drying_next_good_day
             except Exception as _e:
                 _LOGGER.debug("Could not extract drying index states: %s", _e)
             if self._tide_url:

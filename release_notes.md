@@ -57,6 +57,12 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
+## v0.9.14
+
+- **Normalise drying index sensors so all three always carry a value** — surveyed all MetService location patterns and found three distinct real-world states: good day (morning and afternoon both have hours), mixed day (morning has hours, afternoon shows "Wet"), and wet all day (morning shows bare "Wet all day" with no prefix, afternoon entry is replaced by "Next good day: Thursday"). The coordinator now handles all three: `Clothes Drying Time - Afternoon` mirrors morning's "Wet all day" on a complete washout instead of going unavailable; `Clothes Drying - Next Good Day` shows "Today" whenever either morning or afternoon is usable, and a day name only on a full washout.
+
+---
+
 ## v0.9.13
 
 - **Fix drying index sensor labels when conditions are poor** — MetService omits the "Afternoon:" line and substitutes "Next good day: Thursday" when drying conditions are bad all day. The coordinator now parses drying state entries by their text prefix rather than array position, so `Clothes Drying Time - Morning` and `Clothes Drying Time - Afternoon` always show the correct data.
