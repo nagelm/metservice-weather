@@ -43,6 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         longitude=entry.data.get(CONF_LONGITUDE, hass.config.longitude),
         tide_url=entry.data.get("tide_url", ""),
         boating_url=entry.data.get("boating_url", ""),
+        surf_url=entry.data.get("surf_url", ""),
         unit_system_api=API_URL_METRIC,
         unit_system=API_METRIC,
         api_url=api_url,

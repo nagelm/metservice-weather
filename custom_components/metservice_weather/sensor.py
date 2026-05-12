@@ -60,6 +60,15 @@ async def async_setup_entry(
     if not coordinator.enable_boating:
         descriptions = [d for d in descriptions if d.key not in ("boating_status", "boating_forecast")]
 
+    # Skip surf sensors when no surf location is configured
+    _SURF_KEYS = {
+        "surf_conditions", "surf_rating", "surf_wave_height", "surf_set_face",
+        "surf_swell_direction", "surf_swell_height", "surf_wind_direction",
+        "surf_wind_speed", "surf_wind_gust", "surf_period",
+    }
+    if not coordinator.enable_surf:
+        descriptions = [d for d in descriptions if d.key not in _SURF_KEYS]
+
     sensors = [WeatherSensor(coordinator, description) for description in descriptions]
     async_add_entities(sensors)
 
