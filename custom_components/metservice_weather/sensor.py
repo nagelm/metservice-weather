@@ -108,7 +108,7 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> StateType:
         """Return the state."""
-        if not self._sensor_data:
+        if self._sensor_data is None:
             _LOGGER.debug("Sensor '%s' has no data.", self.name)
             return None
         try:
@@ -120,7 +120,7 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes."""
-        if not self._sensor_data:
+        if self._sensor_data is None:
             return {}
         try:
             return self.entity_description.attr_fn(self._sensor_data)
