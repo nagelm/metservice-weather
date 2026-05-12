@@ -282,20 +282,6 @@ current_condition_sensor_descriptions_public = [
         value_fn=lambda data, _: cast(str, data) if data else None,
     ),
     WeatherSensorEntityDescription(
-        key="clothing_layers",
-        name="Clothing Layers",
-        icon="mdi:layers",
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data, _: _safe_int(data),
-    ),
-    WeatherSensorEntityDescription(
-        key="clothing_windproof",
-        name="Clothing — Windproof Layers",
-        icon="mdi:weather-windy",
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data, _: _safe_int(data),
-    ),
-    WeatherSensorEntityDescription(
         key="temperature_today_high",
         name="Today's High Temperature",
         icon=ICON_THERMOMETER,
