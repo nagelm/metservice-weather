@@ -103,6 +103,24 @@ SENSOR_MAP_PUBLIC: Final[dict[str, str]] = {
     "weather_warnings": "weather_warnings",
     "fire_season": "fireWeatherData.fireWeather.season.short",
     "fire_danger": "fireWeatherData.fireWeather.danger.forecast",
+    # Wind and clothing — already fetched from currentConditions module, just unmapped
+    "wind_strength": "observations.wind.0.strength",
+    "clothing_layers": "observations.clothing.0.layers",
+    "clothing_windproof": "observations.clothing.0.windproofLayers",
+    "temperature_today_high": "observations.temperature.0.high",
+    "temperature_today_low": "observations.temperature.0.low",
+    # Sub-day condition breakdown — from twoDayForecast module (fetched as dataUrl in main page)
+    "breakdown_morning": "breakdown.morning.condition",
+    "breakdown_afternoon": "breakdown.afternoon.condition",
+    "breakdown_evening": "breakdown.evening.condition",
+    "breakdown_overnight": "breakdown.overnight.condition",
+    # Sun and moon — from sunAndMoon module (fetched as dataUrl in main page)
+    "sunrise": "riseSet.sunRise",
+    "sunset": "riseSet.sunSet",
+    "moonrise": "riseSet.moonRise",
+    "moonset": "riseSet.moonSet",
+    "moon_phase": "moonPhases.0.phase",
+    "moon_phase_date": "moonPhases.0.dateISO",
 }
 
 CONDITION_MAP: Final[dict[str, str]] = {

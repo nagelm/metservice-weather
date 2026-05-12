@@ -34,6 +34,14 @@ from homeassistant.const import (
 from homeassistant.helpers.typing import StateType
 
 
+_MOON_PHASE_NAMES: dict[str, str] = {
+    "NEW": "New Moon",
+    "FIRST": "First Quarter",
+    "FULL": "Full Moon",
+    "LAST": "Last Quarter",
+}
+
+
 def _safe_float(data) -> float | None:
     """Convert data to float, returning None for non-numeric values like 'n/a'."""
     if data is None:
@@ -265,6 +273,109 @@ current_condition_sensor_descriptions_public = [
         value_fn=lambda data, _: (
             f"{data[:252]}..." if isinstance(data, str) and len(data) > 255 else (data if data else None)
         ),
+    ),
+    # --- Wind and clothing (from currentConditions module) ---
+    WeatherSensorEntityDescription(
+        key="wind_strength",
+        name="Wind Strength",
+        icon=ICON_WIND,
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="clothing_layers",
+        name="Clothing Layers",
+        icon="mdi:layers",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data, _: _safe_int(data),
+    ),
+    WeatherSensorEntityDescription(
+        key="clothing_windproof",
+        name="Clothing — Windproof Layers",
+        icon="mdi:weather-windy",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data, _: _safe_int(data),
+    ),
+    WeatherSensorEntityDescription(
+        key="temperature_today_high",
+        name="Today's High Temperature",
+        icon=ICON_THERMOMETER,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        unit_fn=lambda metric: UnitOfTemperature.CELSIUS if metric else UnitOfTemperature.FAHRENHEIT,
+        value_fn=lambda data, _: _safe_float(data),
+    ),
+    WeatherSensorEntityDescription(
+        key="temperature_today_low",
+        name="Today's Low Temperature",
+        icon=ICON_THERMOMETER,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        unit_fn=lambda metric: UnitOfTemperature.CELSIUS if metric else UnitOfTemperature.FAHRENHEIT,
+        value_fn=lambda data, _: _safe_float(data),
+    ),
+    # --- Sub-day condition breakdown (from twoDayForecast module) ---
+    WeatherSensorEntityDescription(
+        key="breakdown_morning",
+        name="Today — Morning Condition",
+        icon="mdi:weather-partly-cloudy",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="breakdown_afternoon",
+        name="Today — Afternoon Condition",
+        icon="mdi:weather-sunny",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="breakdown_evening",
+        name="Today — Evening Condition",
+        icon="mdi:weather-sunset",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="breakdown_overnight",
+        name="Today — Overnight Condition",
+        icon="mdi:weather-night",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    # --- Sun and moon (from sunAndMoon module) ---
+    WeatherSensorEntityDescription(
+        key="sunrise",
+        name="Sunrise",
+        icon="mdi:weather-sunset-up",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="sunset",
+        name="Sunset",
+        icon="mdi:weather-sunset-down",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="moonrise",
+        name="Moonrise",
+        icon="mdi:weather-night",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="moonset",
+        name="Moonset",
+        icon="mdi:weather-night",
+        value_fn=lambda data, _: cast(str, data) if data else None,
+    ),
+    WeatherSensorEntityDescription(
+        key="moon_phase",
+        name="Moon Phase",
+        icon="mdi:moon-new",
+        value_fn=lambda data, _: _MOON_PHASE_NAMES.get(cast(str, data), cast(str, data)) if data else None,
+        attr_fn=lambda data: {"raw_phase": data} if data else {},
+    ),
+    WeatherSensorEntityDescription(
+        key="moon_phase_date",
+        name="Next Moon Phase Date",
+        icon="mdi:calendar-month",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda data, _: datetime.datetime.fromisoformat(data) if isinstance(data, str) else None,
     ),
 ]
 

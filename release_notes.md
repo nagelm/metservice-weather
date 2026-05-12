@@ -57,6 +57,28 @@ All upstream changes through the point of forking are included, covering the ful
 - Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
 - Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
+## v1.0.0 — New sensors
+
+### Feature additions
+
+- **Wind Strength** — new `Wind Strength` sensor (public API) exposing MetService's Beaufort-scale text description ("Light winds", "Fresh", "Near gale", etc.) from the current conditions module; was fetched but never surfaced
+
+- **Clothing Layers / Windproof Layers** — two new sensors (public API) exposing MetService's clothing recommendation from the current conditions module: number of layers to wear today and whether windproof layers are needed
+
+- **Today's High / Low Temperature** — two new sensors (public API) exposing the observed or forecast high and low temperature for the current day from the current conditions module
+
+- **Sub-day condition breakdown** — four new sensors (public API) from the two-day forecast module: `Today — Morning Condition`, `Today — Afternoon Condition`, `Today — Evening Condition`, `Today — Overnight Condition`; useful for "will it rain this afternoon?" without parsing the hourly forecast
+
+- **Sunrise / Sunset** — two new sensors (public API) from the sun-and-moon module giving today's sunrise and sunset times as local time strings (e.g. "7:06am", "5:11pm")
+
+- **Moonrise / Moonset** — two new sensors (public API) from the sun-and-moon module giving today's moonrise and moonset times
+
+- **Moon Phase / Next Moon Phase Date** — two new sensors (public API) from the sun-and-moon module: the name of the next upcoming moon phase ("New Moon", "First Quarter", "Full Moon", "Last Quarter") and its date as a proper HA timestamp; useful in automations
+
+All new sensors use data already fetched and expanded by the coordinator's existing `expand_data_urls` pass — no additional network requests.
+
+---
+
 ### Config flow improvements (v0.9.9)
 
 - **Renamed `api_key` → `mobile_api_key`** — the stored config entry key for the mobile API key is now `mobile_api_key`; backward compatibility retained (old entries with `api_key` continue to work)
