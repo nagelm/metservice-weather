@@ -1,49 +1,46 @@
 {
   "config": {
     "step": {
-      "user": {
+      "setup": {
+        "title": "MetService Weather",
+        "description": "Configure your MetService NZ weather integration.",
         "data": {
-          "api": "Choose from Mobile (uses GPS location) or Public (choose a city).",
-          "enable_tides": "Enable tide information (You'll need to choose your marine forecast region)."
+          "location": "Weather location",
+          "name": "Integration name",
+          "tide_region": "Tide information region",
+          "boating_region_url": "Boating conditions region",
+          "use_mobile": "Use legacy mobile API",
+          "api_key": "Mobile API key"
         },
         "data_description": {
-          "api": "Mobile requires API key. See https://github.com/ciejer/metservice-weather/issues/12 for details"
-        },
-        "description": "Set up MetService integration."
+          "tide_region": "Select a marine region to get local tide times. Choose \"None — skip\" if you don't need tides.",
+          "boating_region_url": "Select a marine region to get boating and surf conditions. Choose \"None — skip\" if you don't need this.",
+          "use_mobile": "Only useful if your location is not in the list above, or if you want weather data to follow your current GPS position rather than a fixed location. Requires a private API key extracted from the MetService mobile app — see the repository README for instructions.",
+          "api_key": "Required only when the legacy mobile API option above is enabled."
+        }
       },
-      "public": {
+      "locations": {
+        "title": "Marine locations",
+        "description": "Choose the specific station for each marine feature you enabled.",
         "data": {
-          "location": "Choose your city",
-          "name": "Name of the integration"
-        },
-        "description": "Set up Public API for MetService integration."
-      },
-      "mobile": {
-        "data": {
-          "api_key": "Mobile requires API key.",
-          "name": "Name of the integration"
-        },
-        "data_description": {
-          "api_key": "See https://github.com/ciejer/metservice-weather/issues/12 for details"
-        },
-        "description": "Set up Mobile API for MetService integration."
-      },
-      "tide_region": {
-        "data": {
-          "tide_region": "Select your region"
-        },
-        "description": "Choose your region for tide information."
-      },
-      "tide_location": {
-        "data": {
-          "location": "Select the closest point to you for tide information."
-        },
-        "description": "Choose a location for local tides."
+          "tide_url": "Tide station",
+          "boating_url": "Boating location"
+        }
       }
     },
     "error": {
       "invalid_api_key": "[%key:common::config_flow::error::invalid_api_key%]",
-      "unknown_error": "Unknown Error"
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "unknown_error": "[%key:common::config_flow::error::unknown%]",
+      "api_key_required": "An API key is required when using the legacy mobile API.",
+      "tide_location_not_found": "Could not determine the URL for the selected tide station.",
+      "boating_location_not_found": "Could not determine the URL for the selected boating location."
+    },
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "tides_unavailable": "Could not reach the MetService marine service. Check your connection and try again.",
+      "boating_unavailable": "Could not reach the MetService marine service. Check your connection and try again.",
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]"
     }
   }
 }
