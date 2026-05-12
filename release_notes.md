@@ -51,6 +51,8 @@ All upstream changes through the point of forking are included, covering the ful
 - Add `None` guard to hourly forecast so missing data returns an empty list cleanly rather than crashing
 - Fix `expand_data_urls` recursion depth counter incorrectly incrementing on every dict/list traversal step rather than only on dataUrl expansion hops — caused hundreds of false-positive warnings per update cycle and log throttling in HA 2026.5
 - Fix weather warnings sensor showing `unknown` state instead of "No warnings" when no active warnings — empty `warnings_text` string was falsy and bypassed the sensor value function
+- Fix tide location config flow: `label` field in MetService marker objects is `{"text": "..."}` not a plain string — `SelectSelector` options were receiving dict objects causing 400 errors on every submission; extract `opt["label"]["text"]` for valid string values
+- Fix tide location URL extraction: MetService marker `action` data is lazy-loaded via `dataUrl` which the config flow never resolves, so `action.modules[0].link.url` always fails; replaced with a 3-strategy fallback (nested path → plain string action → construct from label slug + region URL); slug construction is reliable for all known MetService stations
 
 ### Code quality improvements
 
