@@ -18,6 +18,10 @@ from custom_components.metservice_weather.const import (
     RESULTS_CURRENT,
     RESULTS_FORECAST_DAILY,
 )
+from custom_components.metservice_weather.coordinator_types import (
+    DailyEntry,
+    MetServicePublicData,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures & helpers
@@ -216,11 +220,8 @@ async def test_get_public_weather_returns_data(hass):
     coord._session = mock_session
 
     result = await coord.get_public_weather()
-    assert RESULTS_CURRENT in result
-    assert RESULTS_FORECAST_DAILY in result
-    # Warnings injected at root
-    assert "weather_warnings" in result[RESULTS_CURRENT]
-    assert "Strong Wind" in result[RESULTS_CURRENT]["weather_warnings"]
+    assert isinstance(result, MetServicePublicData)
+    assert "Strong Wind" in result.weather_warnings
 
 
 async def test_get_public_weather_no_warnings(hass):
@@ -240,7 +241,7 @@ async def test_get_public_weather_no_warnings(hass):
     coord._session = mock_session
 
     result = await coord.get_public_weather()
-    assert result[RESULTS_CURRENT]["weather_warnings"] == "No warnings"
+    assert result.weather_warnings == "No warnings"
 
 
 async def test_get_public_weather_timeout_raises_update_failed(hass):
@@ -661,24 +662,21 @@ async def test_expand_data_urls_max_depth_guard(hass):
 
 async def test_get_current_public_known_field(hass):
     coord = _make_coordinator(hass)
-    coord.data = {
-        RESULTS_CURRENT: {"observations": {"temperature": [{"current": 18.5}]}},
-        RESULTS_FORECAST_DAILY: {},
-    }
+    coord.data = MetServicePublicData(temperature=18.5)
     result = coord.get_current_public("temperature")
     assert result == 18.5
 
 
 async def test_get_current_public_unknown_field_returns_none(hass):
     coord = _make_coordinator(hass)
-    coord.data = {RESULTS_CURRENT: {}, RESULTS_FORECAST_DAILY: {}}
+    coord.data = MetServicePublicData()
     result = coord.get_current_public("nonexistent_field_xyz")
     assert result is None
 
 
 async def test_get_current_public_missing_data_returns_none(hass):
     coord = _make_coordinator(hass)
-    coord.data = {RESULTS_CURRENT: {}, RESULTS_FORECAST_DAILY: {}}
+    coord.data = MetServicePublicData()
     result = coord.get_current_public("temperature")
     assert result is None
 
@@ -702,34 +700,24 @@ async def test_get_current_mobile_unknown_field_returns_none(hass):
 
 async def test_get_forecast_daily_public_day_count(hass):
     coord = _make_coordinator(hass)
-    coord.data = {
-        RESULTS_CURRENT: {},
-        RESULTS_FORECAST_DAILY: {
-            "layout": {"primary": {"slots": {"main": {"modules": [{"days": [
-                {"date": "2024-06-15", "condition": "fine", "forecasts": []},
-                {"date": "2024-06-16", "condition": "cloudy", "forecasts": []},
-            ]}]}}}}
-        },
-    }
+    coord.data = MetServicePublicData(daily_entries=[
+        DailyEntry(datetime="2024-06-15", condition="fine"),
+        DailyEntry(datetime="2024-06-16", condition="cloudy"),
+    ])
     assert coord.get_forecast_daily_public("", 0) == 2
 
 
 async def test_get_forecast_daily_public_field(hass):
     coord = _make_coordinator(hass)
-    coord.data = {
-        RESULTS_CURRENT: {},
-        RESULTS_FORECAST_DAILY: {
-            "layout": {"primary": {"slots": {"main": {"modules": [{"days": [
-                {"date": "2024-06-15", "condition": "fine", "forecasts": []}
-            ]}]}}}}
-        },
-    }
+    coord.data = MetServicePublicData(daily_entries=[
+        DailyEntry(datetime="2024-06-15", condition="fine"),
+    ])
     assert coord.get_forecast_daily_public("daily_condition", 0) == "fine"
 
 
 async def test_get_forecast_daily_public_error_returns_none(hass):
     coord = _make_coordinator(hass)
-    coord.data = {RESULTS_CURRENT: {}, RESULTS_FORECAST_DAILY: {}}
+    coord.data = MetServicePublicData()
     assert coord.get_forecast_daily_public("daily_condition", 0) is None
 
 
@@ -775,7 +763,7 @@ async def test_get_public_weather_injects_tides(hass):
     coord._session = mock_session
 
     result = await coord.get_public_weather()
-    assert result[RESULTS_CURRENT]["tideImport"] is not None
+    assert result.tides is not None
 
 
 async def test_get_public_weather_injects_boating(hass):
@@ -800,7 +788,7 @@ async def test_get_public_weather_injects_boating(hass):
     coord._session = mock_session
 
     result = await coord.get_public_weather()
-    assert "boating_data" in result[RESULTS_CURRENT]
+    assert result.boating_status is not None
 
 
 async def test_get_public_weather_injects_surf(hass):
@@ -824,7 +812,7 @@ async def test_get_public_weather_injects_surf(hass):
     coord._session = mock_session
 
     result = await coord.get_public_weather()
-    assert "surf_data" in result[RESULTS_CURRENT]
+    assert result.surf_conditions is not None
 
 
 async def test_get_public_weather_warnings_none_raises_update_failed(hass):
@@ -895,11 +883,10 @@ async def test_get_public_weather_tomorrow_injection(hass):
     coord._session = mock_session
 
     result = await coord.get_public_weather()
-    current = result[RESULTS_CURRENT]
-    assert current.get("tomorrow_condition") == "cloudy"
-    assert current.get("tomorrow_temp_high") == 17
-    assert current.get("tomorrow_temp_low") == 10
-    assert current.get("tomorrow_description") == "Tomorrow cloudy"
+    assert result.tomorrow_condition == "cloudy"
+    assert result.tomorrow_temp_high == 17
+    assert result.tomorrow_temp_low == 10
+    assert result.tomorrow_description == "Tomorrow cloudy"
 
 
 async def test_get_public_weather_drying_wet_all_day(hass):
@@ -937,10 +924,9 @@ async def test_get_public_weather_drying_wet_all_day(hass):
     with patch.object(coord, "get_from_dict", side_effect=patched_get_from_dict):
         result = await coord.get_public_weather()
 
-    current = result[RESULTS_CURRENT]
-    assert current.get("drying_morning") == "Wet all day"
-    assert current.get("drying_afternoon") == "Wet all day"   # mirrored from morning (line 302)
-    assert current.get("drying_next_good_day") == "Thursday"  # extracted from "Next good day: Thursday"
+    assert result.drying_morning == "Wet all day"
+    assert result.drying_afternoon == "Wet all day"   # mirrored from morning
+    assert result.drying_next_good_day == "Thursday"  # extracted from "Next good day: Thursday"
 
 
 async def test_get_public_weather_drying_exception_silenced(hass):
@@ -967,8 +953,8 @@ async def test_get_public_weather_drying_exception_silenced(hass):
     with patch.object(coord, "get_from_dict", side_effect=patched_get_from_dict):
         result = await coord.get_public_weather()
 
-    # Should succeed without raising; drying keys simply absent
-    assert RESULTS_CURRENT in result
+    # Should succeed without raising; drying fields simply None
+    assert isinstance(result, MetServicePublicData)
 
 
 # ---------------------------------------------------------------------------
@@ -1170,6 +1156,6 @@ async def test_get_public_weather_tomorrow_extraction_exception_silenced(hass):
     coord._session = mock_session
 
     result = await coord.get_public_weather()
-    # Should succeed; IndexError is caught and tomorrow keys not injected.
-    assert RESULTS_CURRENT in result
-    assert "tomorrow_condition" not in result[RESULTS_CURRENT]
+    # Should succeed; IndexError is caught and tomorrow fields remain None.
+    assert isinstance(result, MetServicePublicData)
+    assert result.tomorrow_condition is None

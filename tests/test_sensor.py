@@ -18,10 +18,7 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     current_condition_sensor_descriptions_public,
     current_condition_sensor_descriptions_mobile,
 )
-from custom_components.metservice_weather.const import (
-    RESULTS_CURRENT,
-    RESULTS_FORECAST_DAILY,
-)
+from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 
 
 # ---------------------------------------------------------------------------
@@ -45,7 +42,7 @@ def _make_coordinator(hass, api_type="public") -> WeatherUpdateCoordinator:
         surf_url="",
     )
     coord = WeatherUpdateCoordinator(hass, config)
-    coord.data = {RESULTS_CURRENT: {}, RESULTS_FORECAST_DAILY: {}}
+    coord.data = MetServicePublicData()
     return coord
 
 
@@ -196,7 +193,7 @@ async def test_sensor_extra_state_attributes_fn_error_returns_empty(hass):
 async def test_sensor_handle_coordinator_update_public(hass):
     coord = _make_coordinator(hass)
     sensor = _make_sensor(coord, value=10.0)
-    coord.data = {RESULTS_CURRENT: {"observations": {"temperature": [{"current": 22.5}]}}, RESULTS_FORECAST_DAILY: {}}
+    coord.data = MetServicePublicData(temperature=22.5)
     with patch.object(coord, "get_current_public", return_value=22.5), \
          patch.object(sensor, "async_write_ha_state"):
         sensor._handle_coordinator_update()

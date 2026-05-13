@@ -383,7 +383,7 @@ class MetServiceForecastPublic(MetServicePublic):
             this_hour = hourly_readings[hour]
 
             rainfall = safe_float(this_hour.get("rainfall"))
-            wind_speed = safe_float(this_hour["wind"].get("speed"))
+            wind_speed = safe_float(this_hour["wind"].get("averageSpeed"))
             wind_dir = this_hour["wind"].get("direction")
             is_daytime = 7 < datetime.fromisoformat(this_hour["date"]).hour < 19
 

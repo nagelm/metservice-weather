@@ -19,10 +19,7 @@ from pathlib import Path
 import pytest
 
 from custom_components.metservice_weather.coordinator import WeatherUpdateCoordinator
-from custom_components.metservice_weather.const import (
-    RESULTS_CURRENT,
-    RESULTS_FORECAST_DAILY,
-)
+from custom_components.metservice_weather.coordinator_types import normalize_public_data
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -32,14 +29,14 @@ def napier_data():
     """Load the Napier public fixtures once for the whole module."""
     current = json.loads((FIXTURES / "napier_public_current.json").read_text())
     daily = json.loads((FIXTURES / "napier_public_daily.json").read_text())
-    return {RESULTS_CURRENT: current, RESULTS_FORECAST_DAILY: daily}
+    return {"current": current, "daily": daily}
 
 
 @pytest.fixture
 def coord(napier_data):
-    """Return a coordinator with fixture data set, without touching HA framework."""
+    """Return a coordinator with normalised fixture data set, without touching HA framework."""
     c = object.__new__(WeatherUpdateCoordinator)
-    c.data = napier_data
+    c.data = normalize_public_data(napier_data["current"], napier_data["daily"])
     return c
 
 
@@ -236,14 +233,14 @@ class TestHourlyData:
         assert val >= 0
 
     def test_hourly_entry_has_required_keys(self, coord):
+        from custom_components.metservice_weather.coordinator_types import HourlyEntry
         readings = coord.get_current_public("hourly_temp")
         skip = coord.get_current_public("hourly_skip")
-        obs = coord.get_current_public("hourly_obs")
         # Sample the first visible hour
         entry = readings[skip]
-        assert "date" in entry
-        assert "wind" in entry
-        assert "temperature" in entry or "rainfall" in entry
+        assert isinstance(entry, HourlyEntry)
+        assert entry.datetime != ""
+        assert entry.temperature is not None or entry.rainfall is not None
 
 
 # ---------------------------------------------------------------------------
