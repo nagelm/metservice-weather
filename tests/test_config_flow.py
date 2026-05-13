@@ -1,8 +1,6 @@
 """Tests for the metservice_weather config flow."""
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -224,7 +222,7 @@ async def test_mobile_timeout(hass, mock_coordinator_refresh):
     marine_resp.status = 200
 
     session_mock = MagicMock()
-    session_mock.get = AsyncMock(side_effect=[marine_resp, asyncio.TimeoutError()])
+    session_mock.get = AsyncMock(side_effect=[marine_resp, TimeoutError()])
 
     with patch(
         "custom_components.metservice_weather.config_flow.async_create_clientsession",
@@ -357,3 +355,220 @@ async def test_reconfigure(hass, mock_marine_session):
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert existing_entry.data[CONF_NAME] == "Napier Updated"
+
+
+# ---------------------------------------------------------------------------
+# Test 10 — reauth: public API entry is not applicable
+# ---------------------------------------------------------------------------
+
+async def test_reauth_public_not_applicable(hass, mock_coordinator_refresh):
+    """Reauth on a public API entry aborts with not_applicable."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-/towns-cities/regions/hawkes-bay/locations/napier",
+        data={
+            CONF_NAME: "Napier",
+            CONF_LOCATION: "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "not_applicable"
+
+
+# ---------------------------------------------------------------------------
+# Test 11 — reauth: mobile API, empty key shows error
+# ---------------------------------------------------------------------------
+
+async def test_reauth_mobile_empty_key(hass, mock_coordinator_refresh):
+    """Reauth confirm with empty key shows api_key_required error."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-Mobile",
+        data={
+            CONF_NAME: "Mobile",
+            CONF_LOCATION: "/towns-cities/regions/auckland/locations/auckland",
+            "api": "mobile",
+            CONF_MOBILE_API_KEY: "oldkey",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_MOBILE_API_KEY: ""},
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {CONF_MOBILE_API_KEY: "api_key_required"}
+
+
+# ---------------------------------------------------------------------------
+# Test 12 — reauth: mobile API, invalid key (401)
+# ---------------------------------------------------------------------------
+
+async def test_reauth_mobile_invalid_key(hass, mock_coordinator_refresh):
+    """Reauth confirm with a rejected key shows invalid_api_key error."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-Mobile2",
+        data={
+            CONF_NAME: "Mobile2",
+            CONF_LOCATION: "/towns-cities/regions/auckland/locations/auckland",
+            "api": "mobile",
+            CONF_MOBILE_API_KEY: "oldkey",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    bad_key_resp = AsyncMock()
+    bad_key_resp.status = 401
+
+    session_mock = MagicMock()
+    session_mock.get = AsyncMock(return_value=bad_key_resp)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    assert result["type"] == FlowResultType.FORM
+
+    with patch(
+        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        return_value=session_mock,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_MOBILE_API_KEY: "badkey"},
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {CONF_MOBILE_API_KEY: "invalid_api_key"}
+
+
+# ---------------------------------------------------------------------------
+# Test 13 — reauth: mobile API, valid key accepted
+# ---------------------------------------------------------------------------
+
+async def test_reauth_mobile_valid_key(hass, mock_coordinator_refresh):
+    """Reauth confirm with a valid key updates the entry and reloads."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-Mobile3",
+        data={
+            CONF_NAME: "Mobile3",
+            CONF_LOCATION: "/towns-cities/regions/auckland/locations/auckland",
+            "api": "mobile",
+            CONF_MOBILE_API_KEY: "oldkey",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    ok_resp = AsyncMock()
+    ok_resp.status = 200
+
+    session_mock = MagicMock()
+    session_mock.get = AsyncMock(return_value=ok_resp)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    assert result["type"] == FlowResultType.FORM
+
+    with patch(
+        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        return_value=session_mock,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_MOBILE_API_KEY: "newvalidkey"},
+        )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_MOBILE_API_KEY] == "newvalidkey"
+
+
+# ---------------------------------------------------------------------------
+# Test 14 — reauth: network error during key validation
+# ---------------------------------------------------------------------------
+
+async def test_reauth_mobile_cannot_connect(hass, mock_coordinator_refresh):
+    """Reauth confirm with a network error shows cannot_connect error."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-Mobile4",
+        data={
+            CONF_NAME: "Mobile4",
+            CONF_LOCATION: "/towns-cities/regions/auckland/locations/auckland",
+            "api": "mobile",
+            CONF_MOBILE_API_KEY: "oldkey",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    session_mock = MagicMock()
+    session_mock.get = AsyncMock(side_effect=Exception("network error"))
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    assert result["type"] == FlowResultType.FORM
+
+    with patch(
+        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        return_value=session_mock,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_MOBILE_API_KEY: "somekey"},
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
