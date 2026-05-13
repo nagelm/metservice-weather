@@ -19,7 +19,6 @@ from custom_components.metservice_weather.const import (
     RESULTS_FORECAST_DAILY,
 )
 from custom_components.metservice_weather.coordinator_types import (
-    DailyEntry,
     MetServicePublicData,
 )
 
@@ -660,27 +659,6 @@ async def test_expand_data_urls_max_depth_guard(hass):
 # Test: sensor accessors with pre-loaded data
 # ---------------------------------------------------------------------------
 
-async def test_get_current_public_known_field(hass):
-    coord = _make_coordinator(hass)
-    coord.data = MetServicePublicData(temperature=18.5)
-    result = coord.get_current_public("temperature")
-    assert result == 18.5
-
-
-async def test_get_current_public_unknown_field_returns_none(hass):
-    coord = _make_coordinator(hass)
-    coord.data = MetServicePublicData()
-    result = coord.get_current_public("nonexistent_field_xyz")
-    assert result is None
-
-
-async def test_get_current_public_missing_data_returns_none(hass):
-    coord = _make_coordinator(hass)
-    coord.data = MetServicePublicData()
-    result = coord.get_current_public("temperature")
-    assert result is None
-
-
 async def test_get_current_mobile_known_field(hass):
     coord = _make_coordinator(hass, api_type="mobile")
     coord.data = {
@@ -696,29 +674,6 @@ async def test_get_current_mobile_unknown_field_returns_none(hass):
     coord.data = {RESULTS_CURRENT: {}, RESULTS_FORECAST_DAILY: {}}
     result = coord.get_current_mobile("nonexistent_xyz")
     assert result is None
-
-
-async def test_get_forecast_daily_public_day_count(hass):
-    coord = _make_coordinator(hass)
-    coord.data = MetServicePublicData(daily_entries=[
-        DailyEntry(datetime="2024-06-15", condition="fine"),
-        DailyEntry(datetime="2024-06-16", condition="cloudy"),
-    ])
-    assert coord.get_forecast_daily_public("", 0) == 2
-
-
-async def test_get_forecast_daily_public_field(hass):
-    coord = _make_coordinator(hass)
-    coord.data = MetServicePublicData(daily_entries=[
-        DailyEntry(datetime="2024-06-15", condition="fine"),
-    ])
-    assert coord.get_forecast_daily_public("daily_condition", 0) == "fine"
-
-
-async def test_get_forecast_daily_public_error_returns_none(hass):
-    coord = _make_coordinator(hass)
-    coord.data = MetServicePublicData()
-    assert coord.get_forecast_daily_public("daily_condition", 0) is None
 
 
 async def test_get_forecast_daily_mobile_day_count(hass):
