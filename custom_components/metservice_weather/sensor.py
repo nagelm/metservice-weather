@@ -104,7 +104,7 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.api_type == 'mobile':
             self._sensor_data = coordinator.get_current_mobile(description.key)
         else:
-            self._sensor_data = coordinator.get_current_public(description.key)
+            self._sensor_data = coordinator.data
         self._attr_native_unit_of_measurement = self.entity_description.unit_fn(
             self.coordinator.hass.config.units is METRIC_SYSTEM
         )
@@ -144,5 +144,5 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.api_type == 'mobile':
             self._sensor_data = self.coordinator.get_current_mobile(self.entity_description.key)
         else:
-            self._sensor_data = self.coordinator.get_current_public(self.entity_description.key)
+            self._sensor_data = self.coordinator.data
         self.async_write_ha_state()

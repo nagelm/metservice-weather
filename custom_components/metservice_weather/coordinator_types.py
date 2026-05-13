@@ -49,6 +49,8 @@ def _find_module(modules: list, key: str) -> dict:
 
 @dataclass
 class HourlyEntry:
+    """Single hourly forecast entry."""
+
     datetime: str = ""
     temperature: float | None = None
     rainfall: float | None = None
@@ -58,6 +60,8 @@ class HourlyEntry:
 
 @dataclass
 class DailyEntry:
+    """Single daily forecast entry."""
+
     datetime: str | None = None
     condition: str | None = None
     temp_high: str | None = None
@@ -69,6 +73,8 @@ class DailyEntry:
 
 @dataclass
 class MetServicePublicData:
+    """Normalised snapshot of public API data for one polling cycle."""
+
     # Current observations
     temperature: float | None = None
     feels_like: float | None = None
