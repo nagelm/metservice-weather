@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
@@ -66,7 +65,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         self, hass: HomeAssistant, config: WeatherUpdateCoordinatorConfig
     ) -> None:
         """Initialize."""
-        self._hass = hass
         self._api_url = config.api_url
         self._warnings_url = config.warnings_url
         self._api_key = config.api_key
@@ -81,8 +79,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         self._unit_system_api = config.unit_system_api
         self._base_url = 'https://www.metservice.com'
         self.unit_system = config.unit_system
-        self.data = None
-        self._session = async_get_clientsession(self._hass)
+        self._session = async_get_clientsession(hass)
         self.units_of_measurement = {
             TEMPUNIT: UnitOfTemperature.CELSIUS,
             LENGTHUNIT: UnitOfLength.MILLIMETERS,
@@ -189,16 +186,15 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 result_current['boating_data'] = await self.get_boating_data()
             if self._surf_url:
                 result_current['surf_data'] = await self.get_surf_data()
-            self.data = {
+            return {
                 RESULTS_CURRENT: result_current,
                 RESULTS_FORECAST_DAILY: result_daily,
             }
-            return self.data
 
         except ValueError as err:
             _LOGGER.error("Data validation error: %s", err)
             raise UpdateFailed(f"Data validation error: {err}") from err
-        except (asyncio.TimeoutError, aiohttp.ClientError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.error("Error fetching MetService data: %s", repr(err))
             raise UpdateFailed(f"Error fetching MetService data: {err}") from err
         except Exception as err:
@@ -314,16 +310,15 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 result_current['boating_data'] = await self.get_boating_data()
             if self._surf_url:
                 result_current['surf_data'] = await self.get_surf_data()
-            self.data = {
+            return {
                 RESULTS_CURRENT: result_current,
                 RESULTS_FORECAST_DAILY: result_daily,
             }
-            return self.data
 
         except ValueError as err:
             _LOGGER.error("Data validation error: %s", err)
             raise UpdateFailed(f"Data validation error: {err}") from err
-        except (asyncio.TimeoutError, aiohttp.ClientError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.error("Error fetching MetService data: %s", repr(err))
             raise UpdateFailed(f"Error fetching MetService data: {err}") from err
         except Exception as err:
@@ -363,7 +358,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Could not locate tideData in response — tides data will be unavailable")
             return None
 
-        except (asyncio.TimeoutError, aiohttp.ClientError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.warning("Error fetching tides data: %s — tides will be unavailable", repr(err))
             return None
         except Exception as err:
@@ -401,7 +396,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 "boating_issued_at": today.get("forecast", {}).get("issuedAt", ""),
                 "boating_table": today.get("table", {}).get("columns", []),
             }
-        except (asyncio.TimeoutError, aiohttp.ClientError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.warning("Error fetching boating data: %s — boating will be unavailable", repr(err))
             return {}
         except Exception as err:
@@ -420,8 +415,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         """
         try:
             # Derive regional surf URL from the stored location URL.
-            import re as _re
-            regional_url = _re.sub(r'/locations/[^/]+$', '', self._surf_url.rstrip('/'))
+            regional_url = re.sub(r'/locations/[^/]+$', '', self._surf_url.rstrip('/'))
             location_path = self._surf_url.split("publicData/webdata")[-1]
 
             _LOGGER.info("Fetching surf data from %s", regional_url)
@@ -470,7 +464,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 "surf_period": value.get("period"),
             }
 
-        except (asyncio.TimeoutError, aiohttp.ClientError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.warning("Error fetching surf data: %s — surf will be unavailable", repr(err))
             return {}
         except Exception as err:
@@ -603,8 +597,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error retrieving mobile forecast daily sensor '%s' for day %s: %s", field, day, e)
             return None
 
-    @classmethod
-    def _format_timestamp(cls, timestamp_val):
+    @staticmethod
+    def _format_timestamp(timestamp_val: str) -> str:
         """Format timestamp to ISO format in UTC."""
         return datetime.fromisoformat(timestamp_val).astimezone(dt_util.get_time_zone("UTC")).isoformat()
 

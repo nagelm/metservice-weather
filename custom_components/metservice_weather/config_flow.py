@@ -77,7 +77,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     # ------------------------------------------------------------------ #
 
     async def async_step_user(self, user_input=None):
-        """Initial entry point — seed empty user_info and go to setup."""
+        """Handle initial entry — seed empty user_info and go to setup."""
         self.user_info = {}
         return await self.async_step_setup()
 

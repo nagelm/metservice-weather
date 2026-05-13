@@ -11,7 +11,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from .coordinator import WeatherUpdateCoordinator, WeatherUpdateCoordinatorConfig
-from .const import DOMAIN, MOBILE_URL, PUBLIC_URL, MOBILE_WARNINGS_URL, PUBLIC_WARNINGS_URL, API_METRIC, API_URL_METRIC
+from .const import MOBILE_URL, PUBLIC_URL, MOBILE_WARNINGS_URL, PUBLIC_WARNINGS_URL, API_METRIC, API_URL_METRIC
 
 PLATFORMS: Final = [Platform.WEATHER, Platform.SENSOR]
 
