@@ -118,8 +118,8 @@ git commit -m $msg
 - Integration installed via HACS from the GitHub release zip
 
 ## Dev HA (WSL)
+Full startup procedure and tokens: **`dev_credentials.md`** (gitignored — never commit).
+
 - Config dir: `C:\Users\mattn\projects\metservice-weather\config\`
-- Launch: `preview_start("MetService Weather — HA Dev Instance")` (defined in `C:\Users\mattn\projects\ha\.claude\launch.json`)
-- Credentials: `devadmin / MetsDev2026!`
 - Integration loaded via PYTHONPATH — no install/zip needed, just restart HA after code changes
 - If `index.html` render fix is lost after pip upgrade: `wsl python3 /mnt/c/Users/mattn/projects/metservice-weather/fix_index.py` then restart
