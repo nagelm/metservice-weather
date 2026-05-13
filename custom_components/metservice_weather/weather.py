@@ -4,7 +4,7 @@ For more details about this platform, please refer to the documentation at
 https://github.com/ciejer/metservice-weather.
 """
 
-from . import WeatherUpdateCoordinator
+from .coordinator import WeatherUpdateCoordinator
 from homeassistant.config_entries import ConfigEntry
 from .const import (
     DOMAIN,
