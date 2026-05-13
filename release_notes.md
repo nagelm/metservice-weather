@@ -1,4 +1,16 @@
-> **This is a personal fork of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather), which is the original and primary work. Full credit to [@ciejer](https://github.com/ciejer) for building and maintaining this integration. This fork applies a collection of open issues, PRs, and quality improvements that have not yet landed upstream.**
+> **This is a fork of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather). Full credit to [@ciejer](https://github.com/ciejer) for building and maintaining the original integration. This fork has diverged significantly — resolving over 20 open upstream issues, adding new sensors, redesigning the config flow, and working toward Home Assistant Integration Quality Scale compliance.**
+
+---
+
+## v0.9.18
+
+### IQS Bronze compliance — code quality and test coverage
+
+- **`runtime-data` refactor** — replaced `hass.data[DOMAIN]` with `entry.runtime_data` across `__init__.py`, `sensor.py`, and `weather.py`; this is the current HA best practice for storing coordinator references and avoids using the global data store for per-entry state
+- **`PARALLEL_UPDATES = 0`** — added to `sensor.py` and `weather.py`; disables HA's default per-entity semaphore since updates are already serialised through the `DataUpdateCoordinator`
+- **Fix `WeatherSensor.available`** — removed the incorrect custom `available` property that returned `True` even after a failed coordinator update (when stale data existed); `CoordinatorEntity`'s built-in `available` property correctly reflects `last_update_success`
+- **Config flow test suite** — 9 test cases covering: public API setup, marine region selection, mobile API with valid/invalid/missing key, network timeout, duplicate location prevention, marine fetch failure, and reconfigure flow; uses `pytest-homeassistant-custom-component` with no real network calls
+- **README rewritten** — repositioned as a standalone fork with full sensor inventory (including surf, sun/moon, sub-day, and drying index sensors previously absent from the docs), a Removal section, and a Contributing section
 
 ---
 

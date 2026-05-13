@@ -33,6 +33,8 @@ from .weather_current_conditions_sensors import (
 
 _LOGGER = logging.getLogger(__name__)
 
+PARALLEL_UPDATES = 0
+
 # Declaration of supported MetService observation/condition sensors
 SENSOR_DESCRIPTIONS_PUBLIC: tuple[
     WeatherSensorEntityDescription, ...
@@ -43,10 +45,10 @@ SENSOR_DESCRIPTIONS_MOBILE: tuple[
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator], async_add_entities: AddEntitiesCallback
 ) -> None:
     """Add MetService entities from a config_entry."""
-    coordinator: WeatherUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: WeatherUpdateCoordinator = entry.runtime_data
     if entry.data["api"] == "mobile":
         descriptions = list(SENSOR_DESCRIPTIONS_MOBILE)
     else:
@@ -106,11 +108,6 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
         self._attr_native_unit_of_measurement = self.entity_description.unit_fn(
             self.coordinator.hass.config.units is METRIC_SYSTEM
         )
-
-    @property
-    def available(self) -> bool:
-        """Return if weather data is available."""
-        return self.coordinator.data is not None
 
     @property
     def name(self):

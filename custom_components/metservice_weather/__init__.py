@@ -18,10 +18,9 @@ PLATFORMS: Final = [Platform.WEATHER, Platform.SENSOR]
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator]):
     """Set up the MetService Weather component."""
     api = entry.data["api"]
-    hass.data.setdefault(DOMAIN, {})
 
     if api == "public":
         api_url = PUBLIC_URL
@@ -55,19 +54,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     await weathercoordinator.async_config_entry_first_refresh()
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-    hass.data[DOMAIN][entry.entry_id] = weathercoordinator
+    entry.runtime_data = weathercoordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator]) -> bool:
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
