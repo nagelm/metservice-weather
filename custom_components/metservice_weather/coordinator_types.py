@@ -1,0 +1,299 @@
+"""Typed data models for the MetService coordinator."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+
+def _get(data: Any, *path: str) -> Any:
+    """Exact-path traversal — no depth-first search.
+
+    Numeric path parts are treated as list indices.
+    """
+    for part in path:
+        if data is None:
+            return None
+        if isinstance(data, list):
+            try:
+                data = data[int(part)]
+            except (IndexError, ValueError):
+                return None
+        elif isinstance(data, dict):
+            data = data.get(part)
+        else:
+            return None
+    return data
+
+
+def _safe_float(val: Any) -> float | None:
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_int(val: Any) -> int | None:
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _find_module(modules: list, key: str) -> dict:
+    """Return the first module dict that contains `key`, or {}."""
+    for m in modules:
+        if isinstance(m, dict) and key in m:
+            return m
+    return {}
+
+
+@dataclass
+class HourlyEntry:
+    datetime: str
+    temperature: float | None
+    rainfall: float | None
+    wind_speed: float | None
+    wind_direction: str | None
+
+
+@dataclass
+class DailyEntry:
+    datetime: str | None
+    condition: str | None
+    temp_high: str | None
+    temp_low: str | None
+    description: str | None
+    rainfall_low: float | None
+    rainfall_high: float | None
+
+
+@dataclass
+class MetServicePublicData:
+    # Current observations
+    temperature: float | None
+    feels_like: float | None
+    temp_today_high: float | None
+    temp_today_low: float | None
+    humidity: int | None
+    pressure: float | None
+    pressure_trend: str | None
+    wind_speed: float | None
+    wind_gust: float | None
+    wind_direction: str | None
+    wind_strength: str | None
+    rainfall: float | None
+    condition: str | None
+    forecast_text: str | None
+    issued_at: str | None
+    uv_index: str | None
+    location_name: str | None
+
+    # Sub-day breakdown
+    breakdown_morning: str | None
+    breakdown_afternoon: str | None
+    breakdown_evening: str | None
+    breakdown_overnight: str | None
+
+    # Sun / moon
+    sunrise: str | None
+    sunset: str | None
+    moonrise: str | None
+    moonset: str | None
+    moon_phase: str | None
+    moon_phase_date: str | None
+
+    # Fire weather
+    fire_danger: str | None
+    fire_season: str | None
+
+    # Pollen (injected)
+    pollen_level: str | None
+    pollen_type: str | None
+
+    # Derived / injected
+    weather_warnings: str
+    tomorrow_condition: str | None
+    tomorrow_temp_high: str | None
+    tomorrow_temp_low: str | None
+    tomorrow_description: str | None
+    drying_morning: str | None
+    drying_afternoon: str | None
+    drying_next_good_day: str | None
+
+    # Hourly forecast
+    hourly_entries: list[HourlyEntry]
+    hourly_obs: int | None
+    hourly_skip: int | None
+
+    # Daily forecast
+    daily_entries: list[DailyEntry]
+
+    # Optional marine (None / empty when not configured)
+    tides: Any | None = None
+    boating_forecast: str | None = None
+    boating_status: str | None = None
+    boating_table: Any | None = None
+    surf_conditions: str | None = None
+    surf_rating: str | None = None
+    surf_wave_height: str | None = None
+    surf_set_face: str | None = None
+    surf_swell_direction: str | None = None
+    surf_swell_height: str | None = None
+    surf_wind_direction: str | None = None
+    surf_wind_speed: str | None = None
+    surf_wind_gust: str | None = None
+    surf_period: str | None = None
+
+
+def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
+    """Build a MetServicePublicData from raw coordinator dicts.
+
+    Uses exact-path traversal (_get) and explicit section extraction —
+    no DFS.  All injected fields (weather_warnings, pollen, tomorrow_*,
+    drying_*) are already present at the root of `current` when this is
+    called.
+    """
+    # ------------------------------------------------------------------
+    # Extract key sections from the nested layout structure
+    # ------------------------------------------------------------------
+
+    # Observations: layout.primary.slots.left-major.modules → module with "observations"
+    left_major = _get(current, "layout", "primary", "slots", "left-major", "modules") or []
+    obs = _find_module(left_major, "observations").get("observations", {})
+
+    # Days / breakdown / fire: layout.primary.slots.main.modules → module with "days"
+    main_mods = _get(current, "layout", "primary", "slots", "main", "modules") or []
+    days = _find_module(main_mods, "days").get("days", [])
+    day0 = days[0] if days else {}
+    breakdown0 = day0.get("breakdown", {}) if isinstance(day0, dict) else {}
+
+    # Hourly graph: layout.primary.slots.main.modules → module with "graph"
+    graph = _find_module(main_mods, "graph").get("graph", {})
+    graph_series = graph.get("series") or []
+    hourly_skip = graph_series[0].get("count", 0) if graph_series else 0
+    hourly_obs_count = graph_series[1].get("count", 0) if len(graph_series) > 1 else 0
+
+    # UV: layout.primary.slots.left-minor.modules → module with "uv"
+    left_minor = _get(current, "layout", "primary", "slots", "left-minor", "modules") or []
+    uv = _find_module(left_minor, "uv").get("uv", {})
+
+    # Sunrise / moon: layout.secondary.slots.major.modules → module with "riseSet"
+    secondary = _get(current, "layout", "secondary", "slots", "major", "modules") or []
+    rise_mod = _find_module(secondary, "riseSet")
+    rise_set = rise_mod.get("riseSet", {})
+    moon_phases = rise_mod.get("moonPhases", [])
+
+    # ------------------------------------------------------------------
+    # Hourly entries
+    # ------------------------------------------------------------------
+    hourly_raw = graph.get("columns") or []
+    hourly_entries = [
+        HourlyEntry(
+            datetime=h.get("date", ""),
+            temperature=_safe_float(h.get("temperature")),
+            rainfall=_safe_float(h.get("rainfall")),
+            wind_speed=_safe_float(_get(h, "wind", "averageSpeed")),
+            wind_direction=_get(h, "wind", "direction"),
+        )
+        for h in hourly_raw
+        if isinstance(h, dict)
+    ]
+
+    # ------------------------------------------------------------------
+    # Daily entries (from 7-day JSON)
+    # ------------------------------------------------------------------
+    raw_days = _get(daily, "layout", "primary", "slots", "main", "modules", "0", "days") or []
+    daily_entries = [
+        DailyEntry(
+            datetime=_get(d, "date"),
+            condition=_get(d, "condition"),
+            temp_high=_get(d, "forecasts", "0", "highTemp"),
+            temp_low=_get(d, "forecasts", "0", "lowTemp"),
+            description=_get(d, "forecasts", "0", "statement"),
+            rainfall_low=_safe_float(_get(d, "rainFall1")),
+            rainfall_high=_safe_float(_get(d, "rainFall10")),
+        )
+        for d in raw_days
+        if isinstance(d, dict)
+    ]
+
+    # ------------------------------------------------------------------
+    # Marine — boating and surf stored nested under their own keys
+    # ------------------------------------------------------------------
+    boating = current.get("boating_data") or {}
+    surf = current.get("surf_data") or {}
+
+    # ------------------------------------------------------------------
+    # Assemble dataclass
+    # ------------------------------------------------------------------
+    return MetServicePublicData(
+        # Observations
+        temperature=_safe_float(_get(obs, "temperature", "0", "current")),
+        feels_like=_safe_float(_get(obs, "temperature", "0", "feelsLike")),
+        temp_today_high=_safe_float(_get(obs, "temperature", "0", "high")),
+        temp_today_low=_safe_float(_get(obs, "temperature", "0", "low")),
+        humidity=_safe_int(_get(obs, "rain", "0", "relativeHumidity")),
+        pressure=_safe_float(_get(obs, "pressure", "0", "atSeaLevel")),
+        pressure_trend=_get(obs, "pressure", "0", "trend"),
+        wind_speed=_safe_float(_get(obs, "wind", "0", "averageSpeed")),
+        wind_gust=_safe_float(_get(obs, "wind", "0", "gustSpeed")),
+        wind_direction=_get(obs, "wind", "0", "direction"),
+        wind_strength=_get(obs, "wind", "0", "strength"),
+        rainfall=_safe_float(_get(obs, "rain", "0", "rainfall")),
+        # Today's forecast (day 0)
+        condition=day0.get("condition") if isinstance(day0, dict) else None,
+        forecast_text=_get(day0, "forecasts", "0", "statement"),
+        issued_at=day0.get("issuedAt") if isinstance(day0, dict) else None,
+        uv_index=_get(uv, "sunProtection", "uvAlertLevel"),
+        location_name=_get(current, "location", "label"),
+        # Sub-day breakdown
+        breakdown_morning=_get(breakdown0, "morning", "condition"),
+        breakdown_afternoon=_get(breakdown0, "afternoon", "condition"),
+        breakdown_evening=_get(breakdown0, "evening", "condition"),
+        breakdown_overnight=_get(breakdown0, "overnight", "condition"),
+        # Sun / moon
+        sunrise=rise_set.get("sunRise"),
+        sunset=rise_set.get("sunSet"),
+        moonrise=rise_set.get("moonRise"),
+        moonset=rise_set.get("moonSet"),
+        moon_phase=_get(moon_phases, "0", "phase"),
+        moon_phase_date=_get(moon_phases, "0", "dateISO"),
+        # Fire weather (from day 0's fireWeatherData)
+        fire_danger=_get(day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"),
+        fire_season=_get(day0, "fireWeatherData", "fireWeather", "season", "short"),
+        # Pollen (injected at root as {"pollenLevels": {...}})
+        pollen_level=_get(current, "pollen", "pollenLevels", "level"),
+        pollen_type=_get(current, "pollen", "pollenLevels", "type"),
+        # Injected derived fields
+        weather_warnings=current.get("weather_warnings", "No warnings"),
+        tomorrow_condition=current.get("tomorrow_condition"),
+        tomorrow_temp_high=current.get("tomorrow_temp_high"),
+        tomorrow_temp_low=current.get("tomorrow_temp_low"),
+        tomorrow_description=current.get("tomorrow_description"),
+        drying_morning=current.get("drying_morning"),
+        drying_afternoon=current.get("drying_afternoon"),
+        drying_next_good_day=current.get("drying_next_good_day"),
+        # Hourly
+        hourly_entries=hourly_entries,
+        hourly_obs=hourly_obs_count,
+        hourly_skip=hourly_skip,
+        # Daily
+        daily_entries=daily_entries,
+        # Tides (injected at root as a list)
+        tides=current.get("tideImport"),
+        # Boating (injected under "boating_data" key)
+        boating_forecast=boating.get("boating_forecast"),
+        boating_status=boating.get("boating_status"),
+        boating_table=boating.get("boating_table"),
+        # Surf (injected under "surf_data" key)
+        surf_conditions=surf.get("surf_conditions"),
+        surf_rating=surf.get("surf_rating"),
+        surf_wave_height=surf.get("surf_wave_height"),
+        surf_set_face=surf.get("surf_set_face"),
+        surf_swell_direction=surf.get("surf_swell_direction"),
+        surf_swell_height=surf.get("surf_swell_height"),
+        surf_wind_direction=surf.get("surf_wind_direction"),
+        surf_wind_speed=surf.get("surf_wind_speed"),
+        surf_wind_gust=surf.get("surf_wind_gust"),
+        surf_period=surf.get("surf_period"),
+    )
