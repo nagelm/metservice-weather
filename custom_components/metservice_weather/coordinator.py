@@ -39,81 +39,6 @@ _LOGGER = logging.getLogger(__name__)
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=20)
 
-# Maps sensor key strings → MetServicePublicData attribute names
-_PUBLIC_FIELD_MAP: dict[str, str] = {
-    "temperature": "temperature",
-    "temperatureFeelsLike": "feels_like",
-    "relativeHumidity": "humidity",
-    "pressureAltimeter": "pressure",
-    "pressureTendencyTrend": "pressure_trend",
-    "windSpeed": "wind_speed",
-    "windGust": "wind_gust",
-    "windDirection": "wind_direction",
-    "wind_strength": "wind_strength",
-    "rainfall": "rainfall",
-    "condition": "condition",
-    "wxPhraseLong": "forecast_text",
-    "validTimeLocal": "issued_at",
-    "uvIndex": "uv_index",
-    "location_name": "location_name",
-    "temperature_today_high": "temp_today_high",
-    "temperature_today_low": "temp_today_low",
-    "breakdown_morning": "breakdown_morning",
-    "breakdown_afternoon": "breakdown_afternoon",
-    "breakdown_evening": "breakdown_evening",
-    "breakdown_overnight": "breakdown_overnight",
-    "sunrise": "sunrise",
-    "sunset": "sunset",
-    "moonrise": "moonrise",
-    "moonset": "moonset",
-    "moon_phase": "moon_phase",
-    "moon_phase_date": "moon_phase_date",
-    "fire_danger": "fire_danger",
-    "fire_season": "fire_season",
-    "pollen_levels": "pollen_level",
-    "pollen_type": "pollen_type",
-    "weather_warnings": "weather_warnings",
-    "tomorrow_condition": "tomorrow_condition",
-    "tomorrow_temp_high": "tomorrow_temp_high",
-    "tomorrow_temp_low": "tomorrow_temp_low",
-    "tomorrow_description": "tomorrow_description",
-    "drying_index_morning": "drying_morning",
-    "drying_index_afternoon": "drying_afternoon",
-    "drying_next_good_day": "drying_next_good_day",
-    "hourly_temp": "hourly_entries",
-    "hourly_obs": "hourly_obs",
-    "hourly_skip": "hourly_skip",
-    "tides_high": "tides",
-    "tides_low": "tides",
-    "boating_status": "boating_status",
-    "boating_forecast": "boating_forecast",
-    "boating_table": "boating_table",
-    "surf_conditions": "surf_conditions",
-    "surf_rating": "surf_rating",
-    "surf_wave_height": "surf_wave_height",
-    "surf_set_face": "surf_set_face",
-    "surf_swell_direction": "surf_swell_direction",
-    "surf_swell_height": "surf_swell_height",
-    "surf_wind_direction": "surf_wind_direction",
-    "surf_wind_speed": "surf_wind_speed",
-    "surf_wind_gust": "surf_wind_gust",
-    "surf_period": "surf_period",
-}
-
-# Maps forecast-daily sensor key strings → DailyEntry attribute names
-_DAILY_FIELD_MAP: dict[str, str] = {
-    "daily_condition": "condition",
-    "daily_temp_high": "temp_high",
-    "daily_bkp_temp_high": "temp_high",
-    "daily_temp_low": "temp_low",
-    "daily_bkp_temp_low": "temp_low",
-    "daily_datetime": "datetime",
-    "daily_bkp_datetime": "datetime",
-    "daily_description": "description",
-    "daily_rainfall_low": "rainfall_low",
-    "daily_rainfall_high": "rainfall_high",
-}
-
 
 @dataclass
 class WeatherUpdateCoordinatorConfig:
@@ -626,15 +551,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                         return result
         return None
 
-    def get_current_public(self, field: str):
-        """Get a sensor field from the normalised MetServicePublicData dataclass."""
-        try:
-            attr = _PUBLIC_FIELD_MAP.get(field, field)
-            return getattr(self.data, attr, None)
-        except Exception as e:
-            _LOGGER.debug("Error retrieving public sensor '%s': %s", field, e)
-            return None
-
     def get_current_mobile(self, field):
         """Get a specific key from the MetService returned data."""
         try:
@@ -643,21 +559,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             return result
         except Exception as e:
             _LOGGER.debug("Error retrieving mobile sensor '%s': %s", field, e)
-            return None
-
-    def get_forecast_daily_public(self, field: str, day: int):
-        """Get a forecast-daily field from the normalised MetServicePublicData dataclass."""
-        try:
-            entries = self.data.daily_entries
-            if field == "":
-                return len(entries)
-            if day >= len(entries):
-                return None
-            entry = entries[day]
-            attr = _DAILY_FIELD_MAP.get(field, field)
-            return getattr(entry, attr, None)
-        except Exception as e:
-            _LOGGER.debug("Error retrieving public forecast daily sensor '%s' day %s: %s", field, day, e)
             return None
 
     def get_forecast_daily_mobile(self, field, day):
