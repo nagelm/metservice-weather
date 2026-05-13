@@ -1,16 +1,18 @@
 # artifacts
 __pycache__
+*.pyc
 .pytest*
 *.egg-info
 */build/*
 */dist/*
-
+*.zip
+upload_result.json
 
 # misc
 .coverage
 .vscode
 coverage.xml
-
+venv/
 
 # Home Assistant configuration
 config/*
