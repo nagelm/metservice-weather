@@ -2,6 +2,30 @@
 
 ---
 
+## v0.9.19
+
+### Internal refactor: typed dataclass, Silver IQS compliance, bug fixes
+
+#### Coordinator data model
+- **Typed `MetServicePublicData` dataclass** replaces the raw `{"current": ..., "daily": ...}` dict returned by `get_public_weather`. All public API fields are normalised at fetch time into typed attributes (`temperature`, `wind_speed`, `humidity`, `daily_entries`, `hourly_entries`, etc.). Sensors and the weather entity read directly from typed attributes — no more depth-first key search across the raw API tree.
+- **`always_update=False`** added to `DataUpdateCoordinator` — HA now skips entity state writes when the data hasn't changed (dataclass `__eq__` comparison), reducing unnecessary recorder writes on every 20-minute poll.
+
+#### Bug fixes
+- **Fix hourly wind speed always `None`** — the hourly forecast graph uses `wind.speed`, not `wind.averageSpeed` (that key is only in the current observations section). All 48 hourly forecast entries now carry a wind speed value.
+- **Auth failure now triggers reauth flow** — mobile API HTTP 401/403 responses previously became generic `UpdateFailed` (entities unavailable but no reauth prompt). Now raises `ConfigEntryAuthFailed` to trigger the reauth notification.
+- **Demote fetch logs from INFO to DEBUG** — `"Fetching MetService public/mobile data…"` and `"Fetching pollen data…"` were logging at INFO on every 20-minute poll cycle, producing noise in production logs. All are now DEBUG.
+
+#### IQS Silver compliance
+- **`integration-owner`** — added `.github/CODEOWNERS` (`@ciejer @nagelm`).
+- **`config-entry-unloading`** — added `tests/test_init.py` with 5 lifecycle tests covering setup and unload for both public and mobile API paths.
+- **`test-coverage`** — coverage enforcement raised to 95% (`--cov-fail-under=95` in `pyproject.toml`). Current coverage: 97%.
+- **Reauthentication flow** — `async_step_reauth` / `async_step_reauth_confirm` in config flow handles expired/rejected mobile API keys; public API entries abort with `not_applicable`.
+
+#### Test suite
+- 250 tests, 97% coverage (up from 53 tests / no enforcement at v0.9.18).
+
+---
+
 ## v0.9.18
 
 ### IQS Bronze compliance — code quality and test coverage
