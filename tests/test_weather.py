@@ -12,7 +12,11 @@ from custom_components.metservice_weather.const import (
     CONDITION_MAP,
     DOMAIN,
 )
-from custom_components.metservice_weather.coordinator_types import MetServicePublicData
+from custom_components.metservice_weather.coordinator_types import (
+    MetServicePublicData,
+    HourlyEntry,
+    DailyEntry,
+)
 from custom_components.metservice_weather.weather import (
     MetServiceForecastPublic,
     MetServiceForecastMobile,
@@ -125,52 +129,51 @@ async def test_public_entity_unique_id(hass):
 
 async def test_public_entity_temperature(hass):
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(temperature=18.5)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_current_public", return_value=18.5):
-        assert entity.native_temperature == 18.5
+    assert entity.native_temperature == 18.5
 
 
 async def test_public_entity_pressure(hass):
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(pressure=1013.0)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_current_public", return_value=1013.0):
-        assert entity.native_pressure == 1013.0
+    assert entity.native_pressure == 1013.0
 
 
 async def test_public_entity_humidity(hass):
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(humidity=75)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_current_public", return_value=75):
-        assert entity.humidity == 75
+    assert entity.humidity == 75
 
 
 async def test_public_entity_humidity_none(hass):
     coord = _make_coordinator(hass)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_current_public", return_value=None):
-        assert entity.humidity is None
+    assert entity.humidity is None
 
 
 async def test_public_entity_wind_speed(hass):
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(wind_speed=25.0)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_current_public", return_value=25.0):
-        assert entity.native_wind_speed == 25.0
+    assert entity.native_wind_speed == 25.0
 
 
 async def test_public_entity_wind_bearing(hass):
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(wind_direction="NW")
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_current_public", return_value="NW"):
-        assert entity.wind_bearing == "NW"
+    assert entity.wind_bearing == "NW"
 
 
 async def test_public_entity_condition_mapped(hass):
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(condition="rain")
     entity = MetServiceForecastPublic(coord)
     entity.hass = hass
-    with patch.object(coord, "get_current_public", return_value="rain"), \
-         patch("custom_components.metservice_weather.weather.sun_helper.is_up", return_value=True):
+    with patch("custom_components.metservice_weather.weather.sun_helper.is_up", return_value=True):
         cond = entity.condition
     assert cond == CONDITION_MAP["rain"]
 
@@ -178,10 +181,10 @@ async def test_public_entity_condition_mapped(hass):
 async def test_public_entity_condition_clear_night(hass):
     """'fine' at night → 'clear-night'."""
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(condition="fine")
     entity = MetServiceForecastPublic(coord)
     entity.hass = hass
-    with patch.object(coord, "get_current_public", return_value="fine"), \
-         patch("custom_components.metservice_weather.weather.sun_helper.is_up", return_value=False):
+    with patch("custom_components.metservice_weather.weather.sun_helper.is_up", return_value=False):
         cond = entity.condition
     assert cond == "clear-night"
 
@@ -189,10 +192,10 @@ async def test_public_entity_condition_clear_night(hass):
 async def test_public_entity_condition_unknown_passthrough(hass):
     """Unmapped condition is passed through as-is."""
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(condition="unknown-condition")
     entity = MetServiceForecastPublic(coord)
     entity.hass = hass
-    with patch.object(coord, "get_current_public", return_value="unknown-condition"), \
-         patch("custom_components.metservice_weather.weather.sun_helper.is_up", return_value=True):
+    with patch("custom_components.metservice_weather.weather.sun_helper.is_up", return_value=True):
         cond = entity.condition
     assert cond == "unknown-condition"
 
@@ -225,180 +228,78 @@ async def test_public_entity_precipitation_units(hass):
 # Test: MetServiceForecastPublic forecast_hourly
 # ---------------------------------------------------------------------------
 
+def _hourly_data(**kwargs) -> MetServicePublicData:
+    """Build a MetServicePublicData with one HourlyEntry for icon tests."""
+    entry = HourlyEntry(**kwargs)
+    return MetServicePublicData(hourly_entries=[entry], hourly_obs=1, hourly_skip=0)
+
+
 async def test_public_forecast_hourly_empty_when_no_data(hass):
     coord = _make_coordinator(hass)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_current_public", return_value=None):
-        result = entity.forecast_hourly
+    result = entity.forecast_hourly
     assert result == []
 
 
 async def test_public_forecast_hourly_with_data(hass):
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        hourly_entries=[
+            HourlyEntry(datetime="2024-06-15T10:00:00+12:00", temperature=18.0, rainfall=0.0, wind_speed=15.0, wind_direction="NW"),
+            HourlyEntry(datetime="2024-06-15T22:00:00+12:00", temperature=12.0, rainfall=0.0, wind_speed=10.0, wind_direction="SW"),
+        ],
+        hourly_obs=2,
+        hourly_skip=0,
+    )
     entity = MetServiceForecastPublic(coord)
-
-    hourly_data = [
-        {
-            "date": "2024-06-15T10:00:00+12:00",
-            "temperature": 18.0,
-            "rainfall": 0.0,
-            "wind": {"speed": 15.0, "direction": "NW"},
-        },
-        {
-            "date": "2024-06-15T22:00:00+12:00",
-            "temperature": 12.0,
-            "rainfall": 0.0,
-            "wind": {"speed": 10.0, "direction": "SW"},
-        },
-    ]
-
-    def _mock_get(field):
-        if field == "hourly_temp":
-            return hourly_data
-        if field == "hourly_obs":
-            return 2
-        if field == "hourly_skip":
-            return 0
-        return None
-
-    with patch.object(coord, "get_current_public", side_effect=_mock_get):
-        result = entity.forecast_hourly
-
+    result = entity.forecast_hourly
     assert len(result) == 2
     assert result[0]["temperature"] == 18.0
 
 
 async def test_public_forecast_hourly_heavy_rain_icon(hass):
     coord = _make_coordinator(hass)
+    coord.data = _hourly_data(datetime="2024-06-15T10:00:00+12:00", temperature=10.0, rainfall=10.0, wind_speed=5.0, wind_direction="N")
     entity = MetServiceForecastPublic(coord)
-
-    hourly_data = [{
-        "date": "2024-06-15T10:00:00+12:00",
-        "temperature": 10.0,
-        "rainfall": 10.0,  # > 6 → pouring
-        "wind": {"averageSpeed": 5.0, "direction": "N"},
-    }]
-
-    def _mock_get(field):
-        if field == "hourly_temp":
-            return hourly_data
-        if field == "hourly_obs":
-            return 1
-        if field == "hourly_skip":
-            return 0
-        return None
-
-    with patch.object(coord, "get_current_public", side_effect=_mock_get):
-        result = entity.forecast_hourly
-
-    assert result[0]["condition"] == "pouring"
+    assert entity.forecast_hourly[0]["condition"] == "pouring"
 
 
 async def test_public_forecast_hourly_light_rain_icon(hass):
     coord = _make_coordinator(hass)
+    coord.data = _hourly_data(datetime="2024-06-15T10:00:00+12:00", temperature=12.0, rainfall=2.0, wind_speed=5.0, wind_direction="N")
     entity = MetServiceForecastPublic(coord)
-
-    hourly_data = [{
-        "date": "2024-06-15T10:00:00+12:00",
-        "temperature": 12.0,
-        "rainfall": 2.0,  # > 0 and <= 6 → rainy
-        "wind": {"averageSpeed": 5.0, "direction": "N"},
-    }]
-
-    def _mock_get(field):
-        if field == "hourly_temp":
-            return hourly_data
-        if field == "hourly_obs":
-            return 1
-        if field == "hourly_skip":
-            return 0
-        return None
-
-    with patch.object(coord, "get_current_public", side_effect=_mock_get):
-        result = entity.forecast_hourly
-
-    assert result[0]["condition"] == "rainy"
+    assert entity.forecast_hourly[0]["condition"] == "rainy"
 
 
 async def test_public_forecast_hourly_windy_icon(hass):
     coord = _make_coordinator(hass)
+    coord.data = _hourly_data(datetime="2024-06-15T14:00:00+12:00", temperature=15.0, rainfall=0.0, wind_speed=50.0, wind_direction="SW")
     entity = MetServiceForecastPublic(coord)
-
-    hourly_data = [{
-        "date": "2024-06-15T14:00:00+12:00",
-        "temperature": 15.0,
-        "rainfall": 0.0,
-        "wind": {"averageSpeed": 50.0, "direction": "SW"},  # > 40 → windy
-    }]
-
-    def _mock_get(field):
-        if field == "hourly_temp":
-            return hourly_data
-        if field == "hourly_obs":
-            return 1
-        if field == "hourly_skip":
-            return 0
-        return None
-
-    with patch.object(coord, "get_current_public", side_effect=_mock_get):
-        result = entity.forecast_hourly
-
-    assert result[0]["condition"] == "windy"
+    assert entity.forecast_hourly[0]["condition"] == "windy"
 
 
 async def test_public_forecast_hourly_night_icon(hass):
     coord = _make_coordinator(hass)
+    coord.data = _hourly_data(datetime="2024-06-15T22:00:00+12:00", temperature=8.0, rainfall=0.0, wind_speed=5.0, wind_direction="N")
     entity = MetServiceForecastPublic(coord)
-
-    hourly_data = [{
-        "date": "2024-06-15T22:00:00+12:00",
-        "temperature": 8.0,
-        "rainfall": 0.0,
-        "wind": {"averageSpeed": 5.0, "direction": "N"},
-    }]
-
-    def _mock_get(field):
-        if field == "hourly_temp":
-            return hourly_data
-        if field == "hourly_obs":
-            return 1
-        if field == "hourly_skip":
-            return 0
-        return None
-
-    with patch.object(coord, "get_current_public", side_effect=_mock_get):
-        result = entity.forecast_hourly
-
-    assert result[0]["condition"] == "clear-night"
+    assert entity.forecast_hourly[0]["condition"] == "clear-night"
 
 
-async def test_public_forecast_hourly_backup_fields(hass):
-    """When primary hourly fields are None, backup fields are used."""
+async def test_public_forecast_hourly_skip_offsets_start(hass):
+    """hourly_skip causes the first N entries to be excluded."""
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        hourly_entries=[
+            HourlyEntry(datetime="2024-06-15T08:00:00+12:00", temperature=10.0, rainfall=0.0, wind_speed=5.0),
+            HourlyEntry(datetime="2024-06-15T10:00:00+12:00", temperature=18.0, rainfall=0.0, wind_speed=5.0),
+        ],
+        hourly_obs=1,
+        hourly_skip=1,
+    )
     entity = MetServiceForecastPublic(coord)
-
-    hourly_data = [{
-        "date": "2024-06-15T10:00:00+12:00",
-        "temperature": 14.0,
-        "rainfall": 0.0,
-        "wind": {"speed": 10.0, "direction": "N"},
-    }]
-
-    def _mock_get(field):
-        if field in ("hourly_temp", "hourly_obs", "hourly_skip"):
-            return None
-        if field == "hourly_bkp_temp":
-            return hourly_data
-        if field == "hourly_bkp_obs":
-            return 1
-        if field == "hourly_bkp_skip":
-            return 0
-        return None
-
-    with patch.object(coord, "get_current_public", side_effect=_mock_get):
-        result = entity.forecast_hourly
-
+    result = entity.forecast_hourly
     assert len(result) == 1
+    assert result[0]["temperature"] == 18.0
 
 
 # ---------------------------------------------------------------------------
@@ -408,93 +309,56 @@ async def test_public_forecast_hourly_backup_fields(hass):
 async def test_public_forecast_daily_empty_when_no_days(hass):
     coord = _make_coordinator(hass)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_forecast_daily_public", return_value=0):
-        result = entity.forecast_daily
+    result = entity.forecast_daily
     assert result == []
 
 
 async def test_public_forecast_daily_with_data(hass):
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        daily_entries=[
+            DailyEntry(condition="fine", temp_high=22.0, temp_low=12.0, datetime="2024-06-15", description="Sunny day", rainfall_low=0.0, rainfall_high=1.0),
+            DailyEntry(condition="cloudy", temp_high=18.0, temp_low=10.0, datetime="2024-06-16"),
+        ]
+    )
     entity = MetServiceForecastPublic(coord)
-
-    def _mock_daily(field, day):
-        if field == "":
-            return 2
-        if field == "daily_condition":
-            return "fine"
-        if field == "daily_temp_high":
-            return 22.0
-        if field == "daily_temp_low":
-            return 12.0
-        if field == "daily_datetime":
-            return "2024-06-15"
-        if field == "daily_description":
-            return "Sunny day"
-        if field == "daily_rainfall_low":
-            return 0.0
-        if field == "daily_rainfall_high":
-            return 1.0
-        return None
-
-    with patch.object(coord, "get_forecast_daily_public", side_effect=_mock_daily):
-        result = entity.forecast_daily
-
+    result = entity.forecast_daily
     assert len(result) == 2
     assert result[0]["temperature"] == 22.0
     assert result[0]["templow"] == 12.0
     assert result[0]["condition"] == CONDITION_MAP["fine"]
 
 
-async def test_public_forecast_daily_backup_temp_fields(hass):
-    """Rural areas: backup temp/datetime fields used when primary is None."""
+async def test_public_forecast_daily_precipitation_fields(hass):
+    """Both rainfall_low and rainfall_high are surfaced as extra attrs."""
     coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        daily_entries=[DailyEntry(condition="rain", temp_high=15.0, temp_low=8.0, datetime="2024-06-15", rainfall_low=2.0, rainfall_high=8.0)]
+    )
     entity = MetServiceForecastPublic(coord)
-
-    def _mock_daily(field, day):
-        if field == "":
-            return 1
-        if field in ("daily_temp_high", "daily_temp_low", "daily_datetime"):
-            return None
-        if field == "daily_bkp_temp_high":
-            return 20.0
-        if field == "daily_bkp_temp_low":
-            return 10.0
-        if field == "daily_bkp_datetime":
-            return "2024-06-15"
-        if field == "daily_condition":
-            return "cloudy"
-        if field in ("daily_rainfall_low", "daily_rainfall_high", "daily_description"):
-            return None
-        return None
-
-    with patch.object(coord, "get_forecast_daily_public", side_effect=_mock_daily):
-        result = entity.forecast_daily
-
-    assert result[0]["temperature"] == 20.0
+    result = entity.forecast_daily
+    assert result[0]["precipitation_low_mm"] == 2.0
+    assert result[0]["precipitation_high_mm"] == 8.0
 
 
 async def test_public_async_forecast_hourly(hass):
     coord = _make_coordinator(hass)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_current_public", return_value=None):
-        result = await entity.async_forecast_hourly()
+    result = await entity.async_forecast_hourly()
     assert result == []
 
 
 async def test_public_async_forecast_daily(hass):
     coord = _make_coordinator(hass)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_forecast_daily_public", return_value=0):
-        result = await entity.async_forecast_daily()
+    result = await entity.async_forecast_daily()
     assert result == []
 
 
 async def test_public_extra_state_attributes(hass):
     coord = _make_coordinator(hass)
     entity = MetServiceForecastPublic(coord)
-    with patch.object(coord, "get_current_public", return_value=None), \
-         patch.object(coord, "get_forecast_daily_public", return_value=0):
-        attrs = entity.extra_state_attributes
+    attrs = entity.extra_state_attributes
     assert "forecast_hourly" in attrs
     assert "forecast_daily" in attrs
 

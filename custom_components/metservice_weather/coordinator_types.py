@@ -64,8 +64,8 @@ class DailyEntry:
 
     datetime: str | None = None
     condition: str | None = None
-    temp_high: str | None = None
-    temp_low: str | None = None
+    temp_high: float | None = None
+    temp_low: float | None = None
     description: str | None = None
     rainfall_low: float | None = None
     rainfall_high: float | None = None
@@ -213,8 +213,8 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         DailyEntry(
             datetime=_get(d, "date"),
             condition=_get(d, "condition"),
-            temp_high=_get(d, "forecasts", "0", "highTemp"),
-            temp_low=_get(d, "forecasts", "0", "lowTemp"),
+            temp_high=_safe_float(_get(d, "forecasts", "0", "highTemp")),
+            temp_low=_safe_float(_get(d, "forecasts", "0", "lowTemp")),
             description=_get(d, "forecasts", "0", "statement"),
             rainfall_low=_safe_float(_get(d, "rainFall1")),
             rainfall_high=_safe_float(_get(d, "rainFall10")),
