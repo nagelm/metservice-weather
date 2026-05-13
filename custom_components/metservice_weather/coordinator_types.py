@@ -1,7 +1,7 @@
 """Typed data models for the MetService coordinator."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -49,84 +49,84 @@ def _find_module(modules: list, key: str) -> dict:
 
 @dataclass
 class HourlyEntry:
-    datetime: str
-    temperature: float | None
-    rainfall: float | None
-    wind_speed: float | None
-    wind_direction: str | None
+    datetime: str = ""
+    temperature: float | None = None
+    rainfall: float | None = None
+    wind_speed: float | None = None
+    wind_direction: str | None = None
 
 
 @dataclass
 class DailyEntry:
-    datetime: str | None
-    condition: str | None
-    temp_high: str | None
-    temp_low: str | None
-    description: str | None
-    rainfall_low: float | None
-    rainfall_high: float | None
+    datetime: str | None = None
+    condition: str | None = None
+    temp_high: str | None = None
+    temp_low: str | None = None
+    description: str | None = None
+    rainfall_low: float | None = None
+    rainfall_high: float | None = None
 
 
 @dataclass
 class MetServicePublicData:
     # Current observations
-    temperature: float | None
-    feels_like: float | None
-    temp_today_high: float | None
-    temp_today_low: float | None
-    humidity: int | None
-    pressure: float | None
-    pressure_trend: str | None
-    wind_speed: float | None
-    wind_gust: float | None
-    wind_direction: str | None
-    wind_strength: str | None
-    rainfall: float | None
-    condition: str | None
-    forecast_text: str | None
-    issued_at: str | None
-    uv_index: str | None
-    location_name: str | None
+    temperature: float | None = None
+    feels_like: float | None = None
+    temp_today_high: float | None = None
+    temp_today_low: float | None = None
+    humidity: int | None = None
+    pressure: float | None = None
+    pressure_trend: str | None = None
+    wind_speed: float | None = None
+    wind_gust: float | None = None
+    wind_direction: str | None = None
+    wind_strength: str | None = None
+    rainfall: float | None = None
+    condition: str | None = None
+    forecast_text: str | None = None
+    issued_at: str | None = None
+    uv_index: str | None = None
+    location_name: str | None = None
 
     # Sub-day breakdown
-    breakdown_morning: str | None
-    breakdown_afternoon: str | None
-    breakdown_evening: str | None
-    breakdown_overnight: str | None
+    breakdown_morning: str | None = None
+    breakdown_afternoon: str | None = None
+    breakdown_evening: str | None = None
+    breakdown_overnight: str | None = None
 
     # Sun / moon
-    sunrise: str | None
-    sunset: str | None
-    moonrise: str | None
-    moonset: str | None
-    moon_phase: str | None
-    moon_phase_date: str | None
+    sunrise: str | None = None
+    sunset: str | None = None
+    moonrise: str | None = None
+    moonset: str | None = None
+    moon_phase: str | None = None
+    moon_phase_date: str | None = None
 
     # Fire weather
-    fire_danger: str | None
-    fire_season: str | None
+    fire_danger: str | None = None
+    fire_season: str | None = None
 
     # Pollen (injected)
-    pollen_level: str | None
-    pollen_type: str | None
+    pollen_level: str | None = None
+    pollen_type: str | None = None
 
     # Derived / injected
-    weather_warnings: str
-    tomorrow_condition: str | None
-    tomorrow_temp_high: str | None
-    tomorrow_temp_low: str | None
-    tomorrow_description: str | None
-    drying_morning: str | None
-    drying_afternoon: str | None
-    drying_next_good_day: str | None
+    weather_warnings: str = "No warnings"
+    tomorrow_condition: str | None = None
+    tomorrow_temp_high: str | None = None
+    tomorrow_temp_low: str | None = None
+    tomorrow_description: str | None = None
+    drying_morning: str | None = None
+    drying_afternoon: str | None = None
+    drying_next_good_day: str | None = None
 
     # Hourly forecast
-    hourly_entries: list[HourlyEntry]
-    hourly_obs: int | None
-    hourly_skip: int | None
+    hourly_entries: list[HourlyEntry] = field(default_factory=list)
+    hourly_obs: int | None = None
+    hourly_skip: int | None = None
 
     # Daily forecast
-    daily_entries: list[DailyEntry]
+    daily_entries: list[DailyEntry] = field(default_factory=list)
 
     # Optional marine (None / empty when not configured)
     tides: Any | None = None

@@ -9,11 +9,10 @@ from custom_components.metservice_weather.coordinator import (
     WeatherUpdateCoordinatorConfig,
 )
 from custom_components.metservice_weather.const import (
-    RESULTS_CURRENT,
-    RESULTS_FORECAST_DAILY,
     CONDITION_MAP,
     DOMAIN,
 )
+from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 from custom_components.metservice_weather.weather import (
     MetServiceForecastPublic,
     MetServiceForecastMobile,
@@ -41,7 +40,7 @@ def _make_coordinator(hass, api_type="public", tide_url="", boating_url="", surf
         surf_url=surf_url,
     )
     coord = WeatherUpdateCoordinator(hass, config)
-    coord.data = {RESULTS_CURRENT: {}, RESULTS_FORECAST_DAILY: {}}
+    coord.data = MetServicePublicData()
     return coord
 
 
@@ -277,7 +276,7 @@ async def test_public_forecast_hourly_heavy_rain_icon(hass):
         "date": "2024-06-15T10:00:00+12:00",
         "temperature": 10.0,
         "rainfall": 10.0,  # > 6 → pouring
-        "wind": {"speed": 5.0, "direction": "N"},
+        "wind": {"averageSpeed": 5.0, "direction": "N"},
     }]
 
     def _mock_get(field):
@@ -303,7 +302,7 @@ async def test_public_forecast_hourly_light_rain_icon(hass):
         "date": "2024-06-15T10:00:00+12:00",
         "temperature": 12.0,
         "rainfall": 2.0,  # > 0 and <= 6 → rainy
-        "wind": {"speed": 5.0, "direction": "N"},
+        "wind": {"averageSpeed": 5.0, "direction": "N"},
     }]
 
     def _mock_get(field):
@@ -329,7 +328,7 @@ async def test_public_forecast_hourly_windy_icon(hass):
         "date": "2024-06-15T14:00:00+12:00",
         "temperature": 15.0,
         "rainfall": 0.0,
-        "wind": {"speed": 50.0, "direction": "SW"},  # > 40 → windy
+        "wind": {"averageSpeed": 50.0, "direction": "SW"},  # > 40 → windy
     }]
 
     def _mock_get(field):
@@ -355,7 +354,7 @@ async def test_public_forecast_hourly_night_icon(hass):
         "date": "2024-06-15T22:00:00+12:00",
         "temperature": 8.0,
         "rainfall": 0.0,
-        "wind": {"speed": 5.0, "direction": "N"},
+        "wind": {"averageSpeed": 5.0, "direction": "N"},
     }]
 
     def _mock_get(field):
