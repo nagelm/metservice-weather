@@ -12,7 +12,6 @@ Requires: aiohttp, async_timeout (both present in the project venv).
 import asyncio
 import json
 import re
-import sys
 from pathlib import Path
 
 import aiohttp
