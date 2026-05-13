@@ -1,0 +1,3109 @@
+{
+  "_usage": "This data is restricted and may only be used with explicit permission from MetService NZ. Contact dataenquiries@metservice.com",
+  "adConfig": {
+    "ac": "9734223",
+    "banner": {
+      "id": "sc-tow-atf-ban-ad1",
+      "layout": {
+        "hideWhen": [
+          1
+        ]
+      },
+      "mobileHeight": 0
+    },
+    "interstitial": {
+      "id": "sc-tow-atf-inst-ad1",
+      "layout": {
+        "hideWhen": [
+          2,
+          3
+        ]
+      }
+    },
+    "targeting": {
+      "dynamicDataUrl": "/publicData/webdata/dynamicTargeting/93371/93371/napier/null/hawkes-bay/urban/napier",
+      "staticData": [
+        {
+          "key": "apiKey",
+          "value": "napier"
+        },
+        {
+          "key": "type",
+          "value": "urban"
+        },
+        {
+          "key": "island",
+          "value": "towns-north-island"
+        },
+        {
+          "key": "location",
+          "value": "towns-napier"
+        },
+        {
+          "key": "page",
+          "value": "towns-48-hour"
+        },
+        {
+          "key": "section",
+          "value": "towns"
+        }
+      ]
+    }
+  },
+  "adDefinitions": {
+    "sc-tow-atf-ban-ad1": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-atf-ban-ad1",
+        "id": "23312634893",
+        "name": "dsk-sc-tow-atf-ban-ad-1",
+        "sizes": [
+          [
+            728,
+            90
+          ],
+          [
+            970,
+            90
+          ],
+          [
+            970,
+            250
+          ],
+          [
+            1024,
+            250
+          ],
+          [
+            1280,
+            250
+          ],
+          [
+            1600,
+            250
+          ]
+        ]
+      },
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sc-tow-atf-ban-ad1",
+        "id": "23311296159",
+        "name": "mob-sc-tow-atf-ban-ad1",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            300,
+            600
+          ],
+          [
+            336,
+            280
+          ]
+        ]
+      },
+      "tab-land": {
+        "def": "/ms/p/w/tab/tab-land-sc-tow-atf-ban-ad1",
+        "id": "23312470928",
+        "name": "tab-land-sc-tow-atf-ban-ad1",
+        "sizes": [
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ],
+          [
+            970,
+            90
+          ],
+          [
+            970,
+            250
+          ],
+          [
+            1024,
+            250
+          ]
+        ]
+      },
+      "tab-port": {
+        "def": "/ms/p/w/tab/tab-port-sc-tow-atf-ban-ad1",
+        "id": "23312470958",
+        "name": "tab-port-sc-tow-atf-ban-ad1",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ]
+        ]
+      }
+    },
+    "sc-tow-atf-ban-ad2": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-atf-ban-ad2",
+        "id": "23312634689",
+        "name": "dsk-sc-tow-atf-ban-ad-2",
+        "showAdvertiseWithMS": true,
+        "sizes": [
+          [
+            160,
+            600
+          ],
+          [
+            300,
+            250
+          ],
+          [
+            300,
+            600
+          ]
+        ]
+      },
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sc-tow-atf-ban-ad2",
+        "id": "23312042896",
+        "name": "mob-sc-tow-atf-ban-ad2",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            300,
+            600
+          ],
+          [
+            336,
+            280
+          ]
+        ]
+      },
+      "tab-land": {
+        "def": "/ms/p/w/tab/tab-land-sc-tow-atf-ban-ad2",
+        "id": "23312471114",
+        "name": "tab-land-sc-tow-atf-ban-ad2",
+        "sizes": [
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ]
+        ]
+      },
+      "tab-port": {
+        "def": "/ms/p/w/tab/tab-port-sc-tow-atf-ban-ad2",
+        "id": "23312471156",
+        "name": "tab-port-sc-tow-atf-ban-ad2",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ]
+        ]
+      }
+    },
+    "sc-tow-atf-inst-ad1": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-atf-inst-ad1",
+        "id": "23312622656",
+        "name": "dsk-sc-tow-atf-inst-ad-1",
+        "sizes": [
+          [
+            970,
+            550
+          ]
+        ]
+      },
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sc-tow-atf-inst-ad1",
+        "id": "23311296162",
+        "name": "mob-sc-tow-atf-inst-ad1",
+        "sizes": [
+          [
+            320,
+            460
+          ],
+          [
+            320,
+            480
+          ]
+        ]
+      }
+    },
+    "sc-tow-atf-nav-ad1": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-atf-nav-ad-1",
+        "id": "23314869629",
+        "name": "dsk-sc-tow-atf-nav-ad-1",
+        "sizes": [
+          "fluid",
+          [
+            616,
+            240
+          ],
+          [
+            776,
+            240
+          ]
+        ]
+      }
+    },
+    "sc-tow-atf-til-ad1": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-atf-til-ad1",
+        "id": "23312634896",
+        "name": "dsk-sc-tow-atf-til-ad-1",
+        "sizes": [
+          [
+            320,
+            80
+          ],
+          [
+            320,
+            100
+          ],
+          [
+            320,
+            125
+          ],
+          [
+            300,
+            50
+          ],
+          [
+            300,
+            100
+          ],
+          [
+            300,
+            150
+          ],
+          [
+            380,
+            100
+          ]
+        ]
+      }
+    },
+    "sc-tow-atf-til-ad4": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-atf-til-ad4",
+        "id": "23312634692",
+        "name": "dsk-sc-tow-atf-til-ad-4",
+        "sizes": [
+          [
+            320,
+            80
+          ],
+          [
+            320,
+            100
+          ],
+          [
+            320,
+            125
+          ],
+          [
+            300,
+            50
+          ],
+          [
+            300,
+            100
+          ],
+          [
+            300,
+            150
+          ],
+          [
+            380,
+            100
+          ]
+        ]
+      },
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sc-tow-atf-til-ad4",
+        "id": "23343157565",
+        "name": "mob-sc-tow-atf-til-ad-4",
+        "sizes": [
+          "fluid",
+          [
+            320,
+            80
+          ]
+        ]
+      }
+    },
+    "sc-tow-atf-til-ad5": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-atf-til-ad5",
+        "id": "23342740027",
+        "name": "dsk-sc-tow-atf-til-ad-5",
+        "sizes": [
+          "fluid",
+          [
+            380,
+            80
+          ]
+        ]
+      }
+    },
+    "sc-tow-btf-ban-ad3": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-btf-ban-ad3",
+        "id": "23311481271",
+        "name": "dsk-sc-tow-btf-ban-ad-3",
+        "sizes": [
+          [
+            160,
+            600
+          ],
+          [
+            300,
+            250
+          ],
+          [
+            300,
+            600
+          ]
+        ]
+      },
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sc-tow-btf-ban-ad3",
+        "id": "23312465069",
+        "name": "mob-sc-tow-btf-ban-ad3",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            300,
+            600
+          ],
+          [
+            336,
+            280
+          ]
+        ]
+      },
+      "tab-land": {
+        "def": "/ms/p/w/tab/tab-land-sc-tow-btf-ban-ad3",
+        "id": "23312471117",
+        "name": "tab-land-sc-tow-btf-ban-ad3",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            728,
+            90
+          ]
+        ]
+      },
+      "tab-port": {
+        "def": "/ms/p/w/tab/tab-port-sc-tow-btf-ban-ad3",
+        "id": "23312470961",
+        "name": "tab-port-sc-tow-btf-ban-ad3",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ]
+        ]
+      }
+    },
+    "sc-tow-btf-ban-ad4": {
+      "tab-port": {
+        "def": "/ms/p/w/tab/tab-port-sc-tow-btf-ban-ad4",
+        "id": "23312471159",
+        "name": "tab-port-sc-tow-btf-ban-ad4",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ]
+        ]
+      }
+    },
+    "sc-tow-btf-nav-ad1": {
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sc-tow-btf-nav-ad1",
+        "id": "23318716807",
+        "name": "mob-sc-tow-btf-nav-ad-1",
+        "sizes": [
+          "fluid",
+          [
+            296,
+            150
+          ],
+          [
+            296,
+            215
+          ],
+          [
+            345,
+            155
+          ]
+        ]
+      },
+      "tab-land": {
+        "def": "/ms/p/w/tab/tab-land-sc-tow-btf-nav-ad1",
+        "id": "23319131486",
+        "name": "tab-land-sc-tow-btf-nav-ad-1",
+        "sizes": [
+          "fluid",
+          [
+            656,
+            240
+          ]
+        ]
+      },
+      "tab-port": {
+        "def": "/ms/p/w/tab/tab-port-sc-tow-btf-nav-ad1",
+        "id": "23319131489",
+        "name": "tab-port-sc-tow-btf-nav-ad-1",
+        "sizes": [
+          "fluid",
+          [
+            345,
+            155
+          ]
+        ]
+      }
+    },
+    "sc-tow-btf-til-ad1": {
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sc-tow-btf-til-ad1",
+        "id": "23311296165",
+        "name": "mob-sc-tow-btf-til-ad1",
+        "sizes": [
+          [
+            320,
+            80
+          ],
+          [
+            320,
+            100
+          ],
+          [
+            320,
+            125
+          ],
+          [
+            300,
+            50
+          ],
+          [
+            300,
+            100
+          ],
+          [
+            300,
+            150
+          ],
+          [
+            380,
+            100
+          ]
+        ]
+      }
+    },
+    "sc-tow-btf-til-ad2": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-btf-til-ad2",
+        "id": "23312634899",
+        "name": "dsk-sc-tow-btf-til-ad-2",
+        "sizes": [
+          [
+            320,
+            80
+          ],
+          [
+            320,
+            100
+          ],
+          [
+            320,
+            125
+          ],
+          [
+            300,
+            50
+          ],
+          [
+            300,
+            100
+          ],
+          [
+            300,
+            150
+          ],
+          [
+            380,
+            100
+          ]
+        ]
+      },
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sc-tow-btf-til-ad2",
+        "id": "23311296168",
+        "name": "mob-sc-tow-btf-til-ad2",
+        "sizes": [
+          [
+            320,
+            80
+          ],
+          [
+            320,
+            100
+          ],
+          [
+            320,
+            125
+          ],
+          [
+            300,
+            50
+          ],
+          [
+            300,
+            100
+          ],
+          [
+            300,
+            150
+          ],
+          [
+            380,
+            100
+          ]
+        ]
+      }
+    },
+    "sc-tow-btf-til-ad3": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sc-tow-btf-til-ad3",
+        "id": "23311481493",
+        "name": "dsk-sc-tow-btf-til-ad-3",
+        "sizes": [
+          [
+            320,
+            80
+          ],
+          [
+            320,
+            100
+          ],
+          [
+            320,
+            125
+          ],
+          [
+            300,
+            50
+          ],
+          [
+            300,
+            100
+          ],
+          [
+            300,
+            150
+          ],
+          [
+            380,
+            100
+          ]
+        ]
+      },
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sc-tow-btf-til-ad3",
+        "id": "23311296171",
+        "name": "mob-sc-tow-btf-til-ad3",
+        "sizes": [
+          [
+            320,
+            80
+          ],
+          [
+            320,
+            100
+          ],
+          [
+            320,
+            125
+          ],
+          [
+            300,
+            50
+          ],
+          [
+            300,
+            100
+          ],
+          [
+            300,
+            150
+          ],
+          [
+            380,
+            100
+          ]
+        ]
+      }
+    },
+    "sh-tow-atf-ban-ad1": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sh-tow-atf-ban-ad1",
+        "id": "23319129647",
+        "name": "dsk-sh-tow-atf-ban-ad-1",
+        "sizes": [
+          [
+            728,
+            90
+          ],
+          [
+            970,
+            90
+          ],
+          [
+            970,
+            250
+          ],
+          [
+            1024,
+            250
+          ],
+          [
+            1280,
+            250
+          ],
+          [
+            1600,
+            250
+          ]
+        ]
+      },
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sh-tow-atf-ban-ad1",
+        "id": "23311296222",
+        "name": "mob-sh-tow-atf-ban-ad1",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            300,
+            600
+          ],
+          [
+            336,
+            280
+          ]
+        ]
+      },
+      "tab-port": {
+        "def": "/ms/p/w/tab/tab-port-sh-tow-atf-ban-ad1",
+        "id": "23312471180",
+        "name": "tab-port-sh-tow-atf-ban-ad1",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ]
+        ]
+      }
+    },
+    "sh-tow-atf-ban-ad2": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sh-tow-atf-ban-ad2",
+        "id": "23319129443",
+        "name": "dsk-sh-tow-atf-ban-ad-2",
+        "showAdvertiseWithMS": true,
+        "sizes": [
+          [
+            160,
+            600
+          ],
+          [
+            300,
+            250
+          ],
+          [
+            300,
+            600
+          ]
+        ]
+      }
+    },
+    "sh-tow-atf-inst-ad1": {
+      "dsk": {
+        "def": "/ms/p/w/dsk/dsk-sh-tow-atf-inst-ad1",
+        "id": "23319129986",
+        "name": "dsk-sh-tow-atf-inst-ad-1",
+        "sizes": [
+          [
+            970,
+            550
+          ]
+        ]
+      },
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sh-tow-atf-inst-ad1",
+        "id": "23312465084",
+        "name": "mob-sh-tow-atf-inst-ad1",
+        "sizes": [
+          [
+            320,
+            460
+          ],
+          [
+            320,
+            480
+          ]
+        ]
+      }
+    },
+    "sh-tow-atf-til-ad1": {
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sh-tow-atf-til-ad1",
+        "id": "23311296225",
+        "name": "mob-sh-tow-atf-til-ad1",
+        "sizes": [
+          [
+            320,
+            80
+          ],
+          [
+            320,
+            100
+          ],
+          [
+            320,
+            125
+          ],
+          [
+            300,
+            50
+          ],
+          [
+            300,
+            100
+          ],
+          [
+            300,
+            150
+          ],
+          [
+            380,
+            100
+          ]
+        ]
+      }
+    },
+    "sh-tow-btf-ban-ad1": {
+      "tab-land": {
+        "def": "/ms/p/w/tab/tab-land-sh-tow-btf-ban-ad1",
+        "id": "23312471135",
+        "name": "tab-land-sh-tow-btf-ban-ad1",
+        "sizes": [
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ],
+          [
+            970,
+            90
+          ],
+          [
+            970,
+            250
+          ],
+          [
+            1024,
+            250
+          ]
+        ]
+      }
+    },
+    "sh-tow-btf-ban-ad2": {
+      "mob": {
+        "def": "/ms/p/w/mob/mob-sh-tow-btf-ban-ad2",
+        "id": "23312042905",
+        "name": "mob-sh-tow-btf-ban-ad2",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            300,
+            600
+          ],
+          [
+            336,
+            280
+          ]
+        ]
+      },
+      "tab-land": {
+        "def": "/ms/p/w/tab/tab-land-sh-tow-btf-ban-ad2",
+        "id": "23312470595",
+        "name": "tab-land-sh-tow-btf-ban-ad2",
+        "sizes": [
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ],
+          [
+            970,
+            90
+          ],
+          [
+            970,
+            250
+          ],
+          [
+            1024,
+            250
+          ]
+        ]
+      },
+      "tab-port": {
+        "def": "/ms/p/w/tab/tab-port-sh-tow-btf-ban-ad2",
+        "id": "23312471183",
+        "name": "tab-port-sh-tow-btf-ban-ad2",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            728,
+            90
+          ],
+          [
+            760,
+            120
+          ]
+        ]
+      }
+    },
+    "sh-tow-btf-ban-ad3": {
+      "tab-land": {
+        "def": "/ms/p/w/tab/tab-land-sh-tow-btf-ban-ad3",
+        "id": "23312471138",
+        "name": "tab-land-sh-tow-btf-ban-ad3",
+        "sizes": [
+          [
+            300,
+            250
+          ],
+          [
+            728,
+            90
+          ]
+        ]
+      }
+    }
+  },
+  "isSkiSeason": "false",
+  "layout": {
+    "last": {
+      "modules": [
+        {
+          "name": "app-promo/1",
+          "showImage": true,
+          "type": "module"
+        }
+      ]
+    },
+    "name": "five-up/1",
+    "navigation": {
+      "links": [
+        {
+          "label": "Next 48 Hours",
+          "url": "/towns-cities/regions/hawkes-bay/locations/napier"
+        },
+        {
+          "label": "7 Days",
+          "url": "/towns-cities/regions/hawkes-bay/locations/napier/7-days"
+        },
+        {
+          "label": "Extended",
+          "url": "/towns-cities/regions/hawkes-bay/locations/napier/extended"
+        },
+        {
+          "label": "Water Activities",
+          "url": "/towns-cities/regions/hawkes-bay/locations/napier/water-activities"
+        },
+        {
+          "label": "Nearby Forecasts",
+          "url": "/towns-cities/regions/hawkes-bay/locations/napier/nearby-forecasts"
+        },
+        {
+          "label": "Airborne Allergens",
+          "url": "/towns-cities/regions/hawkes-bay/locations/napier/airborne-allergens"
+        },
+        {
+          "label": "Past Weather",
+          "url": "/towns-cities/regions/hawkes-bay/locations/napier/past-weather"
+        }
+      ]
+    },
+    "primary": {
+      "slots": {
+        "NOTE": "Right modules can be overridden - see Asset.Website.Advertising.Configuration.json - adDefinitionManipulation",
+        "first": {
+          "modules": []
+        },
+        "left-major": {
+          "modules": [
+            {
+              "asAt": "2026-05-13T20:00:00+12:00",
+              "attribution": {
+                "text": "Observations by Napier City Council"
+              },
+              "issuedAt": "2026-05-13T20:00:00+12:00",
+              "name": "current-conditions/1",
+              "observations": {
+                "clothing": [
+                  {
+                    "layers": "3",
+                    "title": "",
+                    "windproofLayers": "0"
+                  }
+                ],
+                "pressure": [
+                  {
+                    "atSeaLevel": 1031,
+                    "title": "",
+                    "trend": "stable"
+                  }
+                ],
+                "rain": [
+                  {
+                    "rainfall": 0.0,
+                    "relativeHumidity": 74,
+                    "title": ""
+                  }
+                ],
+                "temperature": [
+                  {
+                    "current": 11.9,
+                    "feelsLike": 11,
+                    "high": 16,
+                    "low": 8,
+                    "title": ""
+                  }
+                ],
+                "wind": [
+                  {
+                    "averageSpeed": 11,
+                    "direction": "SW",
+                    "gustSpeed": 17,
+                    "strength": "Light winds",
+                    "title": ""
+                  }
+                ]
+              },
+              "source": "Temperature observed at Napier City (93371), supporting observations from Napier Airport (93373)",
+              "title": "Current Conditions",
+              "type": "module",
+              "weatherStationUrl": "/weather-station-location/93371/napier"
+            },
+            {
+              "id": "sc-tow-atf-ban-ad2",
+              "layout": {
+                "hideWhen": [
+                  3,
+                  4,
+                  5
+                ]
+              },
+              "name": "advert/1"
+            }
+          ]
+        },
+        "left-minor": {
+          "modules": [
+            {
+              "image": "/dynamic/feeds/thumbnails/140x140_thumb_rain-radar-mahia.jpg?v=1",
+              "name": "image-tile-compact/1",
+              "title": "Hawke's Bay Rain Radar",
+              "type": "module",
+              "url": "/maps-radar/rain/radar/Mahia?range=300&tab=real-time"
+            },
+            {
+              "id": "sc-tow-atf-til-ad1",
+              "layout": {
+                "hideWhen": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "delay": 7,
+              "mainSponsor": {
+                "maxHeight": 2,
+                "sponsorImage": "/files/images/sponsorships/animates-logo-v1.png",
+                "sponsorURL": "https://www.animates.co.nz/?utm_source=metservice",
+                "tagline": "We make happy happen "
+              },
+              "name": "integrations/swiper",
+              "sumItems": [
+                {
+                  "itemProps": {
+                    "content": [
+                      "Low heat stress today, don't forget water and shade."
+                    ],
+                    "icon": "pets-alt",
+                    "subTitle": [
+                      {
+                        "colour": "GREEN",
+                        "state": "status-good",
+                        "summerMessages": [
+                          "Safe to be outdoors, but don't forget fresh water and shady spots.",
+                          "Mild temps, but pets still need shade and good airflow.",
+                          "Low heat stress today, don't forget water and shade.",
+                          "Don't risk heat stress. Never leave pets in cars."
+                        ],
+                        "text": "Low risk all day",
+                        "winterMessages": [
+                          "Safe play, hydration, and shade!",
+                          "Low heat stress today, pets still need water and shade.",
+                          "Leaving pets in cars, even briefly, is dangerous"
+                        ]
+                      }
+                    ],
+                    "title": "Heat Stress"
+                  }
+                },
+                {
+                  "itemProps": {
+                    "content": [
+                      "Grab a lead and go!"
+                    ],
+                    "icon": "pets",
+                    "subTitle": [
+                      {
+                        "colour": "GREEN",
+                        "state": "status-good",
+                        "summerMessages": [
+                          "Grab a lead and go!",
+                          "Pawfect temperature for a stroll!",
+                          "Leash up! Footpath is paw-fect temp."
+                        ],
+                        "text": "Low risk all day",
+                        "winterMessages": [
+                          "Grab a lead and go!",
+                          "Pawfect temperature for a stroll!",
+                          "Enjoy play, but stay hydrated."
+                        ]
+                      }
+                    ],
+                    "title": "Footpath Temperature"
+                  }
+                },
+                {
+                  "itemProps": {
+                    "content": [
+                      "Walk when it's cool. Morn & eve!",
+                      ""
+                    ],
+                    "icon": "pets",
+                    "subTitle": [
+                      {
+                        "colour": "GREEN",
+                        "state": "status-good",
+                        "text": "Good all day"
+                      }
+                    ],
+                    "title": "Pawfect Time to Walk"
+                  }
+                }
+              ],
+              "tag": "animates",
+              "title": "Animates Pet Forecast",
+              "type": "tradies"
+            },
+            {
+              "id": "sc-tow-btf-til-ad2",
+              "layout": {
+                "hideWhen": [
+                  2,
+                  3
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "name": "remove-module",
+              "showWhen": "never",
+              "type": "module"
+            },
+            {
+              "dryingIndex": {
+                "displayEndOfSeasonMessage": false,
+                "displayOrder": 2,
+                "dryingState": [
+                  {
+                    "state": "green",
+                    "text": "Morning: 4 - 6 hrs"
+                  },
+                  {
+                    "state": "green",
+                    "text": "Afternoon: 1 - 3 hrs"
+                  }
+                ],
+                "sponsor": {
+                  "image": "",
+                  "maxHeight": "",
+                  "preamble": "",
+                  "text": "",
+                  "url": ""
+                }
+              },
+              "items": [
+                {
+                  "dataModule": "airborne-allergens",
+                  "displayOrder": 1,
+                  "html": [
+                    "<a href='/towns-cities/regions/hawkes-bay/locations/napier/airborne-allergens'>See more</a>"
+                  ],
+                  "icon": "pollen-risk",
+                  "sponsor": {
+                    "image": "/files/images/allergens/lp_logo.png",
+                    "maxHeight": 1.5,
+                    "text": "Here to help you feel your best ",
+                    "url": "https://www.lifepharmacy.co.nz/blogs/health-hq/about-allergies-1"
+                  },
+                  "subTitle": [
+                    {
+                      "state": "status-good",
+                      "text": "Low: Cypress, Cedar"
+                    }
+                  ],
+                  "title": "Airborne Allergen Forecast"
+                }
+              ],
+              "mainSponsor": {
+                "sponsorImage": "",
+                "sponsorURL": "https://www.lifepharmacy.co.nz/blogs/health-hq/about-allergies-1"
+              },
+              "name": "integrations",
+              "title": "Allergens, Laundry & UV",
+              "uv": {
+                "displayEndOfSeasonMessage": false,
+                "displayOrder": 3,
+                "sponsorImage": "",
+                "sponsorURL": "",
+                "sunProtection": {
+                  "icon": "uv-risk",
+                  "status": "status-good",
+                  "uvAlertLevel": "Low",
+                  "uvEndTime": "undefined undefined",
+                  "uvHasAlert": true,
+                  "uvMessage": [
+                    "Protect if outside for extended periods. Even on cloudy days"
+                  ],
+                  "uvProvider": "Data provided by",
+                  "uvProviderImage": "/files/images/attribution/niwa-logo.png",
+                  "uvProviderURL": "https://www.niwa.co.nz/our-services/online-services/uv-ozone",
+                  "uvStartTime": "undefined undefined",
+                  "uvTitle": "UV RISK"
+                },
+                "tagline": ""
+              }
+            },
+            {
+              "id": "sc-tow-btf-til-ad3",
+              "layout": {
+                "hideWhen": [
+                  2,
+                  3
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "id": "sc-tow-btf-ban-ad4",
+              "layout": {
+                "hideWhen": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              "name": "advert/1"
+            }
+          ]
+        },
+        "main": {
+          "modules": [
+            {
+              "days": [
+                {
+                  "breakdown": {
+                    "afternoon": {
+                      "condition": "partly-cloudy"
+                    },
+                    "evening": {
+                      "condition": "partly-cloudy"
+                    },
+                    "morning": {
+                      "condition": "partly-cloudy"
+                    },
+                    "overnight": {
+                      "condition": "partly-cloudy"
+                    }
+                  },
+                  "condition": "partly-cloudy",
+                  "date": "2026-05-13T12:00:00+12:00",
+                  "fireWeatherData": {
+                    "fireWeather": {
+                      "attribution": {
+                        "images": [
+                          {
+                            "appImage": "NIWA",
+                            "image": "/files/images/attribution/niwa-logo.png",
+                            "name": "NIWA",
+                            "url": "https://fireweather.niwa.co.nz/"
+                          },
+                          {
+                            "appImage": "FENZ",
+                            "image": "/files/images/attribution/fenz-logo.png",
+                            "name": "FENZ",
+                            "url": "https://www.checkitsalright.nz/"
+                          }
+                        ],
+                        "text": "Data provided by"
+                      },
+                      "danger": {
+                        "dailyObservation": "Moderate",
+                        "dailyObservationIndex": 2,
+                        "footer": "",
+                        "periods": [],
+                        "text": "To prevent wildfire, follow safety guidelines at [checkitsalright.nz](https://www.checkitsalright.nz)"
+                      },
+                      "location": "napier-south_napier",
+                      "season": {
+                        "short": "Open except Public Conservation Estate",
+                        "status": "open",
+                        "text": "Other than public conservation land, permits are not required today."
+                      }
+                    },
+                    "fireWeatherInfo": {
+                      "danger": {
+                        "title": "Fire Danger",
+                        "values": [
+                          {
+                            "index": 5,
+                            "short": "Extreme",
+                            "text": "Any outbreak of fire is extremely serious! All fires are potentially serious and will easily become uncontrollable, unpredictable and fast moving. These fires are very difficult to fight and may become very dangerous and often last for several days."
+                          },
+                          {
+                            "index": 4,
+                            "short": "Very high",
+                            "text": "Outbreak of fire is very serious! Fires will start easily and will spread rapidly and burn intensely right after ignition. Small fires can quickly become large fires and show extreme fire behaviour. These fires can be difficult to control and will often become much larger and longer-lasting fires."
+                          },
+                          {
+                            "index": 3,
+                            "short": "High",
+                            "text": "Outbreak of fire is serious! Fires can start easily and control becomes increasingly more difficult the longer the fire is left."
+                          },
+                          {
+                            "index": 2,
+                            "short": "Moderate",
+                            "text": "Control of fires is reasonably easy. Fires are not likely to become serious and are often easy to control if attended to quickly."
+                          },
+                          {
+                            "index": 1,
+                            "short": "Low",
+                            "text": "Wildfires are unlikely. Ignition may take place near large and prolonged heat sources but the resulting fires generally do not spread much. Control of fires is generally easy."
+                          }
+                        ]
+                      },
+                      "docDisclaimer": "All fires are restricted on Department of Conservation land. Check if you need a permit at [FENZ](https://www.checkitsalright.nz/)",
+                      "season": {
+                        "title": "Fire Season",
+                        "values": [
+                          {
+                            "short": "Open",
+                            "status": "open",
+                            "text": "Fires may be lit in open air, without restriction."
+                          },
+                          {
+                            "short": "Restricted",
+                            "status": "restricted",
+                            "text": "Lighting a fire is riskier than usual. A fire permit is required for most fire types"
+                          },
+                          {
+                            "short": "Prohibited",
+                            "status": "prohibited",
+                            "text": "Lighting fires in the open air is not permitted. Existing fire permits are suspended, though fire permits may still be granted in exceptional circumstances."
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "forecasts": [
+                    {
+                      "highTemp": "16",
+                      "lowTemp": "8",
+                      "statement": "Partly cloudy with the chance of a shower. Southerlies.",
+                      "sunrise": "2026-05-13T07:07:00+12:00",
+                      "sunset": "2026-05-13T17:10:00+12:00"
+                    }
+                  ],
+                  "highTemp": "16",
+                  "issuedAt": "2026-05-13T17:12:00+12:00",
+                  "lowTemp": "8"
+                },
+                {
+                  "breakdown": {
+                    "afternoon": {
+                      "condition": "partly-cloudy"
+                    },
+                    "evening": {
+                      "condition": "partly-cloudy"
+                    },
+                    "morning": {
+                      "condition": "few-showers"
+                    },
+                    "overnight": {
+                      "condition": "few-showers"
+                    }
+                  },
+                  "condition": "few-showers",
+                  "date": "2026-05-14T12:00:00+12:00",
+                  "fireWeatherData": {
+                    "fireWeather": {
+                      "attribution": {
+                        "images": [
+                          {
+                            "appImage": "NIWA",
+                            "image": "/files/images/attribution/niwa-logo.png",
+                            "name": "NIWA",
+                            "url": "https://fireweather.niwa.co.nz/"
+                          },
+                          {
+                            "appImage": "FENZ",
+                            "image": "/files/images/attribution/fenz-logo.png",
+                            "name": "FENZ",
+                            "url": "https://www.checkitsalright.nz/"
+                          }
+                        ],
+                        "text": "Data provided by"
+                      },
+                      "danger": {
+                        "footer": "",
+                        "forecast": "Moderate",
+                        "forecastIndex": 2,
+                        "periods": [],
+                        "text": "To prevent wildfire, follow safety guidelines at [checkitsalright.nz](https://www.checkitsalright.nz)"
+                      },
+                      "location": "napier-south_napier",
+                      "season": {
+                        "short": "Open except Public Conservation Estate",
+                        "status": "open",
+                        "text": "Before you light, check if you need a permit at [checkitsalright.nz](https://www.checkitsalright.nz)"
+                      }
+                    },
+                    "fireWeatherInfo": {
+                      "danger": {
+                        "title": "Fire Danger",
+                        "values": [
+                          {
+                            "index": 5,
+                            "short": "Extreme",
+                            "text": "Any outbreak of fire is extremely serious! All fires are potentially serious and will easily become uncontrollable, unpredictable and fast moving. These fires are very difficult to fight and may become very dangerous and often last for several days."
+                          },
+                          {
+                            "index": 4,
+                            "short": "Very high",
+                            "text": "Outbreak of fire is very serious! Fires will start easily and will spread rapidly and burn intensely right after ignition. Small fires can quickly become large fires and show extreme fire behaviour. These fires can be difficult to control and will often become much larger and longer-lasting fires."
+                          },
+                          {
+                            "index": 3,
+                            "short": "High",
+                            "text": "Outbreak of fire is serious! Fires can start easily and control becomes increasingly more difficult the longer the fire is left."
+                          },
+                          {
+                            "index": 2,
+                            "short": "Moderate",
+                            "text": "Control of fires is reasonably easy. Fires are not likely to become serious and are often easy to control if attended to quickly."
+                          },
+                          {
+                            "index": 1,
+                            "short": "Low",
+                            "text": "Wildfires are unlikely. Ignition may take place near large and prolonged heat sources but the resulting fires generally do not spread much. Control of fires is generally easy."
+                          }
+                        ]
+                      },
+                      "docDisclaimer": "All fires are restricted on Department of Conservation land. Check if you need a permit at [FENZ](https://www.checkitsalright.nz/)",
+                      "season": {
+                        "title": "Fire Season",
+                        "values": [
+                          {
+                            "short": "Open",
+                            "status": "open",
+                            "text": "Fires may be lit in open air, without restriction."
+                          },
+                          {
+                            "short": "Restricted",
+                            "status": "restricted",
+                            "text": "Lighting a fire is riskier than usual. A fire permit is required for most fire types"
+                          },
+                          {
+                            "short": "Prohibited",
+                            "status": "prohibited",
+                            "text": "Lighting fires in the open air is not permitted. Existing fire permits are suspended, though fire permits may still be granted in exceptional circumstances."
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "forecasts": [
+                    {
+                      "highTemp": "16",
+                      "lowTemp": "8",
+                      "statement": "Partly cloudy with a few showers. Southwesterlies.",
+                      "sunrise": "2026-05-14T07:08:00+12:00",
+                      "sunset": "2026-05-14T17:09:00+12:00"
+                    }
+                  ],
+                  "highTemp": "16",
+                  "issuedAt": "2026-05-13T11:32:00+12:00",
+                  "lowTemp": "8"
+                }
+              ],
+              "disclaimer": "",
+              "information": [
+                {
+                  "icon": "temp-high",
+                  "key": "maxTemp",
+                  "link": "",
+                  "text": "High: Forecast for the calendar day. Usually occurs in the afternoon."
+                },
+                {
+                  "icon": "temp-low",
+                  "key": "minTemp",
+                  "link": "",
+                  "text": "Low: Forecast between noon on the calendar day and noon the following day.  Usually occurs around dawn."
+                },
+                {
+                  "icon": "",
+                  "key": "periods",
+                  "link": "https://about.metservice.com/our-company/learning-centre/weather-icons-explained",
+                  "text": "Forecast times: Overnight: Midnight - 6am, Morning: 6am - Noon, Afternoon: Noon - 6pm, Evening: 6pm - Midnight."
+                }
+              ],
+              "mobile": {
+                "expandDaysAll": true
+              },
+              "name": "city-forecast/tabs/1",
+              "type": "module"
+            },
+            {
+              "id": "sc-tow-atf-nav-ad1",
+              "layout": {
+                "hideWhen": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "id": "sc-tow-btf-nav-ad1",
+              "layout": {
+                "hideWhen": [
+                  4,
+                  5
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "id": "sc-tow-atf-ban-ad2",
+              "layout": {
+                "hideWhen": [
+                  1,
+                  2,
+                  4,
+                  5
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "graph": {
+                "columns": [
+                  {
+                    "date": "2026-05-13T01:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "6.2",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "6"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T02:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "5.8",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "6"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T03:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "7.6",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T04:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "7.9",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "11"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T05:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "7.6",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "17"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T06:00:00+12:00",
+                    "rainFallPerHour": "0.2",
+                    "rainfall": "0.2",
+                    "temperature": "7.2",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "11"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T07:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "5.8",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "7"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T08:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "7.3",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "11"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T09:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "10.9",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T10:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "13.1",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "11"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T11:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "13.6",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "19"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T12:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "16.6",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T13:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "14.8",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "20"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T14:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "15.6",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "19"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T15:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "14.7",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "19"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T16:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "13.7",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T17:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "13.1",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T18:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "12.8",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T19:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "11.7",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "11"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T20:00:00+12:00",
+                    "rainFallPerHour": "0.0",
+                    "rainfall": 0.0,
+                    "temperature": "11.9",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "11"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T21:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "12",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T22:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-13T23:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T00:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T01:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T02:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T03:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T04:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T05:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T06:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T07:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T08:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "17"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T09:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "12",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "17"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T10:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "14",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "19"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T11:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "14",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "19"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T12:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "19"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T13:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "19"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T14:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "19"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T15:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "19"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T16:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "17"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T17:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "14",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T18:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "13",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T19:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "12",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T20:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T21:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T22:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-14T23:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T00:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T01:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T02:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T03:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T04:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "9",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "11"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T05:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T06:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T07:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "10",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T08:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T09:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "12",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T10:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "13",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T11:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "14",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T12:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "SW",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T13:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "17"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T14:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "17"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T15:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T16:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "15",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "15"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T17:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "14",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T18:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "12",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "13"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T19:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "12",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "11"
+                    }
+                  },
+                  {
+                    "date": "2026-05-15T20:00:00+12:00",
+                    "rainFallPerHour": "0",
+                    "rainfall": 0.0,
+                    "temperature": "11",
+                    "wind": {
+                      "direction": "S",
+                      "speed": "11"
+                    }
+                  }
+                ],
+                "series": [
+                  {
+                    "count": 20,
+                    "label": "Observed",
+                    "start": 0
+                  },
+                  {
+                    "count": 48,
+                    "label": "Forecast",
+                    "start": 20
+                  }
+                ],
+                "sunriseSunset": [
+                  {
+                    "date": "2026-05-13T00:00:00+12:00",
+                    "riseHour": 7,
+                    "setHour": 17,
+                    "sunRise": "7:07am",
+                    "sunRiseISO": "2026-05-13T07:07:00+12:00",
+                    "sunSet": "5:10pm",
+                    "sunSetISO": "2026-05-13T17:10:00+12:00"
+                  },
+                  {
+                    "date": "2026-05-14T00:00:00+12:00",
+                    "riseHour": 7,
+                    "setHour": 17,
+                    "sunRise": "7:08am",
+                    "sunRiseISO": "2026-05-14T07:08:00+12:00",
+                    "sunSet": "5:09pm",
+                    "sunSetISO": "2026-05-14T17:09:00+12:00"
+                  },
+                  {
+                    "date": "2026-05-15T00:00:00+12:00",
+                    "riseHour": 7,
+                    "setHour": 17,
+                    "sunRise": "7:09am",
+                    "sunRiseISO": "2026-05-15T07:09:00+12:00",
+                    "sunSet": "5:08pm",
+                    "sunSetISO": "2026-05-15T17:08:00+12:00"
+                  }
+                ]
+              },
+              "keys": [
+                {
+                  "items": [
+                    {
+                      "label": "Calm: 0"
+                    },
+                    {
+                      "icon": "wind-north-light",
+                      "label": "Light Winds: 1 - 14"
+                    },
+                    {
+                      "icon": "wind-north-moderate",
+                      "label": "Moderate: 15 - 29"
+                    },
+                    {
+                      "icon": "wind-north-fresh",
+                      "label": "Fresh: 30 - 39"
+                    },
+                    {
+                      "icon": "wind-north-strong",
+                      "label": "Strong: 40 - 62"
+                    },
+                    {
+                      "icon": "wind-north-gale",
+                      "label": "Gale: 63 - 89"
+                    },
+                    {
+                      "icon": "wind-north-gale",
+                      "label": "Severe Gale: > 89"
+                    }
+                  ],
+                  "label": "Wind (km/h)"
+                },
+                {
+                  "items": [
+                    {
+                      "className": "rainfall-light",
+                      "icon": "rainfall-light",
+                      "label": "Light: 0.2 - 2.0"
+                    },
+                    {
+                      "className": "rainfall-moderate",
+                      "icon": "rainfall-moderate",
+                      "label": "Moderate: 2.1 - 6.0"
+                    },
+                    {
+                      "className": "rainfall-heavy",
+                      "icon": "rainfall-heavy",
+                      "label": "Heavy: 6.1 - 25"
+                    },
+                    {
+                      "className": "rainfall-torrential",
+                      "icon": "rainfall-torrential",
+                      "label": "Torrential: > 25"
+                    }
+                  ],
+                  "label": "Rain (mm/h)"
+                }
+              ],
+              "labels": [
+                "",
+                "Rainfall (mm/h)",
+                "Temperature (\u00b0C)",
+                "Avg wind speed (not gusts) in km/h"
+              ],
+              "name": "forty-eight-hour-forecast/1",
+              "notes": [
+                {
+                  "text": "Total rainfall so far today: 0.2 mm. Total rainfall forecast for today: 0.2 mm"
+                }
+              ],
+              "notesLast": [
+                {
+                  "text": "The hourly model data shown can differ from the written forecast and icons, which are produced by MetService meteorologists and take into account model data along with many other data sources. If they differ significantly, please use the text forecasts."
+                },
+                {
+                  "text": "Forecast data is specifically generated for Napier City (93371). Rainfall shown is for the sum up to the hour. Wind speed, wind direction and temperature are the observed or forecast values at the given hour."
+                }
+              ],
+              "title": "Hourly Observations and Forecast",
+              "type": "module",
+              "types": [
+                "date",
+                "rainfall",
+                "temperature",
+                "wind"
+              ]
+            },
+            {
+              "id": "sc-tow-atf-ban-ad1",
+              "layout": {
+                "hideWhen": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "name": "remove-module",
+              "showWhen": "never",
+              "type": "module"
+            },
+            {
+              "advert": {
+                "id": "sc-tow-atf-til-ad4"
+              },
+              "iconName": "tv",
+              "layout": {
+                "hideWhen": [
+                  4,
+                  5
+                ]
+              },
+              "link": {
+                "label": "See more video forecasts",
+                "url": "/video-forecasts"
+              },
+              "name": "video/youtube",
+              "playlist": {
+                "id": "PLmL1PKunD7-IcMV6dp3x3QFHT8fpKWtWi",
+                "title": "National Forecast"
+              },
+              "title": "National Forecast",
+              "urlSlug": "video-forecast"
+            },
+            {
+              "id": "sc-tow-btf-til-ad1",
+              "layout": {
+                "hideWhen": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              "name": "advert/1"
+            }
+          ]
+        },
+        "right": {
+          "modules": [
+            {
+              "id": "sc-tow-atf-til-ad4",
+              "layout": {
+                "hideWhen": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "advert": {
+                "id": "sc-tow-atf-til-ad5"
+              },
+              "iconName": "tv",
+              "layout": {
+                "hideWhen": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "link": {
+                "label": "See more video forecasts",
+                "url": "/video-forecasts"
+              },
+              "name": "video/youtube",
+              "playlist": {
+                "id": "PLmL1PKunD7-IcMV6dp3x3QFHT8fpKWtWi",
+                "title": "National Forecast"
+              },
+              "title": "National Forecast",
+              "urlSlug": "video-forecast"
+            },
+            {
+              "id": "sc-tow-atf-ban-ad2",
+              "layout": {
+                "hideWhen": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "id": "sc-tow-btf-ban-ad4",
+              "layout": {
+                "hideWhen": [
+                  1,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              "name": "advert/1"
+            },
+            {
+              "image": "https://www.trafficnz.info/camera/741.jpg",
+              "link": {
+                "label": "Hawke's Bay Traffic Cameras",
+                "url": "/overlay/regions/hawkes-bay/locations/napier/traffic-cameras"
+              },
+              "name": "image-tile/1",
+              "title": "Hawke's Bay Traffic Cameras"
+            },
+            {
+              "id": "sc-tow-btf-ban-ad3",
+              "layout": {
+                "hideWhen": [
+                  2,
+                  4,
+                  5
+                ]
+              },
+              "name": "advert/1"
+            }
+          ]
+        }
+      }
+    },
+    "search": null,
+    "secondary": {
+      "slots": {
+        "major": {
+          "modules": [
+            {
+              "iconName": "map",
+              "items": [
+                {
+                  "image": "/dynamic/feeds/thumbnails/370x210_thumb_rain-forecast-3day.jpg?v=1",
+                  "title": "3 day forecast",
+                  "url": "/maps-radar/rain/forecast/3-days"
+                },
+                {
+                  "image": "/dynamic/feeds/thumbnails/370x210_thumb_tasman_surface-pressure.jpg?v=1",
+                  "title": "Tasman surface pressure",
+                  "url": "/maps-radar/surface-pressure/tasman-sea-new-zealand"
+                },
+                {
+                  "image": "/files/images/weather-stations-belt-central-north.png",
+                  "title": "Your weather",
+                  "url": "/maps-radar/weather-stations/hawkes-bay"
+                },
+                {
+                  "image": "/dynamic/feeds/thumbnails/370x210_thumb_rain-radar-nz.jpg?v=1",
+                  "title": "Rain radar",
+                  "url": "/maps-radar/rain/radar"
+                }
+              ],
+              "itemsMobile": [
+                {
+                  "image": "/files/images/your-weather-static.png",
+                  "title": "Your weather",
+                  "url": "/maps-radar/weather-stations/hawkes-bay"
+                },
+                {
+                  "image": "/dynamic/feeds/thumbnails/140x140_thumb_rain-radar-nz.jpg?v=1",
+                  "title": "Rain radar",
+                  "url": "/maps-radar/rain/radar"
+                },
+                {
+                  "image": "/dynamic/feeds/thumbnails/140x140_thumb_rain-forecast-3day.jpg?v=1",
+                  "title": "3 day forecast",
+                  "url": "/maps-radar/rain/forecast/3-days"
+                }
+              ],
+              "link": {
+                "label": "View all maps & radar",
+                "url": "/maps-radar/rain/radar"
+              },
+              "name": "belt",
+              "urlSlug": "maps-and-radar"
+            },
+            {
+              "disclaimer": "Source: MetOcean Solutions",
+              "iconName": "coastal",
+              "link": {
+                "label": "Extended Napier tide times",
+                "url": "/marine/regions/hawke-bay-wairarapa/tides/locations/napier"
+              },
+              "maxHeight": "1.7",
+              "minHeight": "0.3",
+              "name": "tide-forecast",
+              "tideData": [
+                {
+                  "height": "1.6",
+                  "time": "2026-05-13T01:44:00+12:00",
+                  "timeISO": "2026-05-13T01:44:00+12:00",
+                  "type": "HIGH"
+                },
+                {
+                  "height": "0.4",
+                  "time": "2026-05-13T08:01:00+12:00",
+                  "timeISO": "2026-05-13T08:01:00+12:00",
+                  "type": "LOW"
+                },
+                {
+                  "height": "1.6",
+                  "time": "2026-05-13T14:09:00+12:00",
+                  "timeISO": "2026-05-13T14:09:00+12:00",
+                  "type": "HIGH"
+                },
+                {
+                  "height": "0.4",
+                  "time": "2026-05-13T20:23:00+12:00",
+                  "timeISO": "2026-05-13T20:23:00+12:00",
+                  "type": "LOW"
+                },
+                {
+                  "height": "1.6",
+                  "time": "2026-05-14T02:35:00+12:00",
+                  "timeISO": "2026-05-14T02:35:00+12:00",
+                  "type": "HIGH"
+                },
+                {
+                  "height": "0.3",
+                  "time": "2026-05-14T08:50:00+12:00",
+                  "timeISO": "2026-05-14T08:50:00+12:00",
+                  "type": "LOW"
+                },
+                {
+                  "height": "1.7",
+                  "time": "2026-05-14T15:01:00+12:00",
+                  "timeISO": "2026-05-14T15:01:00+12:00",
+                  "type": "HIGH"
+                },
+                {
+                  "height": "0.3",
+                  "time": "2026-05-14T21:17:00+12:00",
+                  "timeISO": "2026-05-14T21:17:00+12:00",
+                  "type": "LOW"
+                },
+                {
+                  "height": "1.7",
+                  "time": "2026-05-15T03:27:00+12:00",
+                  "timeISO": "2026-05-15T03:27:00+12:00",
+                  "type": "HIGH"
+                },
+                {
+                  "height": "0.3",
+                  "time": "2026-05-15T09:42:00+12:00",
+                  "timeISO": "2026-05-15T09:42:00+12:00",
+                  "type": "LOW"
+                },
+                {
+                  "height": "1.7",
+                  "time": "2026-05-15T15:55:00+12:00",
+                  "timeISO": "2026-05-15T15:55:00+12:00",
+                  "type": "HIGH"
+                },
+                {
+                  "height": "0.3",
+                  "time": "2026-05-15T22:12:00+12:00",
+                  "timeISO": "2026-05-15T22:12:00+12:00",
+                  "type": "LOW"
+                }
+              ],
+              "title": "Napier Tides",
+              "type": "module",
+              "urlSlug": "tides"
+            },
+            {
+              "name": "remove-module",
+              "showWhen": "never",
+              "type": "module"
+            },
+            {
+              "iconName": "sun-moon",
+              "moonPhases": [
+                {
+                  "date": "17 May",
+                  "dateISO": "2026-05-17T07:58:25+12:00",
+                  "phase": "NEW"
+                },
+                {
+                  "date": "23 May",
+                  "dateISO": "2026-05-23T23:16:30+12:00",
+                  "phase": "FIRST"
+                },
+                {
+                  "date": "31 May",
+                  "dateISO": "2026-05-31T20:47:26+12:00",
+                  "phase": "FULL"
+                },
+                {
+                  "date": "8 Jun",
+                  "dateISO": "2026-06-08T21:52:21+12:00",
+                  "phase": "LAST"
+                }
+              ],
+              "name": "sun-and-moon",
+              "riseSet": {
+                "moonRise": "2:26am",
+                "moonSet": "2:42pm",
+                "sunRise": "7:07am",
+                "sunSet": "5:10pm"
+              },
+              "title": "Sun & Moon",
+              "type": "module",
+              "urlSlug": "sun-and-moon"
+            },
+            {
+              "iconName": "extremes",
+              "items": [
+                {
+                  "icon": "temp-high",
+                  "text": "Whang\u0101rei",
+                  "title": "Highest",
+                  "value": "16.1\u00b0"
+                },
+                {
+                  "icon": "temp-low",
+                  "text": "Twizel",
+                  "title": "Lowest",
+                  "value": "3.2\u00b0"
+                },
+                {
+                  "icon": "windy",
+                  "text": "Wellington (Lyall Bay)",
+                  "title": "Windiest",
+                  "value": "30km/h"
+                },
+                {
+                  "icon": "cloud-rain",
+                  "text": "Castlepoint",
+                  "title": "Wettest",
+                  "value": "1.4mm"
+                }
+              ],
+              "name": "icon-list/1",
+              "title": "Current Extremes",
+              "type": "module",
+              "urlSlug": "current-extremes"
+            },
+            {
+              "name": "yesterdays-extremes/1",
+              "tabs": [
+                {
+                  "description": "Rank of the locations with the highest air temperature recorded yesterday. Prev is the previous day's rank for the location. The arrow shows if the current rank is higher or lower than that for the previous day. Max of 5 locations plus current town/city shown.",
+                  "headers": [
+                    "Rank",
+                    "Location",
+                    "Max Temp",
+                    "Prev",
+                    "Up/down"
+                  ],
+                  "keys": [
+                    "rank",
+                    "location",
+                    "value",
+                    "prev",
+                    "upDown"
+                  ],
+                  "name": "Hottest",
+                  "values": [
+                    {
+                      "location": "Gisborne Airport",
+                      "prev": 38,
+                      "rank": 1,
+                      "town": "/towns-cities/regions/gisborne/locations/gisborne",
+                      "upDown": 37,
+                      "value": "19.8"
+                    },
+                    {
+                      "location": "Wairoa",
+                      "prev": 49,
+                      "rank": 2,
+                      "town": "/rural/regions/hawkes-bay/locations/wairoa",
+                      "upDown": 47,
+                      "value": "19.2"
+                    },
+                    {
+                      "location": "Christchurch Airport",
+                      "prev": 46,
+                      "rank": 3,
+                      "town": "/towns-cities/regions/christchurch/locations/christchurch",
+                      "upDown": 43,
+                      "value": "18.9"
+                    },
+                    {
+                      "location": "Napier",
+                      "prev": 27,
+                      "rank": 4,
+                      "town": "/towns-cities/regions/hawkes-bay/locations/napier",
+                      "upDown": 23,
+                      "value": "18.6"
+                    },
+                    {
+                      "location": "Whang\u0101rei Airport",
+                      "prev": 9,
+                      "rank": 5,
+                      "town": "/towns-cities/regions/northland/locations/whangarei",
+                      "upDown": 4,
+                      "value": "18.5"
+                    }
+                  ]
+                },
+                {
+                  "description": "Rank of the locations with the lowest air temperature recorded yesterday. Prev is the previous day's rank for the location. The arrow shows if the current rank is higher or lower than that for the previous day. Max of 5 locations plus current town/city shown",
+                  "headers": [
+                    "Rank",
+                    "Location",
+                    "Min Temp",
+                    "Prev",
+                    "Up/down"
+                  ],
+                  "keys": [
+                    "rank",
+                    "location",
+                    "value",
+                    "prev",
+                    "upDown"
+                  ],
+                  "name": "Coldest",
+                  "values": [
+                    {
+                      "location": "Twizel",
+                      "prev": 3,
+                      "rank": 1,
+                      "town": "/rural/regions/canterbury-high-country/locations/twizel",
+                      "upDown": 2,
+                      "value": "-3.0"
+                    },
+                    {
+                      "location": "Masterton Airport",
+                      "prev": 15,
+                      "rank": 2,
+                      "town": "/rural/regions/wairarapa/locations/martinborough",
+                      "upDown": 13,
+                      "value": "-2.3"
+                    },
+                    {
+                      "location": "Culverden",
+                      "prev": 21,
+                      "rank": 3,
+                      "town": "/rural/regions/canterbury-high-country/locations/culverden",
+                      "upDown": 18,
+                      "value": "-1.7"
+                    },
+                    {
+                      "location": "Feilding",
+                      "prev": 9,
+                      "rank": 4,
+                      "town": "/rural/regions/manawatu/locations/feilding",
+                      "upDown": 5,
+                      "value": "-1.2"
+                    },
+                    {
+                      "location": "St Arnaud",
+                      "prev": 6,
+                      "rank": 5,
+                      "town": "/rural/regions/nelson/locations/st-arnaud",
+                      "upDown": 1,
+                      "value": "-0.6"
+                    },
+                    {
+                      "location": "Napier",
+                      "prev": 52,
+                      "rank": 32,
+                      "town": "/towns-cities/regions/hawkes-bay/locations/napier",
+                      "upDown": 20,
+                      "value": "2.6"
+                    }
+                  ]
+                },
+                {
+                  "description": "Rank of the locations with the most rainfall recorded yesterday. Prev is the previous day's rank for the location. The arrow shows if the current rank is higher or lower than that for the previous day. Max of 5 locations plus current town/city shown.",
+                  "headers": [
+                    "Rank",
+                    "Location",
+                    "Rainfall",
+                    "Prev",
+                    "Up/down"
+                  ],
+                  "keys": [
+                    "rank",
+                    "location",
+                    "value",
+                    "prev",
+                    "upDown"
+                  ],
+                  "name": "Wettest",
+                  "values": [
+                    {
+                      "location": "Whitianga Airport",
+                      "prev": 3,
+                      "rank": 1,
+                      "town": "/towns-cities/regions/coromandel/locations/whitianga",
+                      "upDown": 2,
+                      "value": "21.4"
+                    },
+                    {
+                      "location": "Waikawau Bay",
+                      "prev": 4,
+                      "rank": 2,
+                      "town": "/rural/regions/coromandel/locations/waikawau-bay",
+                      "upDown": 2,
+                      "value": "20.6"
+                    },
+                    {
+                      "location": "Whenuapai",
+                      "prev": 6,
+                      "rank": 3,
+                      "town": "/rural/regions/auckland/locations/kumeu",
+                      "upDown": 3,
+                      "value": "6.5"
+                    },
+                    {
+                      "location": "Waitomo",
+                      "prev": 83,
+                      "rank": 4,
+                      "town": "/rural/regions/waitomo/locations/waitomo",
+                      "upDown": 79,
+                      "value": "4.4"
+                    },
+                    {
+                      "location": "Waikanae",
+                      "prev": 81,
+                      "rank": 5,
+                      "town": "/towns-cities/regions/kapiti-horowhenua/locations/waikanae",
+                      "upDown": 76,
+                      "value": "3.2"
+                    },
+                    {
+                      "location": "Napier",
+                      "prev": 93,
+                      "rank": 93,
+                      "town": "/towns-cities/regions/hawkes-bay/locations/napier",
+                      "upDown": 0,
+                      "value": "NA"
+                    }
+                  ]
+                },
+                {
+                  "description": "Rank of the locations with the strongest wind gust recorded yesterday. Prev is the previous day's rank for the location. The arrow shows if the current rank is higher or lower than that for the previous day. Max of 5 locations plus current town/city shown.",
+                  "headers": [
+                    "Rank",
+                    "Location",
+                    "Max Gust",
+                    "Prev",
+                    "Up/down"
+                  ],
+                  "keys": [
+                    "rank",
+                    "location",
+                    "value",
+                    "prev",
+                    "upDown"
+                  ],
+                  "name": "Windiest",
+                  "values": [
+                    {
+                      "location": "Nugget Point",
+                      "prev": 1,
+                      "rank": 1,
+                      "town": "/rural/regions/clutha/locations/nugget-point",
+                      "upDown": 0,
+                      "value": "102"
+                    },
+                    {
+                      "location": "Secretary Island",
+                      "prev": 13,
+                      "rank": 2,
+                      "town": "/maps-radar/weather-stations/nz",
+                      "upDown": 11,
+                      "value": "94"
+                    },
+                    {
+                      "location": "Port Chalmers",
+                      "prev": 4,
+                      "rank": 3,
+                      "town": "/towns-cities/regions/dunedin/locations/port-chalmers",
+                      "upDown": 1,
+                      "value": "93"
+                    },
+                    {
+                      "location": "Leith Saddle",
+                      "prev": 15,
+                      "rank": 4,
+                      "town": "/towns-cities/regions/dunedin/locations/leith-saddle",
+                      "upDown": 11,
+                      "value": "76"
+                    },
+                    {
+                      "location": "Dunedin Airport",
+                      "prev": 29,
+                      "rank": 5,
+                      "town": "/rural/regions/dunedin/locations/middlemarch",
+                      "upDown": 24,
+                      "value": "72"
+                    },
+                    {
+                      "location": "Napier",
+                      "prev": 92,
+                      "rank": 92,
+                      "town": "/towns-cities/regions/hawkes-bay/locations/napier",
+                      "upDown": 0,
+                      "value": "NA"
+                    }
+                  ]
+                }
+              ],
+              "type": "module"
+            },
+            {
+              "content": "<div><a href='/news/weather-news'><b>Quiet weather returns, and is here to stay</b></a></div><div class=\"u-mT-xs u-mB-xs fineprint u-textGrey\">Issued: <span>12:05pm Mon, 11 May</span></div><div>\u2022\tLarge area of high pressure pushing onto the country, bringing settled weather into next week.<br>\u2022\tRain for Auckland and parts of Northland and the Coromandel Peninsula later Monday and into Tuesday.<br>\u2022\tCooler mornings return, with fine weather for ...</div><span><img src=\"/IcePics/fc/1e8537-19e13b09480-19e13b09480-19e13b09480-19e1459f3e0.png width=\"200\" height=\"200\" \"></span><br>",
+              "name": "html-renderer",
+              "title": "Weather News",
+              "type": "module",
+              "urlSlug": "weather-news"
+            }
+          ]
+        },
+        "minor": {
+          "modules": []
+        },
+        "right": {
+          "modules": [
+            {
+              "id": "sc-tow-btf-ban-ad3",
+              "layout": {
+                "hideWhen": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "name": "advert/1"
+            }
+          ]
+        }
+      }
+    },
+    "type": "layout"
+  },
+  "location": {
+    "favouriteKey": "hawkes-bay/napier",
+    "favouriteType": "urban",
+    "key": "napier",
+    "label": "Napier",
+    "type": "urban",
+    "warningDataUrl": "/publicData/webdata/warnings-service/urban/napier",
+    "websiteLocation": "napier",
+    "websiteRegion": "hawkes-bay",
+    "websiteSection": "urban"
+  },
+  "metadata": {
+    "appleItunesApp": "app-id=525900888",
+    "author": "MetService",
+    "canonicalUrl": "https://www.metservice.com/towns-cities/regions/hawkes-bay/locations/napier",
+    "description": "Napier weather from MetService: Accurate forecast for today, tomorrow, and this week. Stay informed on current conditions, temperature, wind, rainfall, and laundry drying time.",
+    "googlePlayApp": "app-id=com.metservice.phone.android",
+    "image": null,
+    "keywords": "Napier weather, weather, MetService, forecast, accurate forecast, extended forecast, today, tomorrow, this week, current conditions, hourly observations, temperature, wind, rain, rainfall, laundry drying time, maps, radar, New Zealand",
+    "siteName": "MetService",
+    "title": "Napier Weather Forecast | MetService",
+    "twitterSite": "@metservicenz"
+  },
+  "searchLabel": "Napier - 48 Hours",
+  "type": "screen",
+  "url": "/towns-cities/regions/hawkes-bay/locations/napier",
+  "weather_warnings": "No warnings",
+  "pollen": {
+    "pollenLevels": {
+      "level": "Low",
+      "type": "Cypress, Cedar"
+    }
+  },
+  "tomorrow_condition": "few-showers",
+  "tomorrow_temp_high": "16",
+  "tomorrow_temp_low": "8",
+  "tomorrow_description": "Partly cloudy with a few showers. Southwesterlies.",
+  "drying_morning": "4 - 6 hrs",
+  "drying_afternoon": "1 - 3 hrs",
+  "drying_next_good_day": "Today"
+}
