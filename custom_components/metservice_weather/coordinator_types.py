@@ -198,7 +198,7 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
             datetime=h.get("date", ""),
             temperature=_safe_float(h.get("temperature")),
             rainfall=_safe_float(h.get("rainfall")),
-            wind_speed=_safe_float(_get(h, "wind", "averageSpeed")),
+            wind_speed=_safe_float(_get(h, "wind", "speed")),
             wind_direction=_get(h, "wind", "direction"),
         )
         for h in hourly_raw

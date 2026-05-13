@@ -494,7 +494,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
         try:
             async with async_timeout.timeout(10):
                 url = f"{self._api_url}{self._location}/airborne-allergens"
-                _LOGGER.info("Fetching pollen data from %s", url)
+                _LOGGER.debug("Fetching pollen data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
                     _LOGGER.debug("Pollen endpoint returned HTTP %s — pollen data unavailable", response.status)
