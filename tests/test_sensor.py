@@ -47,15 +47,20 @@ def _make_coordinator(hass, api_type="public") -> WeatherUpdateCoordinator:
 
 
 def _make_sensor(coordinator, key="temperature", value=18.5) -> WeatherSensor:
-    """Create a WeatherSensor with the simplest possible description."""
+    """Create a WeatherSensor with the simplest possible description.
+
+    value is captured in the closure so value_fn returns it directly, allowing
+    tests to assert on a known scalar even though _sensor_data is now
+    MetServicePublicData for the public API path.
+    """
+    captured = value
     desc = WeatherSensorEntityDescription(
         key=key,
         name="Test Sensor",
-        value_fn=lambda data, _: data,
-        attr_fn=lambda data: {"raw": data} if data else {},
+        value_fn=lambda data, _: captured,
+        attr_fn=lambda data: {"raw": captured} if captured is not None else {},
     )
-    with patch.object(coordinator, "get_current_public", return_value=value):
-        sensor = WeatherSensor(coordinator, desc)
+    sensor = WeatherSensor(coordinator, desc)
     return sensor
 
 
@@ -159,8 +164,7 @@ async def test_sensor_native_value_fn_error_returns_none(hass):
         name="Broken Sensor",
         value_fn=lambda data, _: 1 / 0,  # always raises
     )
-    with patch.object(coord, "get_current_public", return_value=10.0):
-        sensor = WeatherSensor(coord, desc)
+    sensor = WeatherSensor(coord, desc)
     assert sensor.native_value is None
 
 
@@ -185,19 +189,18 @@ async def test_sensor_extra_state_attributes_fn_error_returns_empty(hass):
         value_fn=lambda data, _: data,
         attr_fn=lambda data: 1 / 0,  # always raises
     )
-    with patch.object(coord, "get_current_public", return_value="val"):
-        sensor = WeatherSensor(coord, desc)
+    sensor = WeatherSensor(coord, desc)
     assert sensor.extra_state_attributes == {}
 
 
 async def test_sensor_handle_coordinator_update_public(hass):
     coord = _make_coordinator(hass)
     sensor = _make_sensor(coord, value=10.0)
-    coord.data = MetServicePublicData(temperature=22.5)
-    with patch.object(coord, "get_current_public", return_value=22.5), \
-         patch.object(sensor, "async_write_ha_state"):
+    updated_data = MetServicePublicData(temperature=22.5)
+    coord.data = updated_data
+    with patch.object(sensor, "async_write_ha_state"):
         sensor._handle_coordinator_update()
-    assert sensor._sensor_data == 22.5
+    assert sensor._sensor_data is updated_data
 
 
 async def test_sensor_handle_coordinator_update_mobile(hass):
@@ -262,8 +265,7 @@ async def test_sensor_setup_entry_public_skips_tide_sensors(hass):
     def add_entities(entities, *args, **kwargs):
         added.extend(entities)
 
-    with patch.object(coord, "get_current_public", return_value=None):
-        await async_setup_entry(hass, entry, add_entities)
+    await async_setup_entry(hass, entry, add_entities)
 
     keys = [s.entity_description.key for s in added]
     assert "tides_high" not in keys

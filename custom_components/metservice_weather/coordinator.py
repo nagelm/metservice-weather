@@ -240,7 +240,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 response = await self._session.get(url, headers=headers)
                 if response.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
                     raise ConfigEntryAuthFailed(
-                        "Mobile API key rejected (HTTP %s)" % response.status
+                        f"Mobile API key rejected (HTTP {response.status})"
                     )
                 result_current = await response.json(content_type=None)
                 if result_current is None:
