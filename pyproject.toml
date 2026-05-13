@@ -1,6 +1,17 @@
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "--cov=custom_components/metservice_weather --cov-report=term-missing --cov-fail-under=95"
+
+[tool.coverage.run]
+source = ["custom_components/metservice_weather"]
+omit = ["*/migrations/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
 
 [project.optional-dependencies]
 test = [
@@ -8,4 +19,5 @@ test = [
     "pytest-asyncio",
     "pytest-homeassistant-custom-component",
     "aioresponses",
+    "pytest-cov",
 ]
