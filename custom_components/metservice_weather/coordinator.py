@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from http import HTTPStatus
 import logging
 import re
 from typing import Any
 
 import aiohttp
 import async_timeout
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.util import dt as dt_util
 
 from homeassistant.core import HomeAssistant
@@ -160,6 +162,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 url = f"{self._api_url}/{self._latitude}/{self._longitude}"
                 _LOGGER.info("Fetching MetService mobile data from %s", url)
                 response = await self._session.get(url, headers=headers)
+                if response.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+                    raise ConfigEntryAuthFailed(
+                        "Mobile API key rejected (HTTP %s)" % response.status
+                    )
                 result_current = await response.json(content_type=None)
                 if result_current is None:
                     raise ValueError("No current weather data received.")
@@ -191,14 +197,13 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                 RESULTS_FORECAST_DAILY: result_daily,
             }
 
+        except ConfigEntryAuthFailed:
+            raise
         except ValueError as err:
-            _LOGGER.error("Data validation error: %s", err)
             raise UpdateFailed(f"Data validation error: {err}") from err
         except (TimeoutError, aiohttp.ClientError) as err:
-            _LOGGER.error("Error fetching MetService data: %s", repr(err))
             raise UpdateFailed(f"Error fetching MetService data: {err}") from err
         except Exception as err:
-            _LOGGER.error("Unexpected error fetching MetService data: %s", repr(err))
             raise UpdateFailed(f"Unexpected error: {err}") from err
 
     async def get_public_weather(self):
@@ -316,13 +321,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             }
 
         except ValueError as err:
-            _LOGGER.error("Data validation error: %s", err)
             raise UpdateFailed(f"Data validation error: {err}") from err
         except (TimeoutError, aiohttp.ClientError) as err:
-            _LOGGER.error("Error fetching MetService data: %s", repr(err))
             raise UpdateFailed(f"Error fetching MetService data: {err}") from err
         except Exception as err:
-            _LOGGER.error("Unexpected error fetching MetService data: %s", repr(err))
             raise UpdateFailed(f"Unexpected error: {err}") from err
 
     async def get_tides(self):
@@ -556,8 +558,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             result = self.get_from_dict(self.data[RESULTS_CURRENT], keys)
             return result
         except Exception as e:
-            _LOGGER.error("Error retrieving public sensor '%s': %s", field, e)
-            return None  # Return a dummy value if an error occurs
+            _LOGGER.debug("Error retrieving public sensor '%s': %s", field, e)
+            return None
 
     def get_current_mobile(self, field):
         """Get a specific key from the MetService returned data."""
@@ -566,8 +568,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             result = self.get_from_dict(self.data[RESULTS_CURRENT], keys)
             return result
         except Exception as e:
-            _LOGGER.error("Error retrieving mobile sensor '%s': %s", field, e)
-            return None  # Return a dummy value if an error occurs
+            _LOGGER.debug("Error retrieving mobile sensor '%s': %s", field, e)
+            return None
 
     def get_forecast_daily_public(self, field, day):
         """Get a specific key from the MetService returned data."""
@@ -580,7 +582,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             result = self.get_from_dict(this_day, keys)
             return result
         except Exception as e:
-            _LOGGER.error("Error retrieving public forecast daily sensor '%s' for day %s: %s", field, day, e)
+            _LOGGER.debug("Error retrieving public forecast daily sensor '%s' for day %s: %s", field, day, e)
             return None
 
     def get_forecast_daily_mobile(self, field, day):
@@ -594,7 +596,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
             result = self.get_from_dict(this_day, keys)
             return result
         except Exception as e:
-            _LOGGER.error("Error retrieving mobile forecast daily sensor '%s' for day %s: %s", field, day, e)
+            _LOGGER.debug("Error retrieving mobile forecast daily sensor '%s' for day %s: %s", field, day, e)
             return None
 
     @staticmethod
@@ -621,7 +623,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                     async with async_timeout.timeout(10):
                         response = await self._session.get(full_url, headers=self._PUBLIC_HEADERS)
                         if response.status != 200:
-                            _LOGGER.error("Error fetching %s: HTTP %s", full_url, response.status)
+                            _LOGGER.warning("Error fetching %s: HTTP %s", full_url, response.status)
                             if parent is not None and key is not None:
                                 parent[key] = None
                             return
@@ -632,7 +634,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
                     # structural traversal, so the guard catches URL expansion cycles.
                     await self.expand_data_urls(result, parent=parent, key=key, _depth=_depth + 1)
                 except Exception as e:
-                    _LOGGER.error("Error fetching dataUrl %s: %s", full_url, e)
+                    _LOGGER.warning("Error fetching dataUrl %s: %s", full_url, e)
                     if parent is not None and key is not None:
                         parent[key] = None
             else:

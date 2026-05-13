@@ -31,6 +31,13 @@
           "boating_url": "Select a location to get boating conditions and forecast. Choose \"None — skip\" to omit boating sensors.",
           "surf_url": "Select a surf spot to get wave height, swell, rating, and wind conditions. Choose \"None — skip\" to omit surf sensors."
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate MetService",
+        "description": "Your MetService mobile API key has been rejected. Enter a new key.",
+        "data": {
+          "mobile_api_key": "Mobile API key"
+        }
       }
     },
     "error": {
@@ -44,7 +51,9 @@
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]"
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "not_applicable": "Reauthentication is only available for mobile API entries.",
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
     }
   }
 }
