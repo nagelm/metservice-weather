@@ -17,3 +17,12 @@ venv/
 # Home Assistant configuration
 config/*
 !config/configuration.yaml
+
+# Sensitive / local-only
+dev_credentials.md
+*.credentials.md
+.env
+secrets.yaml
+
+# Claude Code project files
+.claude/
