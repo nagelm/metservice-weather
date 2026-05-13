@@ -3,7 +3,7 @@
 ## Project
 HACS custom integration for NZ weather data from MetService. Fork of `ciejer/metservice-weather`.
 - **Domain:** `metservice_weather`
-- **Version:** `0.9.18` (see `custom_components/metservice_weather/manifest.json`)
+- **Version:** `0.9.19` (see `custom_components/metservice_weather/manifest.json`)
 - **Repo:** `https://github.com/nagelm/metservice-weather`
 - **HA min version:** 2024.2.0 (public API) / 2024.2.0 (mobile API)
 
@@ -33,19 +33,30 @@ wsl bash -c "source /home/mattn/.venv/metservice-weather/bin/activate && cd /mnt
 custom_components/metservice_weather/
   __init__.py                          — entry setup/unload; uses entry.runtime_data
   manifest.json                        — version bump here before each release
-  coordinator.py                       — DataUpdateCoordinator; 20-min polling
-                                         get_current_public(field) / get_forecast_daily_public(field, day)
-                                         get_from_dict(data, keys) — depth-first key search
-  const.py                             — SENSOR_MAP_PUBLIC / SENSOR_MAP_MOBILE (field → dotted path)
+  coordinator.py                       — DataUpdateCoordinator[MetServicePublicData | dict];
+                                         20-min polling; always_update=False
+                                         get_from_dict / RESULTS_CURRENT / RESULTS_FORECAST_DAILY
+                                         still used by mobile path (not yet migrated)
+  coordinator_types.py                 — MetServicePublicData dataclass + HourlyEntry + DailyEntry
+                                         normalize_public_data(current, daily) → MetServicePublicData
+  const.py                             — SENSOR_MAP_MOBILE (field → dotted path); SENSOR_MAP_PUBLIC removed
   sensor.py                            — 40+ CoordinatorEntity sensors; PARALLEL_UPDATES = 0
+                                         public path: value_fn(coordinator.data, unit_system)
+                                         mobile path: value_fn(extracted_scalar, unit_system)
   weather.py                           — SingleCoordinatorWeatherEntity; PARALLEL_UPDATES = 0
-  weather_current_conditions_sensors.py— sensor definitions (name, field key, unit, device class)
-  config_flow.py                       — 2-step flow; public or mobile API; reconfigure support
+                                         public: reads coordinator.data.* directly (typed)
+                                         mobile: still uses get_current_mobile() accessor
+  weather_current_conditions_sensors.py— sensor definitions (name, value_fn lambda, unit, device class)
+  config_flow.py                       — 2-step flow; public or mobile API; reconfigure + reauth support
 tests/
   fixtures/napier_public_current.json  — captured public API fixture (post-expand, post-inject)
   fixtures/napier_public_daily.json    — captured 7-day forecast fixture
-  test_config_flow.py                  — 9 config flow tests (all pass)
-  test_coordinator_data.py             — 44 coordinator contract tests (all pass)
+  test_config_flow.py                  — 19 config flow tests (all pass)
+  test_coordinator_data.py             — 44 coordinator contract tests (direct dataclass attr access)
+  test_coordinator.py                  — coordinator fetch/error path tests
+  test_sensor.py                       — sensor entity tests
+  test_weather.py                      — weather entity tests
+  test_init.py                         — setup/unload lifecycle tests
 scripts/
   test.sh                              — pytest wrapper (WSL)
   lint.sh                              — ruff check + format (WSL)
@@ -55,42 +66,40 @@ scripts/
 
 ## Architecture — how data flows
 
-1. **Coordinator fetch** (`get_public_weather` / `get_mobile_weather`)
+### Public API path
+1. **Coordinator fetch** (`get_public_weather`)
    - Fetches main URL → expands nested `dataUrl` references recursively (`expand_data_urls`)
    - Fetches warnings, pollen (best-effort), 7-day daily forecast
-   - Injects derived keys at root of `result_current`:
-     `weather_warnings`, `pollen`, `tomorrow_condition/temp_high/temp_low/description`,
-     `drying_morning`, `drying_afternoon`, `drying_next_good_day`
-   - Returns `{"current": result_current, "daily": result_daily}`
+   - Calls `normalize_public_data(result_current, result_daily)` → returns `MetServicePublicData`
+   - `self.data` is typed `MetServicePublicData`
 
-2. **Sensor access** — `get_current_public(field)`:
-   - Looks up `SENSOR_MAP_PUBLIC[field]` → dotted path string (e.g. `"observations.wind.0.averageSpeed"`)
-   - Calls `get_from_dict(self.data["current"], keys)` — **depth-first search**, not exact path
-   - DFS fragility is the core Silver problem: key collision in deep trees → wrong value
+2. **Sensor access** — `sensor.py` calls `value_fn(coordinator.data, unit_system)`
+   - `value_fn` lambdas in `weather_current_conditions_sensors.py` read `data.temperature` etc.
 
-3. **SENSOR_MAP_PUBLIC** keys used by sensors and weather entity:
-   `temperature`, `temperatureFeelsLike`, `relativeHumidity`, `pressureAltimeter`,
-   `windSpeed`, `windGust`, `windDirection`, `wind_strength`, `rainfall`,
-   `condition`, `wxPhraseLong`, `uvIndex`, `validTimeLocal`, `location_name`,
-   `sunrise`, `sunset`, `moonrise`, `moonset`, `moon_phase`, `moon_phase_date`,
-   `fire_danger`, `fire_season`, `pollen_levels`, `pollen_type`,
-   `weather_warnings`, `tomorrow_*`, `drying_*`, `breakdown_*`,
-   `hourly_temp`, `hourly_obs`, `hourly_skip`, `daily_*`
+3. **Weather entity** — reads `coordinator.data.*` directly:
+   - `coordinator.data.temperature`, `.wind_speed`, `.hourly_entries`, `.daily_entries` etc.
+   - `HourlyEntry` fields: `datetime`, `temperature`, `rainfall`, `wind_speed`, `wind_direction`
+   - `DailyEntry` fields: `datetime`, `condition`, `temp_high`, `temp_low`, `description`, etc.
 
-## Silver tier goal
-Replace `get_from_dict` DFS lookups with a typed `MetServicePublicData` dataclass
-normalised at fetch time. Coordinator stores the dataclass; sensors/weather read
-typed attributes. Contract tests in `test_coordinator_data.py` must stay green
-throughout the refactor.
+### Mobile API path
+- Still uses `get_from_dict` DFS + `RESULTS_CURRENT` / `RESULTS_FORECAST_DAILY` dict
+- `self.data` is `dict[str, Any]` for mobile entries
+- Mobile migration to dataclass is deferred
 
-IQS Silver requirements also include: `action-setup`, `test-before-configure`,
-`test-before-setup`, `integration-owner`, `docs-*`, `reauthentication-flow`.
+## Silver tier status
+- ✅ Dataclass refactor (public path) — Phases 1–5 complete
+- ✅ Reauth flow — `async_step_reauth` / `async_step_reauth_confirm`
+- ✅ Test coverage — 250 tests, 97%, `--cov-fail-under=95`
+- ✅ CODEOWNERS — `.github/CODEOWNERS`
+- ✅ Config-entry-unloading tests — `tests/test_init.py`
+- 🔲 Forecast caching — `async_update_listeners` pattern not yet implemented
+- 🔲 Mobile path dataclass migration — deferred
 
 ## Release workflow (CRITICAL)
 
 1. Bump `manifest.json` version
 2. Update `release_notes.md`
-3. Commit + push
+3. Commit + push + tag
 4. Build zip using .NET ZipArchive — **NEVER `Compress-Archive`** (uses backslashes in paths → HA says "integration not found" on Linux):
 ```powershell
 $zipPath = "C:\Users\mattn\projects\metservice-weather\metservice_weather.zip"
@@ -104,7 +113,9 @@ Get-ChildItem $sourceDir -Recurse -File | ForEach-Object {
 }
 $zip.Dispose()
 ```
-5. Upload zip to GitHub release asset; in HACS use **⋮ → Redownload** then restart HA.
+5. `gh release create vX.X.X --prerelease --repo nagelm/metservice-weather` — attach zip, invisible to HACS auto-update
+6. Test on prod via HACS ⋮ → Redownload → select version
+7. Promote: `gh release edit vX.X.X --prerelease=false --repo nagelm/metservice-weather`
 
 ## PowerShell git commit messages
 Avoid here-strings for commit messages containing special characters. Use a variable:
@@ -115,7 +126,9 @@ git commit -m $msg
 
 ## Production HA
 - URL: `http://192.168.3.3:8123` — **never develop directly against it**
+- Credentials: `HA_USERNAME` / `HA_PASSWORD` in `~/.claude/settings.json`
 - Integration installed via HACS from the GitHub release zip
+- Access logs via HA MCP tools (`mcp__Home_Assistant__ha_get_logs`)
 
 ## Dev HA (WSL)
 Full startup procedure and tokens: **`dev_credentials.md`** (gitignored — never commit).
