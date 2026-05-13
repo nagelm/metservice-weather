@@ -33,7 +33,7 @@ from .const import (
     SPEEDUNIT,
     PRESSUREUNIT,
 )
-from .coordinator_types import normalize_public_data
+from .coordinator_types import MetServicePublicData, normalize_public_data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class WeatherUpdateCoordinatorConfig:
     update_interval = MIN_TIME_BETWEEN_UPDATES
 
 
-class WeatherUpdateCoordinator(DataUpdateCoordinator):
+class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict[str, Any]]):
     """The MetService update coordinator."""
 
     def __init__(
@@ -141,7 +141,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator):
         ),
     }
 
-    async def _async_update_data(self) -> dict[str, Any]:
+    async def _async_update_data(self) -> MetServicePublicData | dict[str, Any]:
         """Fetch data from API."""
         if self._api_type == "public":
             return await self.get_public_weather()
