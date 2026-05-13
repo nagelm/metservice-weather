@@ -46,6 +46,9 @@ from homeassistant.helpers import sun as sun_helper
 
 _LOGGER = logging.getLogger(__name__)
 
+PARALLEL_UPDATES = 0
+
+
 def safe_float(value):
     """Safely convert a value to float, return None if conversion fails."""
     try:
@@ -55,10 +58,10 @@ def safe_float(value):
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator], async_add_entities: AddEntitiesCallback
 ) -> None:
     """Add weather entity."""
-    coordinator: WeatherUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: WeatherUpdateCoordinator = entry.runtime_data
     if(entry.data["api"] == "mobile"):
         async_add_entities(
             [
