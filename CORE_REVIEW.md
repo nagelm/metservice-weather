@@ -1,183 +1,105 @@
-# metservice_weather — HA Core Submission Review
+# metservice_weather — HA Core Submission Status
 
-**Original audit date:** 2026-05-14 · **Version audited:** v0.9.19
-**Updated:** 2026-05-14 · **Current version:** v1.0.0 (Phases 1–3 complete)
+**Last updated:** 2026-05-14 · **Current HACS version:** v1.0.1
 
-**Revised verdict:** Gold-tier blockers all resolved. Integration is Core PR-ready after removing the `"version"` key from `manifest.json` (HACS-only field that fails Core CI). External library (`pymetservice-nz`) is Platinum-only and does not block Gold.
+## Status: Core branch ready — awaiting brands + docs PRs
 
-### Items resolved since original audit
-All Tier A blockers and all Tier B issues are now resolved:
-- **A2** ✅ `manifest.json` — `requirements: []`, `integration_type`, `quality_scale: "gold"` added
-- **A3/A4** ✅ `asyncio.timeout` used everywhere; `async with` in config flow (was sync)
-- **A5** ✅ `translation_key` on all sensors; `entity.sensor` section in `strings.json`/`en.json`
-- **A6** ✅ `icons.json` present
-- **A7** ✅ Mobile path removed entirely (v1.0.0)
-- **A8** ✅ `async_migrate_entry` stub present
-- **A9** ✅ Non-standard `Forecast` keys removed
-- **A10** ✅ Unique IDs use canonical location path slug (never display name)
-- **B1** ✅ `abort.reconfigure_successful` in `strings.json`
-- **B2** ✅ `from __future__ import annotations` in all files
-- **B3** ✅ `async_get_clientsession` throughout
-- **B4/B5** ✅ N/A — mobile path removed
-- **B6** ✅ `WeatherSensorEntityDescription` is `frozen=True, kw_only=True`
-- **B7/B8** ✅ Daily forecast time normalised via `format_timestamp`; helper imported directly
-- **B9** ✅ `safe_float`/`_safe_float` consolidated in `helpers.py`
-- **B10** ✅ N/A — `if(entry.data["api"] == "mobile")` removed with mobile path
-- **B11** ✅ CODEOWNERS and manifest both list only `@nagelm`
-
-### All Tier C items also done (Phase 3)
-- ✅ `MetServiceEntity` base class (`entity.py`) — shared DeviceInfo
-- ✅ `model` + `configuration_url` in DeviceInfo
-- ✅ `suggested_display_precision` on all numeric sensors
-- ✅ `_update_listener` removed
-- ✅ `tides`/`boating_table` typed as `list[dict[str, Any]]`
-
-### One remaining pre-Core-PR action
-Remove `"version": "1.0.0"` from `manifest.json` — HACS requires it, Core CI rejects it.
+The integration is IQS Silver-compliant and has a live Core branch at
+`nagelm/core:add-metservice-nz-weather`. All code-level requirements are met.
+The remaining steps are procedural (brands repo, documentation page, opening the PR).
 
 ---
 
-*Original audit below (preserved for reference)*
+## What's done
+
+| Area | Status |
+|------|--------|
+| Public API only (no private key) | ✅ |
+| `manifest.json` — no `version`, correct fields | ✅ handled by `sync_to_core.sh` |
+| `asyncio.timeout` throughout | ✅ |
+| Translation keys + `strings.json`/`en.json` | ✅ |
+| `icons.json` + icon-translations | ✅ |
+| `diagnostics.py` | ✅ |
+| `quality_scale.yaml` — IQS Silver declared | ✅ |
+| `MetServiceEntity` base class + DeviceInfo | ✅ |
+| `suggested_display_precision` on all numeric sensors | ✅ |
+| `MetServiceConfigEntry` type alias | ✅ |
+| Stable unique IDs | ✅ |
+| `async_get_clientsession` throughout | ✅ |
+| `from __future__ import annotations` everywhere | ✅ |
+| Reconfigure support | ✅ |
+| 206 tests, 95.8% coverage | ✅ |
+| hassfest passes | ✅ (known flag: `brands: todo`) |
+| `CODEOWNERS` entry | ✅ |
 
 ---
 
-**Gold tier:** Achievable without an external library. External library is Platinum-only.
+## Remaining submission steps
+
+### 1. Brands PR → `home-assistant/brands`
+- Create `core/metservice_weather/` directory in the brands repo
+- Add `icon.png` — 256×256 transparent PNG, icon only (no wordmark)
+- Optionally add `logo.png` (full wordmark) and `icon@2x.png` (512×512)
+- See the [brands repo README](https://github.com/home-assistant/brands) for exact specs
+- After merge: update `quality_scale.yaml` `brands: todo → done`, run `bash scripts/sync_to_core.sh`
+
+### 2. Documentation page → `home-assistant/home-assistant.io`
+- File: `source/_integrations/metservice_weather.markdown`
+- Content drawn from README; required sections per IQS docs rules:
+  - High-level description (what MetService is, what the integration provides)
+  - Installation instructions (HACS path no longer applies — just Settings → Integrations)
+  - Configuration (two-screen setup, marine options)
+  - Supported functions (sensor list, weather entity)
+  - Use cases
+  - Known limitations (NZ only; 20-min polling; no GPS locations)
+  - Troubleshooting
+  - Data update frequency
+  - Examples (automation snippets)
+- Submit this PR alongside the Core integration PR; link both to each other
+
+### 3. Update `quality_scale.yaml` + sync
+After brands PR merges and docs PR is submitted:
+```bash
+# in the HACS repo:
+bash scripts/sync_to_core.sh
+# then in ha-core:
+# edit quality_scale.yaml: brands → done, docs-* → done
+# commit + push
+```
+
+### 4. Open the Core integration PR
+- From: `nagelm/core:add-metservice-nz-weather`
+- To: `home-assistant/core:dev`
+- PR description must include:
+  - Short summary (what MetService is, what the integration provides)
+  - Checklist confirming test coverage, hassfest, mypy
+  - Link to brands PR (should be merged by now)
+  - Link to docs PR (may still be open — that's normal)
+- Add label: `new-integration`
+- Expect 2–8 week review cycle
+
+### 5. During review
+- Use `bash scripts/sync_to_core.sh` to propagate any HACS bug fixes to the branch
+- Backport reviewer-requested changes to HACS repo manually
+- Core reviewers may request: stricter typing, additional test cases, docstrings, refactoring
+
+### 6. Post-acceptance (Phase 4)
+- Extract `pymetservice-nz` PyPI library — Platinum IQS requirement (`async-dependency`)
+- Once in Core, HACS version becomes a thin compatibility shim for users on older HA versions
 
 ---
 
-## Summary
+## Sync workflow (ongoing)
 
-The integration is well-built for a HACS custom component. The coordinator structure, test coverage (260 tests, 97%), error handling, and dataclass refactor are all solid. The gap to Core (Gold tier) is primarily translation infrastructure, icon declarations, manifest completeness, and a handful of correctness bugs — not fundamental design problems. The external library requirement is Platinum-only and does not block Gold.
+```bash
+# After any change to the HACS repo that should go to Core:
+bash scripts/sync_to_core.sh        # rewrites paths, patches manifest
+cd ../ha-core
+git add -A && git commit -m "Sync from HACS repo"
+git push
+```
 
----
-
-## Tier A — Core PR blockers
-
-### A1 · No external PyPI library *(Platinum only — does NOT block Gold)*
-All HTTP I/O lives inside the integration. Platinum requires a separately installable package (e.g. `pymetservice-nz`). Every network call in `coordinator.py` and `config_flow.py` must move there. No workaround at Platinum.
-
-### A2 · `manifest.json` missing required fields *(blocks Gold)*
-`requirements` (must be `[]`), `integration_type` (`"service"`), and `quality_scale` are all absent. CI fails immediately. Also: `version` key must be **removed** for Core (HACS-only field).
-
-### A3 · `async_timeout` package used everywhere *(blocks Gold)*
-Core requires `asyncio.timeout` (stdlib, Python 3.11+). Every `import async_timeout` and usage in `coordinator.py` and `config_flow.py` must be replaced.
-
-### A4 · `with async_timeout.timeout()` is a runtime bug *(blocks Gold)*
-In `config_flow.py` (6 occurrences), timeout is applied via sync `with` on an async CM — it silently does nothing. Timeouts are not enforced in the config flow. Fix: `async with asyncio.timeout(...)`.
-
-### A5 · No `translation_key` on any sensor; no `entity` section in `strings.json` *(blocks Gold)*
-Gold requires translatable entity names. All 40+ sensor descriptions use hardcoded English `name` strings. Each description needs a `translation_key`; `strings.json` and `en.json` need an `entity.sensor` section.
-
-### A6 · `icons.json` absent *(blocks Gold)*
-Gold requires icon declarations in `icons.json`. All icon specs are currently inline Python (`icon=` fields in `weather_current_conditions_sensors.py`).
-
-### A7 · Mobile API path is not Core-quality *(blocks Gold)*
-Dict-based DFS (`get_from_dict`), `SENSOR_MAP_MOBILE` string keys, `dict[str, Any]` coordinator data — cannot pass strict-typing review. Options: full dataclass migration (high effort) or remove mobile path from Core PR scope.
-
-### A8 · No `async_migrate_entry` *(blocks Gold)*
-`VERSION = 1` is declared in config flow but no migration function exists. Core requires a migration path. At minimum a stub that handles `VERSION == 1` is needed.
-
-### A9 · Non-standard keys in `Forecast` TypedDict *(blocks Gold)*
-`"description"`, `"precipitation_low_mm"`, `"precipitation_high_mm"` in daily forecast entries fail Core's TypedDict validation. Extra data must go in `extra_state_attributes` or a separate service.
-
-### A10 · Unique IDs derived from mutable display name *(blocks Gold)*
-`f"{coordinator.location_name},{...}"` uses `entry.data[CONF_NAME]` (user-editable). Renaming the entry or reconfiguring orphans all entities. Must use a stable immutable identifier (e.g. canonical location path slug).
-
----
-
-## Tier B — Flagged in first-pass review
-
-| # | Issue | File | Effort |
-|---|-------|------|--------|
-| B1 | `abort.reconfigure_successful` missing from `strings.json` — success screen shows raw key | `strings.json`, `en.json` | Trivial |
-| B2 | `from __future__ import annotations` missing | `__init__.py`, `weather.py`, `const.py` | Trivial |
-| B3 | `async_create_clientsession` leaks a session per config flow; use `async_get_clientsession` | `config_flow.py` | Low |
-| B4/B5 | `WeatherSensor.__init__` calls `get_current_mobile()` at init time — stale/`None` on mobile path; init `_sensor_data = None` instead | `sensor.py` | Low |
-| B6 | `WeatherSensorEntityDescription` not `frozen=True, kw_only=True` | `weather_current_conditions_sensors.py` | Low |
-| B7 | Daily forecast `ATTR_FORECAST_TIME` not passed through `_format_timestamp` — local time vs UTC inconsistency with hourly | `weather.py` | Low |
-| B8 | `self.coordinator._format_timestamp(...)` called from entity — private coordinator method accessed outside coordinator | `weather.py` | Low |
-| B9 | `safe_float` duplicated: defined in `weather.py` and `_safe_float` in `weather_current_conditions_sensors.py` | both files | Low |
-| B10 | `if(entry.data["api"] == "mobile"):` — unnecessary parentheses | `weather.py:65` | Trivial |
-| B11 | `@ciejer` listed as codeowner — original fork author; Core requires active maintainers (respond within 30 days) | `.github/CODEOWNERS` | Low |
-
----
-
-## Tier C — Nice-to-haves (not blockers)
-
-- Extract a shared `MetServiceEntity` base class (avoid duplicate `DeviceInfo` in `sensor.py` and `weather.py`)
-- Add `model` and `configuration_url` to `DeviceInfo`
-- Add `suggested_display_precision` to numeric sensor descriptions
-- Remove the `_update_listener` reload mechanism (no options flow exists; fires on every config update)
-- Split `DataUpdateCoordinator[MetServicePublicData | dict[str, Any]]` into two separate typed coordinators
-- Implement `_async_setup` for one-time initialisation instead of inline on every poll
-- Type `tides: Any | None` and `boating_table: Any | None` concretely in `MetServicePublicData`
-- `Forecast({...})` dict constructor → keyword-argument form `Forecast(datetime=..., ...)`
-- Daily forecast `ATTR_FORECAST_TIME` UTC normalisation (related to B7)
-
----
-
-## Phased remediation plan
-
-### Phase 1 — Gold tier + all Tier B fixes
-*Achieves IQS Gold. No external library needed.*
-
-1. **manifest.json**: add `requirements: []`, `integration_type: "service"`, `quality_scale: "gold"`; remove `version`
-2. **asyncio.timeout**: replace all `async_timeout` imports and usages in `coordinator.py` and `config_flow.py`; fix sync `with` → `async with` in config_flow.py (6 occurrences)
-3. **Translation keys**: add `translation_key` to every `WeatherSensorEntityDescription`; add `entity.sensor` section to `strings.json` + `en.json`
-4. **icons.json**: create with all entity icon declarations; remove `icon=` from Python descriptions
-5. **async_migrate_entry**: add stub function handling `VERSION == 1`
-6. **Forecast cleanup**: remove `"description"`, `"precipitation_low_mm"`, `"precipitation_high_mm"` from `Forecast` dicts; expose via `extra_state_attributes` on the weather entity
-7. **Stable unique IDs**: derive from canonical location path slug, not display name
-8. **strings.json**: add `abort.reconfigure_successful`; remove dead `unknown_error` key
-9. **`from __future__ import annotations`**: add to `__init__.py`, `weather.py`, `const.py`
-10. **`async_get_clientsession`**: replace `async_create_clientsession` in `config_flow.py`
-11. **Sensor mobile init**: change `WeatherSensor.__init__` to `self._sensor_data = None`
-12. **Frozen description dataclass**: add `frozen=True, kw_only=True` to `WeatherSensorEntityDescription`
-13. **Daily forecast UTC**: pass daily `ATTR_FORECAST_TIME` through `_format_timestamp`
-14. **`_format_timestamp` extraction**: move to a utility module; update all callers
-15. **`safe_float` dedup**: consolidate into one implementation in the utility module
-16. **Syntax fix**: `if(entry.data` → `if entry.data` in `weather.py:65`
-17. **CODEOWNERS**: remove or confirm `@ciejer`; ensure only active maintainers listed
-
-### Phase 2 — Mobile path decision
-*Unblocks Core PR submission.*
-
-- **Option A (recommended):** Remove mobile path from Core PR scope. Keep on a HACS-only branch. Add a clear comment in `config_flow.py` and `coordinator.py` marking mobile as HACS-only. Removes `get_from_dict`, `SENSOR_MAP_MOBILE`, `get_current_mobile`, `get_forecast_daily_mobile`, `MetServiceMobile`, `MetServiceForecastMobile` from the Core submission.
-- **Option B:** Migrate mobile path to a `MetServiceMobileData` dataclass at parity with the public path (significant effort — weeks).
-
-### Phase 3 — Low-to-medium effort Platinum changes *(no external library)*
-
-1. Shared `MetServiceEntity` base class (dedup `DeviceInfo`)
-2. `model` and `configuration_url` in `DeviceInfo`
-3. `suggested_display_precision` on all numeric sensors
-4. Remove `_update_listener` reload mechanism
-5. Split coordinator into two separate typed coordinators (one per API path)
-6. Add `_async_setup` for one-time location verification
-7. Type `tides`, `boating_table`, and mobile coordinator data concretely
-8. `Forecast` keyword-argument construction
-
-### Phase 4 — External library + high-effort Platinum
-
-1. Create `pymetservice-nz` (or equivalent) PyPI package
-2. Move all HTTP logic from `coordinator.py` into the library
-3. Move all HTTP logic from `config_flow.py` into the library
-4. Pin the library in `manifest.json` `requirements`
-5. Migrate mobile path to library (if not removed in Phase 2)
-6. Set `quality_scale: "platinum"` in manifest
-
----
-
-## Key file locations
-
-| File | Role |
-|------|------|
-| `custom_components/metservice_weather/manifest.json` | Version, requirements, integration_type, quality_scale |
-| `custom_components/metservice_weather/coordinator.py` | DataUpdateCoordinator, HTTP fetch, async_timeout |
-| `custom_components/metservice_weather/coordinator_types.py` | MetServicePublicData dataclass, normalize_public_data |
-| `custom_components/metservice_weather/config_flow.py` | Config flow, reconfigure, reauth, async_timeout bug |
-| `custom_components/metservice_weather/sensor.py` | 40+ CoordinatorEntity sensors, WeatherSensorEntityDescription |
-| `custom_components/metservice_weather/weather.py` | Weather entity, forecast caching, Forecast TypedDict |
-| `custom_components/metservice_weather/weather_current_conditions_sensors.py` | Sensor descriptions, value_fn lambdas, icons |
-| `custom_components/metservice_weather/strings.json` | Config flow strings, error keys, translations |
-| `custom_components/metservice_weather/translations/en.json` | English locale (mirrors strings.json, needs entity.sensor section) |
-| `.github/CODEOWNERS` | Codeowner declarations |
+Core-only files **never** overwritten by the sync script:
+- `homeassistant/components/metservice_weather/diagnostics.py`
+- `homeassistant/components/metservice_weather/quality_scale.yaml`
+- `CODEOWNERS`

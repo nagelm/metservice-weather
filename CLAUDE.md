@@ -3,7 +3,7 @@
 ## Project
 HACS custom integration for NZ weather data from MetService. Fork of `ciejer/metservice-weather`.
 - **Domain:** `metservice_weather`
-- **Version:** `1.0.0` (see `custom_components/metservice_weather/manifest.json`)
+- **Version:** `1.0.1` (see `custom_components/metservice_weather/manifest.json`)
 - **Repo:** `https://github.com/nagelm/metservice-weather`
 - **HA min version:** 2024.2.0
 
@@ -31,9 +31,11 @@ wsl bash -c "source /home/mattn/.venv/metservice-weather/bin/activate && cd /mnt
 ## Key file map
 ```
 custom_components/metservice_weather/
-  __init__.py                          — entry setup/unload; uses entry.runtime_data
+  __init__.py                          — entry setup/unload; MetServiceConfigEntry type alias;
+                                         uses entry.runtime_data
   manifest.json                        — version bump here before each release
-                                         REMOVE `version` key before Core PR (HACS-only field)
+                                         sync_to_core.sh strips `version` automatically
+  diagnostics.py                       — HA diagnostics panel support (backported from Core branch)
   coordinator.py                       — DataUpdateCoordinator[MetServicePublicData];
                                          20-min polling; always_update=False
                                          get_from_dict DFS still used for drying index extraction
@@ -64,6 +66,8 @@ scripts/
   lint.sh                              — ruff check + format (WSL)
   capture_fixtures.py                  — fetches real MetService data → tests/fixtures/
   get_cities.py                        — lists public API location paths (dev helper)
+  sync_to_core.sh                      — syncs HACS → ha-core branch (rewrites imports,
+                                         patches manifest, preserves Core-only files)
 ```
 
 ## Architecture — how data flows
@@ -84,29 +88,56 @@ scripts/
 
 ## IQS / Core submission status
 
-### Gold tier — all blockers resolved
-- ✅ `manifest.json` — `requirements: []`, `integration_type: "service"`, `quality_scale: "gold"`
+### Code quality — all done
 - ✅ `asyncio.timeout` everywhere (stdlib, no `async_timeout` package)
 - ✅ Translation keys on all sensors + `entity.sensor` in `strings.json`/`en.json`
 - ✅ `icons.json` present
 - ✅ Mobile API path removed (private API key; not Core-appropriate)
 - ✅ `async_migrate_entry` stub present
-- ✅ Non-standard `Forecast` TypedDict keys removed
 - ✅ Stable unique IDs (canonical location path slug)
 - ✅ `async_get_clientsession` throughout
 - ✅ `from __future__ import annotations` in all files
 - ✅ 206 tests, 95.8% coverage, `--cov-fail-under=95`
-
-### Phase 3 Platinum items — done
-- ✅ Shared `MetServiceEntity` base class (`entity.py`)
-- ✅ `model` + `configuration_url` in `DeviceInfo`
+- ✅ `MetServiceEntity` base class (`entity.py`) — shared DeviceInfo
 - ✅ `suggested_display_precision` on all numeric sensors
-- ✅ `_update_listener` removed (no options flow)
-- ✅ `tides`/`boating_table` typed as `list[dict[str, Any]]`
+- ✅ `diagnostics.py` — diagnostics panel support
+- ✅ `MetServiceConfigEntry` type alias in `__init__.py`
 
-### Remaining before Core PR
-- Remove `"version"` from `manifest.json` (one-line change, do this last — HACS needs it but Core CI rejects it)
-- Phase 4: extract `pymetservice-nz` PyPI library (Platinum-only requirement, does not block Gold)
+### Core branch — `nagelm/core:add-metservice-nz-weather`
+- Forked `home-assistant/core` → `nagelm/core`; branch created 2026-05-14
+- `homeassistant/components/metservice_weather/` — all files synced from HACS repo
+- `tests/components/metservice_weather/` — 206 tests, paths rewritten to `homeassistant.components.*`
+- `quality_scale.yaml` — IQS Silver declared; brands/docs rules marked todo (see below)
+- `CODEOWNERS` entry at correct alphabetical position
+- **hassfest passes** (only known flag: `brands: todo` — deliberate, handled at PR time)
+- Sync with: `bash scripts/sync_to_core.sh` (then commit + push in ha-core)
+
+### Remaining Core submission steps (in order)
+
+1. **Brands PR** → `home-assistant/brands`
+   - Create `core/metservice_weather/` with `icon.png` (256×256 transparent PNG)
+   - Optionally add `logo.png` and `icon@2x.png`
+   - Fast review — typically merged within days
+   - After merge: flip `brands: todo → done` in `quality_scale.yaml`, run sync
+
+2. **HA documentation page** → `home-assistant/home-assistant.io`
+   - File: `source/_integrations/metservice_weather.markdown`
+   - Content based on README; must cover high-level description, installation, configuration,
+     removal, supported functions, use cases, troubleshooting, known limitations
+   - Submit alongside (or shortly before) the Core integration PR
+
+3. **Update `quality_scale.yaml`** after brands merges and docs PR is submitted
+   - `brands: done`, docs-* rules to `done`
+   - Run `bash scripts/sync_to_core.sh` and commit to ha-core branch
+
+4. **Open the Core integration PR** — `nagelm/core:add-metservice-nz-weather` → `home-assistant/core:dev`
+   - PR description: summary, test plan, link brands PR (merged), link docs PR (pending)
+   - Label: `new-integration`
+   - Expected review cycle: 2–8 weeks
+
+5. **Backport reviewer changes** to HACS repo as they come in; use `sync_to_core.sh` to re-sync
+
+6. **Phase 4 (post-acceptance):** Extract `pymetservice-nz` PyPI library (Platinum-only, deferred)
 
 ## Versioning convention
 
