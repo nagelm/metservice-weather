@@ -108,6 +108,16 @@ scripts/
 - Remove `"version"` from `manifest.json` (one-line change, do this last — HACS needs it but Core CI rejects it)
 - Phase 4: extract `pymetservice-nz` PyPI library (Platinum-only requirement, does not block Gold)
 
+## Versioning convention
+
+Three-level semantic versioning: `MAJOR.MINOR.PATCH`
+
+- **PATCH** (`1.0.x`) — bug fixes, no new features, no breaking changes. Bump freely.
+- **MINOR** (`1.x.0`) — new features, backwards-compatible. Bump when adding sensors, config options, or other additive changes.
+- **MAJOR** (`x.0.0`) — breaking changes or milestone releases (e.g. Core inclusion). **Only bump with explicit user agreement.**
+
+Do not bump MAJOR automatically. If a change feels like it warrants a major version bump, propose it and wait for confirmation.
+
 ## Release workflow (CRITICAL)
 
 1. Bump `manifest.json` version
