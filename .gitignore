@@ -26,3 +26,7 @@ secrets.yaml
 
 # local tooling project files
 .devtools/
+
+# Local dev helpers and prompts
+prompts/
+fix_index.py
