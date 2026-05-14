@@ -27,7 +27,6 @@ from .const import (
 )
 from .weather_current_conditions_sensors import (
     current_condition_sensor_descriptions_public,
-    current_condition_sensor_descriptions_mobile,
     WeatherSensorEntityDescription,
 )
 
@@ -35,13 +34,9 @@ _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
-# Declaration of supported MetService observation/condition sensors
-SENSOR_DESCRIPTIONS_PUBLIC: tuple[
+SENSOR_DESCRIPTIONS: tuple[
     WeatherSensorEntityDescription, ...
 ] = current_condition_sensor_descriptions_public
-SENSOR_DESCRIPTIONS_MOBILE: tuple[
-    WeatherSensorEntityDescription, ...
-] = current_condition_sensor_descriptions_mobile
 
 
 async def async_setup_entry(
@@ -49,10 +44,7 @@ async def async_setup_entry(
 ) -> None:
     """Add MetService entities from a config_entry."""
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
-    if entry.data["api"] == "mobile":
-        descriptions = list(SENSOR_DESCRIPTIONS_MOBILE)
-    else:
-        descriptions = list(SENSOR_DESCRIPTIONS_PUBLIC)
+    descriptions = list(SENSOR_DESCRIPTIONS)
 
     # Skip tide sensors when no tide location is configured
     if not coordinator.enable_tides:
@@ -101,10 +93,7 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
             f"{self.coordinator.location}_{description.key}".lower()
         )
         self._unit_system = coordinator.unit_system
-        if self.coordinator.api_type == 'mobile':
-            self._sensor_data = None
-        else:
-            self._sensor_data = coordinator.data
+        self._sensor_data = coordinator.data
         self._attr_native_unit_of_measurement = self.entity_description.unit_fn(
             self.coordinator.hass.config.units is METRIC_SYSTEM
         )
@@ -136,8 +125,5 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle data update."""
-        if self.coordinator.api_type == 'mobile':
-            self._sensor_data = self.coordinator.get_current_mobile(self.entity_description.key)
-        else:
-            self._sensor_data = self.coordinator.data
+        self._sensor_data = self.coordinator.data
         self.async_write_ha_state()

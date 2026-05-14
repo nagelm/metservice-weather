@@ -2,13 +2,11 @@
 from __future__ import annotations
 import asyncio
 import logging
-from http import HTTPStatus
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_LOCATION, CONF_NAME
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
-    BooleanSelector,
     SelectSelector,
     SelectSelectorConfig,
 )
@@ -23,8 +21,6 @@ CONF_MARINE_REGION = "marine_region"
 CONF_TIDE_URL = "tide_url"
 CONF_BOATING_URL = "boating_url"
 CONF_SURF_URL = "surf_url"
-CONF_USE_MOBILE = "use_mobile"
-CONF_MOBILE_API_KEY = "mobile_api_key"
 CONF_API = "api"
 
 # Legacy keys — kept for backward compatibility when reading old config entries
@@ -34,17 +30,6 @@ _LEGACY_BOATING_REGION = "boating_region"
 _SKIP = "skip"
 
 _LOGGER = logging.getLogger(__name__)
-
-_MOBILE_HEADERS = {
-    "Accept": "*/*",
-    "User-Agent": (
-        "MetServiceNZ/2.19.3 (com.metservice.iphoneapp; build:332; "
-        "iOS 17.1.1) Alamofire/5.4.3"
-    ),
-    "Accept-Language": "en-CA;q=1.0",
-    "Accept-Encoding": "br;q=1.0, gzip;q=0.9, deflate;q=0.8",
-    "Connection": "keep-alive",
-}
 
 _BASE_URL = "https://www.metservice.com/publicData/webdata"
 
@@ -86,42 +71,6 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self.user_info = dict(self._reconfig_entry.data)
         return await self.async_step_setup()
 
-    async def async_step_reauth(self, entry_data: dict):
-        """Handle reauth initiated by ConfigEntryAuthFailed."""
-        self._reauth_entry = self._get_reauth_entry()
-        if self._reauth_entry.data.get(CONF_API) != "mobile":
-            return self.async_abort(reason="not_applicable")
-        return await self.async_step_reauth_confirm()
-
-    async def async_step_reauth_confirm(self, user_input=None):
-        """Show form to collect a replacement mobile API key."""
-        errors = {}
-        if user_input is not None:
-            api_key = user_input.get(CONF_MOBILE_API_KEY, "").strip()
-            if not api_key:
-                errors[CONF_MOBILE_API_KEY] = "api_key_required"
-            else:
-                try:
-                    session = async_get_clientsession(self.hass)
-                    async with asyncio.timeout(10):
-                        response = await session.get(
-                            "https://api.metservice.com/mobile/nz/weatherData/-43.123/172.123",
-                            headers={**_MOBILE_HEADERS, "apiKey": api_key},
-                        )
-                    if response.status == HTTPStatus.OK:
-                        return self.async_update_reload_and_abort(
-                            self._reauth_entry,
-                            data={**self._reauth_entry.data, CONF_MOBILE_API_KEY: api_key},
-                        )
-                    errors[CONF_MOBILE_API_KEY] = "invalid_api_key"
-                except Exception:
-                    errors["base"] = "cannot_connect"
-        return self.async_show_form(
-            step_id="reauth_confirm",
-            data_schema=vol.Schema({vol.Required(CONF_MOBILE_API_KEY): str}),
-            errors=errors,
-        )
-
     # ------------------------------------------------------------------ #
     # Step 1 of 2: setup                                                   #
     # ------------------------------------------------------------------ #
@@ -146,50 +95,14 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 data_schema=self._build_setup_schema(),
             )
 
-        errors = {}
-        use_mobile = user_input.get(CONF_USE_MOBILE, False)
-        api_key = user_input.get(CONF_MOBILE_API_KEY, "").strip()
-
-        if use_mobile:
-            if not api_key:
-                errors[CONF_MOBILE_API_KEY] = "api_key_required"
-            else:
-                try:
-                    session = async_get_clientsession(self.hass)
-                    async with asyncio.timeout(10):
-                        response = await session.get(
-                            "https://api.metservice.com/mobile/nz/weatherData/-43.123/172.123",
-                            headers={**_MOBILE_HEADERS, "apiKey": api_key},
-                        )
-                    if response.status != HTTPStatus.OK:
-                        errors[CONF_MOBILE_API_KEY] = "invalid_api_key"
-                except Exception:
-                    errors["base"] = "cannot_connect"
-
-        if errors:
-            return self.async_show_form(
-                step_id="setup",
-                data_schema=self._build_setup_schema(user_input),
-                errors=errors,
-            )
-
         # Persist core settings.
         self.user_info[CONF_LOCATION] = user_input[CONF_LOCATION]
         self.user_info[CONF_NAME] = user_input[CONF_NAME]
-        self.user_info[CONF_API] = "mobile" if use_mobile else "public"
-        if use_mobile:
-            self.user_info[CONF_MOBILE_API_KEY] = api_key
-        else:
-            self.user_info.pop(CONF_MOBILE_API_KEY, None)
+        self.user_info[CONF_API] = "public"
 
         # Set unique ID on first-time setup only.
         if not self._is_reconfiguring:
-            uid = (
-                f"{DOMAIN}-{user_input[CONF_NAME]}"
-                if use_mobile
-                else f"{DOMAIN}-{user_input[CONF_LOCATION]}"
-            )
-            await self.async_set_unique_id(uid)
+            await self.async_set_unique_id(f"{DOMAIN}-{user_input[CONF_LOCATION]}")
             self._abort_if_unique_id_configured()
 
         # Resolve the marine region selection.
@@ -257,14 +170,6 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_MARINE_REGION, default=marine_default
                 ): SelectSelector(SelectSelectorConfig(options=region_opts)),
-                vol.Optional(
-                    CONF_USE_MOBILE,
-                    default=values.get(CONF_API, "public") == "mobile",
-                ): BooleanSelector(),
-                vol.Optional(
-                    CONF_MOBILE_API_KEY,
-                    default=values.get(CONF_MOBILE_API_KEY, values.get("api_key", "")),
-                ): str,
             }
         )
 

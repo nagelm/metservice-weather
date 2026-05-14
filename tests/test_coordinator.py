@@ -14,10 +14,6 @@ from custom_components.metservice_weather.coordinator import (
     WeatherUpdateCoordinator,
     WeatherUpdateCoordinatorConfig,
 )
-from custom_components.metservice_weather.const import (
-    RESULTS_CURRENT,
-    RESULTS_FORECAST_DAILY,
-)
 from custom_components.metservice_weather.coordinator_types import (
     MetServicePublicData,
 )
@@ -36,21 +32,7 @@ def _load(name: str) -> dict:
 _PUBLIC_CURRENT = _load("napier_public_current.json")
 _PUBLIC_DAILY = _load("napier_public_daily.json")
 
-_MINIMAL_MOBILE_CURRENT = {
-    "result": {
-        "warnings": {"previews": []},
-        "hourlyForecastData": {"data": []},
-        "forecastData": {"days": []},
-        "observationData": {"pressure": 1013},
-        "genericModules": [],
-    }
-}
-_MINIMAL_MOBILE_DAILY = {"result": {"forecastData": {"days": []}}}
-
-
 def _make_config(
-    api_type="public",
-    api_key="",
     tide_url="",
     boating_url="",
     surf_url="",
@@ -58,22 +40,18 @@ def _make_config(
     return WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        api_key=api_key,
-        api_type=api_type,
         unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",
-        latitude="-39.49",
-        longitude="176.91",
         tide_url=tide_url,
         boating_url=boating_url,
         surf_url=surf_url,
     )
 
 
-def _make_coordinator(hass, api_type="public", **kwargs) -> WeatherUpdateCoordinator:
-    config = _make_config(api_type=api_type, **kwargs)
+def _make_coordinator(hass, **kwargs) -> WeatherUpdateCoordinator:
+    config = _make_config(**kwargs)
     coord = WeatherUpdateCoordinator(hass, config)
     return coord
 
@@ -93,7 +71,6 @@ async def test_coordinator_properties(hass):
     coord = _make_coordinator(hass)
     assert coord.location == "/towns-cities/regions/hawkes-bay/locations/napier"
     assert coord.location_name == "Napier"
-    assert coord.api_type == "public"
     assert coord.enable_tides is False
     assert coord.enable_boating is False
     assert coord.enable_surf is False
@@ -286,81 +263,12 @@ async def test_get_public_weather_api_error_raises_update_failed(hass):
 
 
 # ---------------------------------------------------------------------------
-# Test: get_mobile_weather — happy path
-# ---------------------------------------------------------------------------
-
-async def test_get_mobile_weather_returns_data(hass):
-    coord = _make_coordinator(hass, api_type="mobile", api_key="testkey")
-
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_MINIMAL_MOBILE_CURRENT),
-        _mock_response(_MINIMAL_MOBILE_DAILY),
-    ])
-    coord._session = mock_session
-
-    result = await coord.get_mobile_weather()
-    assert RESULTS_CURRENT in result
-    assert RESULTS_FORECAST_DAILY in result
-
-
-async def test_get_mobile_weather_401_raises_config_entry_auth_failed(hass):
-    coord = _make_coordinator(hass, api_type="mobile", api_key="badkey")
-    resp = _mock_response({}, status=401)
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(return_value=resp)
-    coord._session = mock_session
-
-    with pytest.raises(ConfigEntryAuthFailed):
-        await coord.get_mobile_weather()
-
-
-async def test_get_mobile_weather_403_raises_config_entry_auth_failed(hass):
-    coord = _make_coordinator(hass, api_type="mobile", api_key="badkey")
-    resp = _mock_response({}, status=403)
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(return_value=resp)
-    coord._session = mock_session
-
-    with pytest.raises(ConfigEntryAuthFailed):
-        await coord.get_mobile_weather()
-
-
-async def test_get_mobile_weather_timeout_raises_update_failed(hass):
-    coord = _make_coordinator(hass, api_type="mobile")
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=TimeoutError())
-    coord._session = mock_session
-
-    with pytest.raises(UpdateFailed):
-        await coord.get_mobile_weather()
-
-
-async def test_get_mobile_weather_none_response_raises_update_failed(hass):
-    coord = _make_coordinator(hass, api_type="mobile", api_key="key")
-    resp = _mock_response(None)
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(return_value=resp)
-    coord._session = mock_session
-
-    with pytest.raises(UpdateFailed, match="No current weather data"):
-        await coord.get_mobile_weather()
-
-
-# ---------------------------------------------------------------------------
 # Test: _async_update_data dispatches correctly
 # ---------------------------------------------------------------------------
 
 async def test_async_update_data_public(hass):
-    coord = _make_coordinator(hass, api_type="public")
+    coord = _make_coordinator(hass)
     with patch.object(coord, "get_public_weather", new_callable=AsyncMock, return_value={"current": {}, "daily": {}}) as mock:
-        await coord._async_update_data()
-        mock.assert_called_once()
-
-
-async def test_async_update_data_mobile(hass):
-    coord = _make_coordinator(hass, api_type="mobile")
-    with patch.object(coord, "get_mobile_weather", new_callable=AsyncMock, return_value={"current": {}, "daily": {}}) as mock:
         await coord._async_update_data()
         mock.assert_called_once()
 
@@ -656,42 +564,6 @@ async def test_expand_data_urls_max_depth_guard(hass):
 
 
 # ---------------------------------------------------------------------------
-# Test: sensor accessors with pre-loaded data
-# ---------------------------------------------------------------------------
-
-async def test_get_current_mobile_known_field(hass):
-    coord = _make_coordinator(hass, api_type="mobile")
-    coord.data = {
-        RESULTS_CURRENT: {"result": {"observationData": {"pressure": 1015}}},
-        RESULTS_FORECAST_DAILY: {},
-    }
-    result = coord.get_current_mobile("pressureAltimeter")
-    assert result == 1015
-
-
-async def test_get_current_mobile_unknown_field_returns_none(hass):
-    coord = _make_coordinator(hass, api_type="mobile")
-    coord.data = {RESULTS_CURRENT: {}, RESULTS_FORECAST_DAILY: {}}
-    result = coord.get_current_mobile("nonexistent_xyz")
-    assert result is None
-
-
-async def test_get_forecast_daily_mobile_day_count(hass):
-    coord = _make_coordinator(hass, api_type="mobile")
-    coord.data = {
-        RESULTS_CURRENT: {"result": {"forecastData": {"days": [{"x": 1}, {"x": 2}]}}},
-        RESULTS_FORECAST_DAILY: {},
-    }
-    assert coord.get_forecast_daily_mobile("", 0) == 2
-
-
-async def test_get_forecast_daily_mobile_error_returns_none(hass):
-    coord = _make_coordinator(hass, api_type="mobile")
-    coord.data = {RESULTS_CURRENT: {}, RESULTS_FORECAST_DAILY: {}}
-    assert coord.get_forecast_daily_mobile("daily_condition", 0) is None
-
-
-# ---------------------------------------------------------------------------
 # Test: tide/boating/surf injected into public weather fetch
 # ---------------------------------------------------------------------------
 
@@ -913,94 +785,6 @@ async def test_get_public_weather_drying_exception_silenced(hass):
 
 
 # ---------------------------------------------------------------------------
-# Test: get_mobile_weather — additional coverage
-# ---------------------------------------------------------------------------
-
-async def test_get_mobile_weather_daily_none_raises_update_failed(hass):
-    """When mobile daily fetch returns None, UpdateFailed is raised."""
-    coord = _make_coordinator(hass, api_type="mobile", api_key="key")
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_MINIMAL_MOBILE_CURRENT),
-        _mock_response(None),  # daily returns None → line 182
-    ])
-    coord._session = mock_session
-
-    with pytest.raises(UpdateFailed, match="No daily forecast"):
-        await coord.get_mobile_weather()
-
-
-async def test_get_mobile_weather_unexpected_exception_raises_update_failed(hass):
-    """Unexpected exception in mobile fetch is wrapped in UpdateFailed (lines 206-207)."""
-    coord = _make_coordinator(hass, api_type="mobile")
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=RuntimeError("boom"))
-    coord._session = mock_session
-
-    with pytest.raises(UpdateFailed, match="Unexpected error"):
-        await coord.get_mobile_weather()
-
-
-async def test_get_mobile_weather_injects_tides(hass):
-    """Tide data injected into mobile current when tide_url configured (line 190)."""
-    tide_resp = {
-        "layout": {"primary": {"slots": {"main": {"modules": [
-            {"tideData": [{"type": "HIGH", "time": "06:00", "height": 1.5}]}
-        ]}}}}
-    }
-    coord = _make_coordinator(hass, api_type="mobile", api_key="key", tide_url="https://example.com/tides")
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_MINIMAL_MOBILE_CURRENT),
-        _mock_response(_MINIMAL_MOBILE_DAILY),
-        _mock_response(tide_resp),
-    ])
-    coord._session = mock_session
-
-    result = await coord.get_mobile_weather()
-    assert "tideImport" in result[RESULTS_CURRENT]
-
-
-async def test_get_mobile_weather_injects_boating(hass):
-    """Boating data injected into mobile current when boating_url configured (line 192)."""
-    boating_data_resp = {
-        "layout": {"primary": {"slots": {"main": {"modules": [{"days": [
-            {"view": {"text": "OK", "status": "ok"}, "forecast": {"text": "Mild", "issuedAt": ""}, "table": {"columns": []}}
-        ]}]}}}}
-    }
-    coord = _make_coordinator(hass, api_type="mobile", api_key="key", boating_url="https://example.com/boating")
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_MINIMAL_MOBILE_CURRENT),
-        _mock_response(_MINIMAL_MOBILE_DAILY),
-        _mock_response(boating_data_resp),
-    ])
-    coord._session = mock_session
-
-    result = await coord.get_mobile_weather()
-    assert "boating_data" in result[RESULTS_CURRENT]
-
-
-async def test_get_mobile_weather_injects_surf(hass):
-    """Surf data injected into mobile current when surf_url configured (line 194)."""
-    surf_url = "https://www.metservice.com/publicData/webdata/marine/regions/northland/surf/locations/waihi-beach"
-    surf_resp = {
-        "layout": {"primary": {"map": {"markers": [_surf_marker()]}}},
-    }
-    coord = _make_coordinator(hass, api_type="mobile", api_key="key", surf_url=surf_url)
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_MINIMAL_MOBILE_CURRENT),
-        _mock_response(_MINIMAL_MOBILE_DAILY),
-        _mock_response(surf_resp),
-    ])
-    coord._session = mock_session
-
-    result = await coord.get_mobile_weather()
-    assert "surf_data" in result[RESULTS_CURRENT]
-
-
-# ---------------------------------------------------------------------------
 # Test: exception paths in marine helpers
 # ---------------------------------------------------------------------------
 
@@ -1067,25 +851,6 @@ async def test_expand_data_urls_exception_sets_none(hass):
     data = {"node": {"dataUrl": "/some/path"}}
     await coord.expand_data_urls(data)
     assert data["node"] is None
-
-
-# ---------------------------------------------------------------------------
-# Test: get_forecast_daily_mobile field access
-# ---------------------------------------------------------------------------
-
-async def test_get_forecast_daily_mobile_field_access(hass):
-    """Field access on a specific day returns the correct value (lines 594-597)."""
-    coord = _make_coordinator(hass, api_type="mobile")
-    coord.data = {
-        RESULTS_CURRENT: {"result": {"forecastData": {"days": [
-            {"forecastWord": "Fine", "forecast": "A fine sunny day.", "dateISO": "2024-06-15"},
-            {"forecastWord": "Cloudy", "forecast": "Mostly cloudy.", "dateISO": "2024-06-16"},
-        ]}}},
-        RESULTS_FORECAST_DAILY: {},
-    }
-    assert coord.get_forecast_daily_mobile("daily_condition", 0) == "Fine"
-    assert coord.get_forecast_daily_mobile("daily_condition", 1) == "Cloudy"
-    assert coord.get_forecast_daily_mobile("daily_datetime", 0) == "2024-06-15"
 
 
 async def test_get_public_weather_tomorrow_extraction_exception_silenced(hass):
