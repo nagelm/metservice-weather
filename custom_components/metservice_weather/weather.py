@@ -6,11 +6,10 @@ https://github.com/ciejer/metservice-weather.
 from __future__ import annotations
 
 from .coordinator import WeatherUpdateCoordinator
+from .entity import MetServiceEntity
 from homeassistant.config_entries import ConfigEntry
 from .const import (
-    DOMAIN,
     LENGTHUNIT,
-    MANUFACTURER,
     PRESSUREUNIT,
     SPEEDUNIT,
     TEMPUNIT,
@@ -36,7 +35,6 @@ from homeassistant.components.weather import (
 
 
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import sun as sun_helper
 
@@ -56,17 +54,8 @@ async def async_setup_entry(
     async_add_entities([MetServiceForecastPublic(coordinator)])
 
 
-class MetServicePublic(SingleCoordinatorWeatherEntity):
+class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
     """Implementation of a MetService weather service."""
-
-    def __init__(self, coordinator: WeatherUpdateCoordinator) -> None:
-        """Set up MetService device info."""
-        super().__init__(coordinator)
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, coordinator.location)},
-            name=coordinator.location_name,
-            manufacturer=MANUFACTURER,
-        )
 
     @property
     def native_temperature(self) -> float:
@@ -126,7 +115,6 @@ class MetServicePublic(SingleCoordinatorWeatherEntity):
 class MetServiceForecastPublic(MetServicePublic):
     """Implementation of a MetService weather forecast."""
 
-    _attr_has_entity_name = True
     _attr_supported_features = WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY
 
     def __init__(self, coordinator: WeatherUpdateCoordinator):

@@ -135,10 +135,10 @@ class MetServicePublicData:
     daily_entries: list[DailyEntry] = field(default_factory=list)
 
     # Optional marine (None / empty when not configured)
-    tides: Any | None = None
+    tides: list[dict[str, Any]] | None = None
     boating_forecast: str | None = None
     boating_status: str | None = None
-    boating_table: Any | None = None
+    boating_table: list[dict[str, Any]] | None = None
     surf_conditions: str | None = None
     surf_rating: str | None = None
     surf_wave_height: str | None = None
