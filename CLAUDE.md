@@ -148,4 +148,4 @@ Full startup procedure and tokens: **`dev_credentials.md`** (gitignored — neve
 
 - Config dir: `C:\Users\mattn\projects\metservice-weather\config\`
 - Integration loaded via PYTHONPATH — no install/zip needed, just restart HA after code changes
-- If `index.html` render fix is lost after pip upgrade: `wsl python3 /mnt/c/Users/mattn/projects/metservice-weather/fix_index.py` then restart
+- If `index.html` render fix is lost after pip upgrade: `wsl python3 /mnt/c/Users/mattn/projects/ha/fix_index.py` then restart
