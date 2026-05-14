@@ -135,21 +135,9 @@ The MetService location used to fetch weather data. Choose the town or city clos
 #### Marine Region *(optional)*
 Select the marine region that covers your area to enable tide, boating, and surf sensors. The integration will then ask you to choose specific stations on the next screen. Choose **None — skip marine data** if you don't need any marine sensors.
 
-#### Override public web data with mobile API *(default: off)*
-Enables an alternative data source that uses your Home Assistant GPS coordinates rather than the fixed location selected above.
+---
 
-**You almost certainly do not need this.** The public API covers ~150 NZ locations and provides more sensor data (rainfall, pollen, UV index, drying index, etc.).
-
-Use the mobile API only if:
-- Your exact location is not in the weather location list, **and** the nearest listed location gives noticeably wrong data
-- You want weather data to update based on your physical GPS position (e.g. you travel frequently)
-
-Enabling this requires a **Mobile API key** — see below.
-
-#### Mobile API key *(only required if mobile API override is enabled)*
-A private API key used by the MetService mobile app. This key is not publicly distributed — you need to extract it by inspecting network traffic from the MetService iOS or Android app.
-
-See [this upstream issue](https://github.com/ciejer/metservice-weather/issues/12) for instructions.
+> **Mobile API removed in v1.0.0** — The mobile API override (and its private API key requirement) has been removed as part of the path toward Home Assistant Core submission. If you rely on GPS-based location tracking or a location not in the list above, stay on [v0.9.19](https://github.com/nagelm/metservice-weather/releases/tag/v0.9.19) — it remains fully functional for that purpose.
 
 ---
 
