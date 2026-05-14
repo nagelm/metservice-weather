@@ -4,19 +4,35 @@
 
 ## v1.0.0
 
-### Mobile API removed — public API only
+### Mobile API removed — public API only; IQS Gold compliance
 
-This release removes the mobile API path entirely as part of preparation for Home Assistant Core submission. The MetService mobile API required a private API key extracted from the iOS app, which is not appropriate for a publicly distributed integration.
+**v0.9.19 is the last release with mobile API support.**
 
-#### Breaking change
-- **Mobile API support removed.** If you rely on GPS-based location tracking or a location not available in the public API list, remain on [v0.9.19](https://github.com/nagelm/metservice-weather/releases/tag/v0.9.19) — it remains fully functional for that purpose.
-- All config entries that were using the mobile API path will need to be reconfigured using the public API after upgrading.
+The mobile API has been removed as part of this integration's path toward inclusion in Home Assistant Core. The MetService mobile API relies on a private API key extracted from the iOS app — it is not publicly distributed, not officially supported for third-party use, and incompatible with the requirements for Core submission. Retaining it would permanently block Core inclusion.
 
-#### What's new
-- **Public API only** — the integration now exclusively uses the MetService public web data API. No API key required.
-- **Simplified config flow** — mobile API key and "use mobile API" options removed from setup.
-- **Test suite** — 260 tests, 97% coverage.
-- **Reauth flow removed** — no longer needed without mobile API key expiry.
+If you rely on GPS-based location tracking or a location not in the ~150 supported towns, stay on [v0.9.19](https://github.com/nagelm/metservice-weather/releases/tag/v0.9.19) — it remains fully functional.
+
+#### Breaking changes
+- **Mobile API removed.** Config entries using the mobile API path must be deleted and re-added using the public API after upgrading.
+- **Reauth flow removed** — was only needed for mobile API key expiry.
+
+#### IQS Gold compliance
+All Home Assistant Integration Quality Scale Gold-tier requirements are now met:
+- `asyncio.timeout` throughout (stdlib, no third-party package)
+- Translation keys on all 40+ sensors; `entity.sensor` section in `strings.json`
+- `icons.json` present
+- Stable unique IDs from canonical location path slug
+- `async_get_clientsession` throughout (no session leaks)
+- `async_migrate_entry` stub
+
+#### Code quality (Phase 3)
+- Shared `MetServiceEntity` base class with `model` and `configuration_url` in `DeviceInfo`
+- `suggested_display_precision` on all numeric sensors
+- `tides` and `boating_table` typed as `list[dict[str, Any]]`
+- Dead `_update_listener` reload mechanism removed
+
+#### Test suite
+- 206 tests, 95.8% coverage (`--cov-fail-under=95`)
 
 ---
 
