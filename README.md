@@ -4,7 +4,34 @@
 
 Real-time and forecast weather data from [MetService NZ](https://www.metservice.com) for Home Assistant. New Zealand's only purpose-built weather integration, using the same data source as the MetService website and app.
 
-> **This integration is a fork of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather)**, built on the foundational work of [@ciejer](https://github.com/ciejer). This fork has diverged significantly — resolving over 20 open upstream issues, adding new sensors, redesigning the config flow, and working toward Home Assistant Integration Quality Scale compliance. Both versions are available via HACS; install whichever suits your needs.
+> **This integration is a fork of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather)**, built on the foundational work of [@ciejer](https://github.com/ciejer). This fork has since diverged significantly — see [What's changed since the fork](#whats-changed-since-the-fork).
+
+---
+
+## What's changed since the fork
+
+This fork was started to resolve issues blocking daily use and to bring the integration toward [Home Assistant Integration Quality Scale](https://developers.home-assistant.io/docs/integration_quality_scale_index) compliance. Key changes over the original:
+
+- **Public API only** — the integration now uses MetService's public web data API exclusively. No API key or account required.
+- **Typed data model** — a `MetServicePublicData` dataclass replaces the raw dict. All sensors read typed attributes; no more string-key lookups at runtime.
+- **40+ sensors** — full sensor coverage including sub-day breakdown, drying index, moon phase, fire danger, pollen, and all marine sensors (tides, boating, surf).
+- **Marine data** — optional tide station, boating conditions, and surf sensors, each independently configurable.
+- **Config flow redesigned** — two-step setup with live-fetched marine station lists; reconfigure support; duplicate location prevention.
+- **Forecast caching** — hourly and daily forecasts are cached and invalidated only on coordinator update, avoiding redundant API calls.
+- **IQS Gold compliance** — translation keys, `icons.json`, stable unique IDs, `asyncio.timeout` throughout, 206 tests at 95%+ coverage. Working toward Core inclusion.
+- **Bug fixes** — hourly wind speed, `clear-night` condition when sun is below horizon, coordinator `always_update=False`, `async_get_clientsession` (no session leaks), and more.
+
+---
+
+## Mobile API — removed in v1.0.0
+
+> **v0.9.19 is the last release with mobile API support.**
+
+Earlier versions of this integration included an option to use the MetService mobile app API, which enabled GPS-based location data not available from the public web API. That feature has been removed in v1.0.0.
+
+**Why it was removed:** The mobile API relies on a private API key extracted from the MetService iOS app. This key is not publicly distributed, not officially supported for third-party use, and incompatible with the requirements for inclusion in Home Assistant Core. Retaining it would permanently block this integration from being accepted into the Core repository.
+
+**If you rely on the mobile API** — for GPS-based location tracking or a location not in the list of ~150 supported towns — stay on [v0.9.19](https://github.com/nagelm/metservice-weather/releases/tag/v0.9.19). It remains fully functional for that purpose and will continue to be available via HACS.
 
 ---
 
@@ -135,12 +162,6 @@ The MetService location used to fetch weather data. Choose the town or city clos
 #### Marine Region *(optional)*
 Select the marine region that covers your area to enable tide, boating, and surf sensors. The integration will then ask you to choose specific stations on the next screen. Choose **None — skip marine data** if you don't need any marine sensors.
 
----
-
-> **Mobile API removed in v1.0.0** — The mobile API override (and its private API key requirement) has been removed as part of the path toward Home Assistant Core submission. If you rely on GPS-based location tracking or a location not in the list above, stay on [v0.9.19](https://github.com/nagelm/metservice-weather/releases/tag/v0.9.19) — it remains fully functional for that purpose.
-
----
-
 ### Screen 2 — Marine locations *(only shown if a marine region was selected)*
 
 Choose a specific station for each marine service you want. Each selector includes a **None — skip** option — you can enable tides without enabling boating, or surf without tides.
@@ -163,9 +184,7 @@ To change any setting after initial setup:
 2. Find the **MetService New Zealand Weather** card
 3. Click **⋮ → Reconfigure**
 
-The setup screen opens with all your current values pre-filled. You can change location, marine region, or toggle the mobile API without deleting and re-adding the integration.
-
-> **Note:** Changing between public and mobile API requires deleting and re-adding the integration, as entity unique IDs are tied to the API type.
+The setup screen opens with all your current values pre-filled. You can change location or marine stations without deleting and re-adding the integration.
 
 ---
 
@@ -206,6 +225,6 @@ Weather data is updated every 20 minutes. Always check the MetService website di
 
 ## Credits
 
-- [@ciejer](https://github.com/ciejer) — original integration author and maintainer
+- [@ciejer](https://github.com/ciejer) — original integration author and maintainer of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather)
 - [jaydeethree](https://github.com/jaydeethree/Home-Assistant-weatherdotcom) and [alexander0042](https://github.com/alexander0042/pirate-weather-ha) — structural reference
 - [natekspencer](https://github.com/natekspencer/hacs-vivint) — installation / config structure
