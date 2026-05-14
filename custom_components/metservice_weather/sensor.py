@@ -10,21 +10,16 @@ import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util.unit_system import METRIC_SYSTEM
 
 from typing import Any
 
 from .coordinator import WeatherUpdateCoordinator
+from .entity import MetServiceEntity
 
-from .const import (
-    CONF_ATTRIBUTION,
-    DOMAIN,
-    MANUFACTURER,
-)
+from .const import CONF_ATTRIBUTION
 from .weather_current_conditions_sensors import (
     current_condition_sensor_descriptions_public,
     WeatherSensorEntityDescription,
@@ -67,10 +62,9 @@ async def async_setup_entry(
     async_add_entities(sensors)
 
 
-class WeatherSensor(CoordinatorEntity, SensorEntity):
+class WeatherSensor(MetServiceEntity, SensorEntity):
     """Implementing the MetService sensor."""
 
-    _attr_has_entity_name = True
     _attr_attribution = CONF_ATTRIBUTION
     entity_description: WeatherSensorEntityDescription
 
@@ -82,12 +76,6 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
         """Initialize MetService sensors."""
         super().__init__(coordinator)
         self.entity_description = description
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, coordinator.location)},
-            name=coordinator.location_name,
-            manufacturer=MANUFACTURER,
-        )
 
         self._attr_unique_id = (
             f"{self.coordinator.location}_{description.key}".lower()
