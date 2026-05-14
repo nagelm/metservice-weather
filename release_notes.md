@@ -2,7 +2,9 @@
 
 ---
 
-## v1.0.0
+## v1.0.1
+
+> **Note:** v1.0.0 was tagged before Phase 3 code changes were committed; v1.0.1 ensures the release zip matches the documented changes.
 
 ### Mobile API removed — public API only; IQS Gold compliance
 
