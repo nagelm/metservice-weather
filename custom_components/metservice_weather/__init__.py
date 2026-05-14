@@ -15,10 +15,12 @@ from .const import PUBLIC_URL, PUBLIC_WARNINGS_URL, API_METRIC, API_URL_METRIC
 
 PLATFORMS: Final = [Platform.WEATHER, Platform.SENSOR]
 
+type MetServiceConfigEntry = ConfigEntry[WeatherUpdateCoordinator]
+
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator]):
+async def async_setup_entry(hass: HomeAssistant, entry: MetServiceConfigEntry):
     """Set up the MetService Weather component."""
     config = WeatherUpdateCoordinatorConfig(
         location=entry.data[CONF_LOCATION],
@@ -41,7 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[WeatherUpdat
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator]) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
