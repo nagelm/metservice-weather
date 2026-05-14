@@ -9,8 +9,9 @@ import logging
 import re
 from typing import Any
 
+import asyncio
+
 import aiohttp
-import async_timeout
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.util import dt as dt_util
 
@@ -34,6 +35,7 @@ from .const import (
     PRESSUREUNIT,
 )
 from .coordinator_types import MetServicePublicData, normalize_public_data
+from .helpers import format_timestamp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -159,7 +161,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
             "apiKey": self._api_key
         }
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 url = f"{self._api_url}/{self._latitude}/{self._longitude}"
                 _LOGGER.debug("Fetching MetService mobile data from %s", url)
                 response = await self._session.get(url, headers=headers)
@@ -175,7 +177,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
                 f"{warning['name']}, {warning['markdown']}"
                 for warning in result_current['result']['warnings'].get('previews', [])
             ]).replace('**', '').replace('#', '').replace('\n', ' ')
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 url = f"{self._api_url}/locations/{self.location}/7-days"
                 response = await self._session.get(url, headers=headers)
                 result_daily = await response.json(content_type=None)
@@ -211,7 +213,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
         """Get weather data from public API."""
         headers = self._PUBLIC_HEADERS
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 url = f"{self._api_url}{self.location}"
                 _LOGGER.debug("Fetching MetService public data from %s", url)
                 response = await self._session.get(url, headers=headers)
@@ -220,7 +222,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
                     raise ValueError("No current weather data received.")
                 self._check_errors(url, result_current)
             await self.expand_data_urls(result_current)
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 url = f"{self._warnings_url}/{result_current['location']['type']}/{result_current['location']['key']}"
                 response = await self._session.get(url, headers=headers)
                 result_warnings = await response.json(content_type=None)
@@ -233,7 +235,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
                 for warning in result_warnings.get('warnings', [])
             ]
             warnings_text = '\n'.join(warnings_list) if warnings_list else "No warnings"
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 url = f"{self._api_url}{self.location}/7-days"
                 response = await self._session.get(url, headers=headers)
                 result_daily = await response.json(content_type=None)
@@ -330,7 +332,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
     async def get_tides(self):
         """Get tides data. Returns None if unavailable rather than raising."""
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 url = self._tide_url
                 _LOGGER.info("Fetching tides data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
@@ -370,7 +372,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
     async def get_boating_data(self) -> dict:
         """Get boating/surf conditions. Returns empty dict if unavailable."""
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 url = self._boating_url
                 _LOGGER.info("Fetching boating data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
@@ -421,7 +423,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
             location_path = self._surf_url.split("publicData/webdata")[-1]
 
             _LOGGER.info("Fetching surf data from %s", regional_url)
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 response = await self._session.get(regional_url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
                     _LOGGER.warning("Surf endpoint returned HTTP %s — surf data unavailable", response.status)
@@ -492,7 +494,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
         """Fetch pollen/allergen data from MetService allergens endpoint."""
         empty = {"pollenLevels": {"level": None, "type": None}}
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 url = f"{self._api_url}{self._location}/airborne-allergens"
                 _LOGGER.debug("Fetching pollen data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
@@ -578,7 +580,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
     @staticmethod
     def _format_timestamp(timestamp_val: str) -> str:
         """Format timestamp to ISO format in UTC."""
-        return datetime.fromisoformat(timestamp_val).astimezone(dt_util.get_time_zone("UTC")).isoformat()
+        return format_timestamp(timestamp_val)
 
 
     async def expand_data_urls(self, data, parent=None, key=None, _depth=0):
@@ -596,7 +598,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
                 url = data['dataUrl']
                 full_url = f"{self._base_url}{url}" if url.startswith('/') else url
                 try:
-                    async with async_timeout.timeout(10):
+                    async with asyncio.timeout(10):
                         response = await self._session.get(full_url, headers=self._PUBLIC_HEADERS)
                         if response.status != 200:
                             _LOGGER.warning("Error fetching %s: HTTP %s", full_url, response.status)

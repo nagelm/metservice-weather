@@ -3,6 +3,7 @@
 For more details about this platform, please refer to the documentation at
 https://github.com/ciejer/metservice-weather.
 """
+from __future__ import annotations
 
 from typing import Final
 

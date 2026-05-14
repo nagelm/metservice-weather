@@ -3,11 +3,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from http import HTTPStatus
-import async_timeout
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_LOCATION, CONF_NAME
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
     SelectSelector,
@@ -103,8 +102,8 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 errors[CONF_MOBILE_API_KEY] = "api_key_required"
             else:
                 try:
-                    session = async_create_clientsession(self.hass)
-                    with async_timeout.timeout(10):
+                    session = async_get_clientsession(self.hass)
+                    async with asyncio.timeout(10):
                         response = await session.get(
                             "https://api.metservice.com/mobile/nz/weatherData/-43.123/172.123",
                             headers={**_MOBILE_HEADERS, "apiKey": api_key},
@@ -131,8 +130,8 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Page 1: location, name, one optional marine region, mobile API."""
         if user_input is None:
             try:
-                session = async_create_clientsession(self.hass)
-                with async_timeout.timeout(10):
+                session = async_get_clientsession(self.hass)
+                async with asyncio.timeout(10):
                     response = await session.get(
                         "https://www.metservice.com/publicData/webdata/marine"
                     )
@@ -156,8 +155,8 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 errors[CONF_MOBILE_API_KEY] = "api_key_required"
             else:
                 try:
-                    session = async_create_clientsession(self.hass)
-                    with async_timeout.timeout(10):
+                    session = async_get_clientsession(self.hass)
+                    async with asyncio.timeout(10):
                         response = await session.get(
                             "https://api.metservice.com/mobile/nz/weatherData/-43.123/172.123",
                             headers={**_MOBILE_HEADERS, "apiKey": api_key},
@@ -278,7 +277,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         marine_region = self.user_info.get(CONF_MARINE_REGION, "")
 
         if user_input is None:
-            session = async_create_clientsession(self.hass)
+            session = async_get_clientsession(self.hass)
 
             results = dict(
                 zip(
@@ -406,7 +405,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _fetch_tide_locations(self, session, marine_region: str) -> list:
         url = f"{_BASE_URL}/{marine_region}/tides"
-        with async_timeout.timeout(10):
+        async with asyncio.timeout(10):
             response = await session.get(url)
         data = await response.json(content_type=None)
         for module in (
@@ -422,7 +421,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def _fetch_boating_locations(self, session, marine_region: str) -> list:
         region_slug = marine_region.split("/")[-1]
         url = f"{_BASE_URL}/{marine_region}/boating"
-        with async_timeout.timeout(10):
+        async with asyncio.timeout(10):
             response = await session.get(url)
         data = await response.json(content_type=None)
         all_markers = (
@@ -438,7 +437,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def _fetch_surf_locations(self, session, marine_region: str) -> list:
         region_slug = marine_region.split("/")[-1]
         url = f"{_BASE_URL}/{marine_region}/surf"
-        with async_timeout.timeout(10):
+        async with asyncio.timeout(10):
             response = await session.get(url)
         data = await response.json(content_type=None)
         all_markers = (

@@ -1,4 +1,6 @@
 """The MetService Weather component."""
+from __future__ import annotations
+
 import logging
 from typing import Final
 from homeassistant.config_entries import ConfigEntry
@@ -63,6 +65,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[WeatherUpdat
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator]) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    """Migrate old config entry to current version."""
+    _LOGGER.debug("Migrating config entry from version %s", config_entry.version)
+    if config_entry.version > 1:
+        return False
+    return True
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

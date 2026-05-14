@@ -3,6 +3,7 @@
 For more details about this platform, please refer to the documentation at
 https://github.com/ciejer/metservice-weather.
 """
+from __future__ import annotations
 
 from .coordinator import WeatherUpdateCoordinator
 from homeassistant.config_entries import ConfigEntry
@@ -26,11 +27,11 @@ import logging
 from datetime import datetime
 
 from homeassistant.components.weather import (
-    ATTR_FORECAST_PRECIPITATION,
-    ATTR_FORECAST_TEMP,
-    ATTR_FORECAST_TEMP_LOW,
+    ATTR_FORECAST_NATIVE_PRECIPITATION,
+    ATTR_FORECAST_NATIVE_TEMP,
+    ATTR_FORECAST_NATIVE_TEMP_LOW,
+    ATTR_FORECAST_NATIVE_WIND_SPEED,
     ATTR_FORECAST_TIME,
-    ATTR_FORECAST_WIND_SPEED,
     ATTR_FORECAST_WIND_BEARING,
     ATTR_FORECAST_CONDITION,
     SingleCoordinatorWeatherEntity,
@@ -39,7 +40,7 @@ from homeassistant.components.weather import (
     DOMAIN as WEATHER_DOMAIN,
 )
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import sun as sun_helper
@@ -49,12 +50,7 @@ _LOGGER = logging.getLogger(__name__)
 PARALLEL_UPDATES = 0
 
 
-def safe_float(value):
-    """Safely convert a value to float, return None if conversion fails."""
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return None
+from .helpers import format_timestamp, safe_float
 
 
 async def async_setup_entry(
@@ -62,7 +58,7 @@ async def async_setup_entry(
 ) -> None:
     """Add weather entity."""
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
-    if(entry.data["api"] == "mobile"):
+    if entry.data["api"] == "mobile":
         async_add_entities(
             [
                 MetServiceForecastMobile(coordinator),
@@ -147,39 +143,34 @@ class MetServiceForecastMobile(MetServiceMobile):
     """Implementation of a MetService weather forecast."""
 
     _attr_has_entity_name = True
+    _attr_supported_features = WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY
 
     def __init__(self, coordinator: WeatherUpdateCoordinator):
         """Initialize the forecast sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.location_name},{WEATHER_DOMAIN}".lower()
+        self._attr_unique_id = f"{coordinator.location}_{WEATHER_DOMAIN}".lower()
+        self._attr_name = "Forecast"
+        self._forecast_hourly_cache: list[Forecast] | None = None
+        self._forecast_daily_cache: list[Forecast] | None = None
 
-    @property
-    def supported_features(self) -> WeatherEntityFeature:
-        """Return the forecast supported features."""
-        return (
-            WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY
-        )
-
-    @property
-    def name(self):
-        """Return the name of the forecast sensor."""
-        return f"{self.coordinator.location_name} Forecast"
-
-    @property
-    def extra_state_attributes(self) -> dict[str, object]:
-        """Return the state attributes."""
-        return {
-            'forecast_hourly': self.forecast_hourly,
-            'forecast_daily': self.forecast_daily
-        }
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Invalidate forecast caches and notify active subscribers."""
+        self._forecast_hourly_cache = None
+        self._forecast_daily_cache = None
+        super()._handle_coordinator_update()
 
     async def async_forecast_hourly(self) -> list[Forecast] | None:
         """Return hourly forecast."""
-        return self.forecast_hourly
+        if self._forecast_hourly_cache is None:
+            self._forecast_hourly_cache = self.forecast_hourly
+        return self._forecast_hourly_cache
 
     async def async_forecast_daily(self) -> list[Forecast] | None:
         """Return daily forecast."""
-        return self.forecast_daily
+        if self._forecast_daily_cache is None:
+            self._forecast_daily_cache = self.forecast_daily
+        return self._forecast_daily_cache
 
     @property
     def forecast_hourly(self) -> list[Forecast]:
@@ -212,12 +203,12 @@ class MetServiceForecastMobile(MetServiceMobile):
             forecast.append(
                 Forecast(
                     {
-                        ATTR_FORECAST_TEMP: safe_float(this_hour.get("temperature")),
-                        ATTR_FORECAST_TIME: self.coordinator._format_timestamp(
+                        ATTR_FORECAST_NATIVE_TEMP: safe_float(this_hour.get("temperature")),
+                        ATTR_FORECAST_TIME: format_timestamp(
                             this_hour["dateISO"]
                         ),
-                        ATTR_FORECAST_PRECIPITATION: rain_fall,
-                        ATTR_FORECAST_WIND_SPEED: wind_speed,
+                        ATTR_FORECAST_NATIVE_PRECIPITATION: rain_fall,
+                        ATTR_FORECAST_NATIVE_WIND_SPEED: wind_speed,
                         ATTR_FORECAST_WIND_BEARING: wind_dir,
                         ATTR_FORECAST_CONDITION: icon,
                     }
@@ -237,19 +228,20 @@ class MetServiceForecastMobile(MetServiceMobile):
             if day_condition in CONDITION_MAP:
                 day_condition = CONDITION_MAP[day_condition]
             day_description = self.coordinator.get_forecast_daily_mobile("daily_description", day)
-            entry: dict = {
-                ATTR_FORECAST_TEMP: self.coordinator.get_forecast_daily_mobile(
-                    "daily_temp_high", day
-                ),
-                ATTR_FORECAST_TEMP_LOW: self.coordinator.get_forecast_daily_mobile(
-                    "daily_temp_low", day
-                ),
-                ATTR_FORECAST_CONDITION: day_condition,
-                ATTR_FORECAST_TIME: self.coordinator.get_forecast_daily_mobile("daily_datetime", day),
-            }
-            if day_description:
-                entry["description"] = day_description
-            forecast.append(Forecast(entry))
+            forecast.append(
+                Forecast(
+                    {
+                        ATTR_FORECAST_NATIVE_TEMP: self.coordinator.get_forecast_daily_mobile(
+                            "daily_temp_high", day
+                        ),
+                        ATTR_FORECAST_NATIVE_TEMP_LOW: self.coordinator.get_forecast_daily_mobile(
+                            "daily_temp_low", day
+                        ),
+                        ATTR_FORECAST_CONDITION: day_condition,
+                        ATTR_FORECAST_TIME: self.coordinator.get_forecast_daily_mobile("daily_datetime", day),
+                    }
+                )
+            )
         return forecast
 
 class MetServicePublic(SingleCoordinatorWeatherEntity):
@@ -323,40 +315,34 @@ class MetServiceForecastPublic(MetServicePublic):
     """Implementation of a MetService weather forecast."""
 
     _attr_has_entity_name = True
+    _attr_supported_features = WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY
 
     def __init__(self, coordinator: WeatherUpdateCoordinator):
         """Initialize the forecast sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.location_name},{WEATHER_DOMAIN}".lower()
+        self._attr_unique_id = f"{coordinator.location}_{WEATHER_DOMAIN}".lower()
+        self._attr_name = "Forecast"
+        self._forecast_hourly_cache: list[Forecast] | None = None
+        self._forecast_daily_cache: list[Forecast] | None = None
 
-    @property
-    def supported_features(self) -> WeatherEntityFeature:
-        """Return the forecast supported features."""
-        return (
-            WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY
-        )
-
-    @property
-    def name(self):
-        """Return the name of the forecast sensor."""
-        return f"{self.coordinator.location_name} Forecast"
-
-    @property
-    def extra_state_attributes(self) -> dict[str, object]:
-        """Return the state attributes."""
-        return {
-            'forecast_hourly': self.forecast_hourly,
-            'forecast_daily': self.forecast_daily
-        }
-
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Invalidate forecast caches and notify active subscribers."""
+        self._forecast_hourly_cache = None
+        self._forecast_daily_cache = None
+        super()._handle_coordinator_update()
 
     async def async_forecast_hourly(self) -> list[Forecast] | None:
         """Return hourly forecast."""
-        return self.forecast_hourly
+        if self._forecast_hourly_cache is None:
+            self._forecast_hourly_cache = self.forecast_hourly
+        return self._forecast_hourly_cache
 
     async def async_forecast_daily(self) -> list[Forecast] | None:
         """Return daily forecast."""
-        return self.forecast_daily
+        if self._forecast_daily_cache is None:
+            self._forecast_daily_cache = self.forecast_daily
+        return self._forecast_daily_cache
 
     @property
     def forecast_hourly(self) -> list[Forecast]:
@@ -392,12 +378,12 @@ class MetServiceForecastPublic(MetServicePublic):
             forecast.append(
                 Forecast(
                     {
-                        ATTR_FORECAST_TEMP: entry.temperature,
-                        ATTR_FORECAST_TIME: self.coordinator._format_timestamp(
+                        ATTR_FORECAST_NATIVE_TEMP: entry.temperature,
+                        ATTR_FORECAST_TIME: format_timestamp(
                             entry.datetime
                         ),
-                        ATTR_FORECAST_PRECIPITATION: rainfall,
-                        ATTR_FORECAST_WIND_SPEED: wind_speed,
+                        ATTR_FORECAST_NATIVE_PRECIPITATION: rainfall,
+                        ATTR_FORECAST_NATIVE_WIND_SPEED: wind_speed,
                         ATTR_FORECAST_WIND_BEARING: wind_dir,
                         ATTR_FORECAST_CONDITION: icon,
                     }
@@ -414,19 +400,20 @@ class MetServiceForecastPublic(MetServicePublic):
             day_condition = day.condition
             if day_condition in CONDITION_MAP:
                 day_condition = CONDITION_MAP[day_condition]
-            entry: dict = {
-                ATTR_FORECAST_TEMP: day.temp_high,
-                ATTR_FORECAST_TEMP_LOW: day.temp_low,
-                ATTR_FORECAST_CONDITION: day_condition,
-                ATTR_FORECAST_TIME: day.datetime,
-                ATTR_FORECAST_PRECIPITATION: day.rainfall_low,
-            }
-            if day.description:
-                entry["description"] = day.description
-            if day.rainfall_low is not None:
-                entry["precipitation_low_mm"] = day.rainfall_low
-            if day.rainfall_high is not None:
-                entry["precipitation_high_mm"] = day.rainfall_high
-            forecast.append(Forecast(entry))
+            try:
+                forecast_time = format_timestamp(day.datetime) if day.datetime else None
+            except (ValueError, AttributeError):
+                forecast_time = day.datetime
+            forecast.append(
+                Forecast(
+                    {
+                        ATTR_FORECAST_NATIVE_TEMP: day.temp_high,
+                        ATTR_FORECAST_NATIVE_TEMP_LOW: day.temp_low,
+                        ATTR_FORECAST_CONDITION: day_condition,
+                        ATTR_FORECAST_TIME: forecast_time,
+                        ATTR_FORECAST_NATIVE_PRECIPITATION: day.rainfall_low,
+                    }
+                )
+            )
         return forecast
 
