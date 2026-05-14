@@ -1,8 +1,46 @@
 # metservice_weather — HA Core Submission Review
 
-**Date:** 2026-05-14
-**Version reviewed:** v0.9.19
-**Verdict:** Not ready — requires significant work before opening a Core PR.
+**Original audit date:** 2026-05-14 · **Version audited:** v0.9.19
+**Updated:** 2026-05-14 · **Current version:** v1.0.0 (Phases 1–3 complete)
+
+**Revised verdict:** Gold-tier blockers all resolved. Integration is Core PR-ready after removing the `"version"` key from `manifest.json` (HACS-only field that fails Core CI). External library (`pymetservice-nz`) is Platinum-only and does not block Gold.
+
+### Items resolved since original audit
+All Tier A blockers and all Tier B issues are now resolved:
+- **A2** ✅ `manifest.json` — `requirements: []`, `integration_type`, `quality_scale: "gold"` added
+- **A3/A4** ✅ `asyncio.timeout` used everywhere; `async with` in config flow (was sync)
+- **A5** ✅ `translation_key` on all sensors; `entity.sensor` section in `strings.json`/`en.json`
+- **A6** ✅ `icons.json` present
+- **A7** ✅ Mobile path removed entirely (v1.0.0)
+- **A8** ✅ `async_migrate_entry` stub present
+- **A9** ✅ Non-standard `Forecast` keys removed
+- **A10** ✅ Unique IDs use canonical location path slug (never display name)
+- **B1** ✅ `abort.reconfigure_successful` in `strings.json`
+- **B2** ✅ `from __future__ import annotations` in all files
+- **B3** ✅ `async_get_clientsession` throughout
+- **B4/B5** ✅ N/A — mobile path removed
+- **B6** ✅ `WeatherSensorEntityDescription` is `frozen=True, kw_only=True`
+- **B7/B8** ✅ Daily forecast time normalised via `format_timestamp`; helper imported directly
+- **B9** ✅ `safe_float`/`_safe_float` consolidated in `helpers.py`
+- **B10** ✅ N/A — `if(entry.data["api"] == "mobile")` removed with mobile path
+- **B11** ✅ CODEOWNERS and manifest both list only `@nagelm`
+
+### All Tier C items also done (Phase 3)
+- ✅ `MetServiceEntity` base class (`entity.py`) — shared DeviceInfo
+- ✅ `model` + `configuration_url` in DeviceInfo
+- ✅ `suggested_display_precision` on all numeric sensors
+- ✅ `_update_listener` removed
+- ✅ `tides`/`boating_table` typed as `list[dict[str, Any]]`
+
+### One remaining pre-Core-PR action
+Remove `"version": "1.0.0"` from `manifest.json` — HACS requires it, Core CI rejects it.
+
+---
+
+*Original audit below (preserved for reference)*
+
+---
+
 **Gold tier:** Achievable without an external library. External library is Platinum-only.
 
 ---

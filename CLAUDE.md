@@ -3,15 +3,15 @@
 ## Project
 HACS custom integration for NZ weather data from MetService. Fork of `ciejer/metservice-weather`.
 - **Domain:** `metservice_weather`
-- **Version:** `0.9.19` (see `custom_components/metservice_weather/manifest.json`)
+- **Version:** `1.0.0` (see `custom_components/metservice_weather/manifest.json`)
 - **Repo:** `https://github.com/nagelm/metservice-weather`
-- **HA min version:** 2024.2.0 (public API) / 2024.2.0 (mobile API)
+- **HA min version:** 2024.2.0
 
 ## Dev environment
 
 **Run tests (WSL venv):**
 ```
-wsl bash scripts/test.sh                          # all tests, quiet
+wsl bash scripts/test.sh tests/                   # all tests
 wsl bash scripts/test.sh tests/test_foo.py -v     # specific file, verbose
 ```
 
@@ -33,30 +33,32 @@ wsl bash -c "source /home/mattn/.venv/metservice-weather/bin/activate && cd /mnt
 custom_components/metservice_weather/
   __init__.py                          — entry setup/unload; uses entry.runtime_data
   manifest.json                        — version bump here before each release
-  coordinator.py                       — DataUpdateCoordinator[MetServicePublicData | dict];
+                                         REMOVE `version` key before Core PR (HACS-only field)
+  coordinator.py                       — DataUpdateCoordinator[MetServicePublicData];
                                          20-min polling; always_update=False
-                                         get_from_dict / RESULTS_CURRENT / RESULTS_FORECAST_DAILY
-                                         still used by mobile path (not yet migrated)
+                                         get_from_dict DFS still used for drying index extraction
   coordinator_types.py                 — MetServicePublicData dataclass + HourlyEntry + DailyEntry
                                          normalize_public_data(current, daily) → MetServicePublicData
-  const.py                             — SENSOR_MAP_MOBILE (field → dotted path); SENSOR_MAP_PUBLIC removed
-  sensor.py                            — 40+ CoordinatorEntity sensors; PARALLEL_UPDATES = 0
-                                         public path: value_fn(coordinator.data, unit_system)
-                                         mobile path: value_fn(extracted_scalar, unit_system)
-  weather.py                           — SingleCoordinatorWeatherEntity; PARALLEL_UPDATES = 0
-                                         public: reads coordinator.data.* directly (typed)
-                                         mobile: still uses get_current_mobile() accessor
-  weather_current_conditions_sensors.py— sensor definitions (name, value_fn lambda, unit, device class)
-  config_flow.py                       — 2-step flow; public or mobile API; reconfigure + reauth support
+  entity.py                            — MetServiceEntity(CoordinatorEntity) base class;
+                                         shared DeviceInfo (identifiers, manufacturer, model, config_url)
+  const.py                             — LOCATIONS list, CONDITION_MAP, unit constants, URLs
+  sensor.py                            — 40+ WeatherSensor(MetServiceEntity, SensorEntity); PARALLEL_UPDATES = 0
+                                         value_fn(coordinator.data, unit_system)
+  weather.py                           — MetServiceForecastPublic(MetServicePublic); PARALLEL_UPDATES = 0
+                                         reads coordinator.data.* directly (typed)
+  weather_current_conditions_sensors.py— sensor definitions (translation_key, value_fn lambda, unit, device class,
+                                         suggested_display_precision)
+  config_flow.py                       — 2-step flow (setup → locations); public API only; reconfigure support
 tests/
   fixtures/napier_public_current.json  — captured public API fixture (post-expand, post-inject)
   fixtures/napier_public_daily.json    — captured 7-day forecast fixture
-  test_config_flow.py                  — 19 config flow tests (all pass)
-  test_coordinator_data.py             — 44 coordinator contract tests (direct dataclass attr access)
+  test_config_flow.py                  — config flow tests
+  test_coordinator_data.py             — coordinator contract tests (direct dataclass attr access)
   test_coordinator.py                  — coordinator fetch/error path tests
   test_sensor.py                       — sensor entity tests
   test_weather.py                      — weather entity tests
   test_init.py                         — setup/unload lifecycle tests
+  test_normalizer.py                   — normalize_public_data unit tests
 scripts/
   test.sh                              — pytest wrapper (WSL)
   lint.sh                              — ruff check + format (WSL)
@@ -66,7 +68,6 @@ scripts/
 
 ## Architecture — how data flows
 
-### Public API path
 1. **Coordinator fetch** (`get_public_weather`)
    - Fetches main URL → expands nested `dataUrl` references recursively (`expand_data_urls`)
    - Fetches warnings, pollen (best-effort), 7-day daily forecast
@@ -81,19 +82,31 @@ scripts/
    - `HourlyEntry` fields: `datetime`, `temperature`, `rainfall`, `wind_speed`, `wind_direction`
    - `DailyEntry` fields: `datetime`, `condition`, `temp_high`, `temp_low`, `description`, etc.
 
-### Mobile API path
-- Still uses `get_from_dict` DFS + `RESULTS_CURRENT` / `RESULTS_FORECAST_DAILY` dict
-- `self.data` is `dict[str, Any]` for mobile entries
-- Mobile migration to dataclass is deferred
+## IQS / Core submission status
 
-## Silver tier status
-- ✅ Dataclass refactor (public path) — Phases 1–5 complete
-- ✅ Reauth flow — `async_step_reauth` / `async_step_reauth_confirm`
-- ✅ Test coverage — 250 tests, 97%, `--cov-fail-under=95`
-- ✅ CODEOWNERS — `.github/CODEOWNERS`
-- ✅ Config-entry-unloading tests — `tests/test_init.py`
-- 🔲 Forecast caching — `async_update_listeners` pattern not yet implemented
-- 🔲 Mobile path dataclass migration — deferred
+### Gold tier — all blockers resolved
+- ✅ `manifest.json` — `requirements: []`, `integration_type: "service"`, `quality_scale: "gold"`
+- ✅ `asyncio.timeout` everywhere (stdlib, no `async_timeout` package)
+- ✅ Translation keys on all sensors + `entity.sensor` in `strings.json`/`en.json`
+- ✅ `icons.json` present
+- ✅ Mobile API path removed (private API key; not Core-appropriate)
+- ✅ `async_migrate_entry` stub present
+- ✅ Non-standard `Forecast` TypedDict keys removed
+- ✅ Stable unique IDs (canonical location path slug)
+- ✅ `async_get_clientsession` throughout
+- ✅ `from __future__ import annotations` in all files
+- ✅ 206 tests, 95.8% coverage, `--cov-fail-under=95`
+
+### Phase 3 Platinum items — done
+- ✅ Shared `MetServiceEntity` base class (`entity.py`)
+- ✅ `model` + `configuration_url` in `DeviceInfo`
+- ✅ `suggested_display_precision` on all numeric sensors
+- ✅ `_update_listener` removed (no options flow)
+- ✅ `tides`/`boating_table` typed as `list[dict[str, Any]]`
+
+### Remaining before Core PR
+- Remove `"version"` from `manifest.json` (one-line change, do this last — HACS needs it but Core CI rejects it)
+- Phase 4: extract `pymetservice-nz` PyPI library (Platinum-only requirement, does not block Gold)
 
 ## Release workflow (CRITICAL)
 
