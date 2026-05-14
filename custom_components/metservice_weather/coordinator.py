@@ -4,15 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from http import HTTPStatus
 import logging
 import re
-from typing import Any
-
 import asyncio
 
 import aiohttp
-from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.util import dt as dt_util
 
 from homeassistant.core import HomeAssistant
@@ -26,9 +22,6 @@ from homeassistant.const import (
 )
 
 from .const import (
-    SENSOR_MAP_MOBILE,
-    RESULTS_CURRENT,
-    RESULTS_FORECAST_DAILY,
     TEMPUNIT,
     LENGTHUNIT,
     SPEEDUNIT,
@@ -48,21 +41,17 @@ class WeatherUpdateCoordinatorConfig:
 
     api_url: str
     warnings_url: str
-    api_key: str
-    api_type: str
     unit_system_api: str
     unit_system: str
     location: str
     location_name: str
-    latitude: str
-    longitude: str
     tide_url: str
     boating_url: str
     surf_url: str
     update_interval = MIN_TIME_BETWEEN_UPDATES
 
 
-class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict[str, Any]]):
+class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     """The MetService update coordinator."""
 
     def __init__(
@@ -71,12 +60,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
         """Initialize."""
         self._api_url = config.api_url
         self._warnings_url = config.warnings_url
-        self._api_key = config.api_key
-        self._api_type = config.api_type
         self._location = config.location
         self._location_name = config.location_name
-        self._latitude = config.latitude
-        self._longitude = config.longitude
         self._tide_url = config.tide_url
         self._boating_url = config.boating_url
         self._surf_url = config.surf_url
@@ -110,11 +95,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
         return self._location_name
 
     @property
-    def api_type(self):
-        """Return the API type."""
-        return self._api_type
-
-    @property
     def enable_tides(self) -> bool:
         """Return whether tides data is configured."""
         return bool(self._tide_url)
@@ -143,71 +123,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
         ),
     }
 
-    async def _async_update_data(self) -> MetServicePublicData | dict[str, Any]:
+    async def _async_update_data(self) -> MetServicePublicData:
         """Fetch data from API."""
-        if self._api_type == "public":
-            return await self.get_public_weather()
-        else:
-            return await self.get_mobile_weather()
-
-    async def get_mobile_weather(self):
-        """Get weather data from mobile API."""
-        headers = {
-            "Accept": "*/*",
-            "User-Agent": "MetServiceNZ/2.19.3 (com.metservice.iphoneapp; build:332; iOS 17.1.1) Alamofire/5.4.3",
-            "Accept-Language": "en-CA;q=1.0",
-            "Accept-Encoding": "br;q=1.0, gzip;q=0.9, deflate;q=0.8",
-            "Connection": "keep-alive",
-            "apiKey": self._api_key
-        }
-        try:
-            async with asyncio.timeout(10):
-                url = f"{self._api_url}/{self._latitude}/{self._longitude}"
-                _LOGGER.debug("Fetching MetService mobile data from %s", url)
-                response = await self._session.get(url, headers=headers)
-                if response.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
-                    raise ConfigEntryAuthFailed(
-                        f"Mobile API key rejected (HTTP {response.status})"
-                    )
-                result_current = await response.json(content_type=None)
-                if result_current is None:
-                    raise ValueError("No current weather data received.")
-                self._check_errors(url, result_current)
-            warnings_text = '\n'.join([
-                f"{warning['name']}, {warning['markdown']}"
-                for warning in result_current['result']['warnings'].get('previews', [])
-            ]).replace('**', '').replace('#', '').replace('\n', ' ')
-            async with asyncio.timeout(10):
-                url = f"{self._api_url}/locations/{self.location}/7-days"
-                response = await self._session.get(url, headers=headers)
-                result_daily = await response.json(content_type=None)
-                if result_daily is None:
-                    raise ValueError("No daily forecast data received.")
-                self._check_errors(url, result_daily)
-            # Expand nested dataUrl references outside the main timeout so each
-            # sub-request can use its own independent timeout.
-            await self.expand_data_urls(result_current)
-            await self.expand_data_urls(result_daily)
-            result_current['weather_warnings'] = warnings_text
-            if self._tide_url:
-                result_current['tideImport'] = await self.get_tides()
-            if self._boating_url:
-                result_current['boating_data'] = await self.get_boating_data()
-            if self._surf_url:
-                result_current['surf_data'] = await self.get_surf_data()
-            return {
-                RESULTS_CURRENT: result_current,
-                RESULTS_FORECAST_DAILY: result_daily,
-            }
-
-        except ConfigEntryAuthFailed:
-            raise
-        except ValueError as err:
-            raise UpdateFailed(f"Data validation error: {err}") from err
-        except (TimeoutError, aiohttp.ClientError) as err:
-            raise UpdateFailed(f"Error fetching MetService data: {err}") from err
-        except Exception as err:
-            raise UpdateFailed(f"Unexpected error: {err}") from err
+        return await self.get_public_weather()
 
     async def get_public_weather(self):
         """Get weather data from public API."""
@@ -320,8 +238,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
                 result_current['surf_data'] = await self.get_surf_data()
             return normalize_public_data(result_current, result_daily)
 
-        except ConfigEntryAuthFailed:
-            raise
         except ValueError as err:
             raise UpdateFailed(f"Data validation error: {err}") from err
         except (TimeoutError, aiohttp.ClientError) as err:
@@ -552,30 +468,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData | dict
                     if result is not None:
                         return result
         return None
-
-    def get_current_mobile(self, field):
-        """Get a specific key from the MetService returned data."""
-        try:
-            keys = SENSOR_MAP_MOBILE[field].split(".")
-            result = self.get_from_dict(self.data[RESULTS_CURRENT], keys)
-            return result
-        except Exception as e:
-            _LOGGER.debug("Error retrieving mobile sensor '%s': %s", field, e)
-            return None
-
-    def get_forecast_daily_mobile(self, field, day):
-        """Get a specific key from the MetService returned data."""
-        try:
-            all_days = self.data[RESULTS_CURRENT]["result"]["forecastData"]["days"]
-            if field == "":  # send a blank to get the number of days
-                return len(all_days)
-            this_day = all_days[day]
-            keys = SENSOR_MAP_MOBILE[field].split(".")
-            result = self.get_from_dict(this_day, keys)
-            return result
-        except Exception as e:
-            _LOGGER.debug("Error retrieving mobile forecast daily sensor '%s' for day %s: %s", field, day, e)
-            return None
 
     @staticmethod
     def _format_timestamp(timestamp_val: str) -> str:

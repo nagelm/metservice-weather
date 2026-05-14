@@ -21,21 +21,6 @@ _PUBLIC_ENTRY_DATA = {
     "tide_url": "",
     "boating_url": "",
     "surf_url": "",
-    "latitude": "-39.49",
-    "longitude": "176.91",
-}
-
-_MOBILE_ENTRY_DATA = {
-    "name": "Auckland",
-    "location": "Auckland",
-    "api": "mobile",
-    "mobile_api_key": "test-key",
-    "marine_region": "",
-    "tide_url": "",
-    "boating_url": "",
-    "surf_url": "",
-    "latitude": "-36.84",
-    "longitude": "174.76",
 }
 
 
@@ -50,28 +35,6 @@ def _make_entry(data: dict) -> MockConfigEntry:
 async def test_setup_and_unload_public(hass):
     """Entry sets up correctly and unloads cleanly for the public API path."""
     entry = _make_entry(_PUBLIC_ENTRY_DATA)
-    entry.add_to_hass(hass)
-
-    with patch(
-        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
-        new_callable=AsyncMock,
-    ):
-        result = await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-
-    assert result is True
-    assert entry.state is ConfigEntryState.LOADED
-
-    unload_result = await hass.config_entries.async_unload(entry.entry_id)
-    await hass.async_block_till_done()
-
-    assert unload_result is True
-    assert entry.state is ConfigEntryState.NOT_LOADED
-
-
-async def test_setup_and_unload_mobile(hass):
-    """Entry sets up correctly and unloads cleanly for the mobile API path."""
-    entry = _make_entry(_MOBILE_ENTRY_DATA)
     entry.add_to_hass(hass)
 
     with patch(

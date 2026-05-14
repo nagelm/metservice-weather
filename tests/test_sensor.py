@@ -16,7 +16,6 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     _safe_int,
     _next_tide_time,
     current_condition_sensor_descriptions_public,
-    current_condition_sensor_descriptions_mobile,
 )
 from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 
@@ -25,18 +24,14 @@ from custom_components.metservice_weather.coordinator_types import MetServicePub
 # Helper: minimal coordinator with pre-loaded data
 # ---------------------------------------------------------------------------
 
-def _make_coordinator(hass, api_type="public") -> WeatherUpdateCoordinator:
+def _make_coordinator(hass) -> WeatherUpdateCoordinator:
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        api_key="",
-        api_type=api_type,
         unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",
-        latitude="-39.49",
-        longitude="176.91",
         tide_url="",
         boating_url="",
         surf_url="",
@@ -129,10 +124,6 @@ def test_public_sensor_descriptions_non_empty():
     assert len(current_condition_sensor_descriptions_public) > 0
 
 
-def test_mobile_sensor_descriptions_non_empty():
-    assert len(current_condition_sensor_descriptions_mobile) > 0
-
-
 # ---------------------------------------------------------------------------
 # Test: WeatherSensor properties
 # ---------------------------------------------------------------------------
@@ -203,21 +194,6 @@ async def test_sensor_handle_coordinator_update_public(hass):
     assert sensor._sensor_data is updated_data
 
 
-async def test_sensor_handle_coordinator_update_mobile(hass):
-    coord = _make_coordinator(hass, api_type="mobile")
-    desc = WeatherSensorEntityDescription(
-        key="temperature",
-        name="Mobile Temp",
-        value_fn=lambda data, _: data,
-    )
-    with patch.object(coord, "get_current_mobile", return_value=15.0):
-        sensor = WeatherSensor(coord, desc)
-    with patch.object(coord, "get_current_mobile", return_value=19.0), \
-         patch.object(sensor, "async_write_ha_state"):
-        sensor._handle_coordinator_update()
-    assert sensor._sensor_data == 19.0
-
-
 async def test_sensor_available_when_coordinator_failed(hass):
     coord = _make_coordinator(hass)
     coord.last_update_success = False
@@ -272,37 +248,3 @@ async def test_sensor_setup_entry_public_skips_tide_sensors(hass):
     assert "tides_low" not in keys
 
 
-async def test_sensor_setup_entry_mobile(hass):
-    """Mobile API entry creates mobile sensors."""
-    from custom_components.metservice_weather.sensor import async_setup_entry
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
-    from custom_components.metservice_weather.const import DOMAIN
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "name": "Mobile",
-            "location": "/towns-cities/regions/auckland/locations/auckland",
-            "api": "mobile",
-            "mobile_api_key": "key",
-            "marine_region": "",
-            "tide_url": "",
-            "boating_url": "",
-            "surf_url": "",
-        },
-    )
-
-    coord = _make_coordinator(hass, api_type="mobile")
-    entry.runtime_data = coord
-
-    added = []
-
-    def add_entities(entities, *args, **kwargs):
-        added.extend(entities)
-
-    with patch.object(coord, "get_current_mobile", return_value=None):
-        await async_setup_entry(hass, entry, add_entities)
-
-    assert len(added) > 0
-    keys = [s.entity_description.key for s in added]
-    assert "tides_high" not in keys

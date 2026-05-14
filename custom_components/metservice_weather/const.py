@@ -19,43 +19,6 @@ FIELD_TEMP = "temperature"
 FIELD_WINDDIR = "windDirection"
 FIELD_WINDGUST = "windGust"
 FIELD_WINDSPEED = "windSpeed"
-FIELD_CONDITIONS = "condition"
-
-
-SENSOR_MAP_MOBILE: Final[dict[str, str]] = {
-    "pollen_levels": "pollen.pollenLevels.level",
-    "pollen_type": "pollen.pollenLevels.type",
-    "drying_index_morning": "result.genericModules.0.sections.0.paragraphs.0.lines.0.markdown",
-    "drying_index_afternoon": "result.genericModules.0.sections.0.paragraphs.0.lines.1.markdown",
-    FIELD_TEMP: "result.hourlyForecastData.data.0.temperature",
-    FIELD_HUMIDITY: "result.hourlyForecastData.data.0.humidity",
-    FIELD_PRESSURE: "result.observationData.pressure",
-    FIELD_WINDDIR: "result.hourlyForecastData.data.0.windDir",
-    FIELD_WINDSPEED: "result.hourlyForecastData.data.0.windSpeed",
-    FIELD_WINDGUST: "result.hourlyForecastData.data.0.gustSpeed",
-    FIELD_CONDITIONS: "result.forecastData.days.0.forecastWord",
-    FIELD_DESCRIPTION: "result.forecastData.days.0.forecast",
-    "validTimeLocal": "result.forecastData.days.0.issuedAtISO",
-    "uvAlert": "result.forecastData.days.0.uvHasAlert",
-    "temperatureFeelsLike": "layout.primary.slots.left-major.modules.0.observations.temperature.0.feelsLike",
-    "pressureTendencyTrend": "result.observationData.pressureTrend",
-    "location_name": "location.label",
-    "hourly_base": "result.hourlyForecastData.data",
-    "hourly_timestamp": "layout.primary.slots.main.modules.2.graph.columns",
-    "hourly_skip": "layout.primary.slots.main.modules.2.graph.series.0.count",
-    "hourly_obs": "layout.primary.slots.main.modules.2.graph.series.1.count",
-    "tides_high": "tideImport",
-    "tides_low": "tideImport",
-    "daily_base": "layout.primary.slots.main.modules.0.days",
-    "daily_temp_high": "max",
-    "daily_temp_low": "min",
-    "daily_condition": "forecastWord",
-    "daily_description": "forecast",
-    "daily_datetime": "dateISO",
-    "weather_warnings": "weather_warnings",
-    "fire_season": "days.0.fireWeather.season.short",
-    "fire_danger": "days.0.fireWeather.danger.dailyObservation",
-}
 
 
 
@@ -740,8 +703,6 @@ LOCATIONS = [
 
 PUBLIC_URL = "https://www.metservice.com/publicData/webdata"
 PUBLIC_WARNINGS_URL = "https://www.metservice.com/publicData/webdata/warnings-service"
-MOBILE_URL = "https://api.metservice.com/mobile/nz/weatherData"
-MOBILE_WARNINGS_URL = "https://api.metservice.com"
 API_METRIC: Final = "metric"
 API_URL_METRIC: Final = "m"
 DEFAULT_LOCATION = "/towns-cities/regions/bay-of-plenty/locations/tauranga"
@@ -751,8 +712,3 @@ LENGTHUNIT = "length"
 SPEEDUNIT = "speed"
 PRESSUREUNIT = "pressure"
 
-RESULTS_CURRENT = "current"
-RESULTS_FORECAST_DAILY = "daily"
-
-ICON_THERMOMETER = "mdi:thermometer"
-ICON_WIND = "mdi:weather-windy"

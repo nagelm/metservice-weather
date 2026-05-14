@@ -6,14 +6,12 @@ from typing import Final
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_NAME,
-    CONF_LATITUDE,
-    CONF_LONGITUDE,
     CONF_LOCATION,
     Platform,
 )
 from homeassistant.core import HomeAssistant
 from .coordinator import WeatherUpdateCoordinator, WeatherUpdateCoordinatorConfig
-from .const import MOBILE_URL, PUBLIC_URL, MOBILE_WARNINGS_URL, PUBLIC_WARNINGS_URL, API_METRIC, API_URL_METRIC
+from .const import PUBLIC_URL, PUBLIC_WARNINGS_URL, API_METRIC, API_URL_METRIC
 
 PLATFORMS: Final = [Platform.WEATHER, Platform.SENSOR]
 
@@ -22,34 +20,16 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator]):
     """Set up the MetService Weather component."""
-    api = entry.data["api"]
-
-    if api == "public":
-        api_url = PUBLIC_URL
-        warnings_url = PUBLIC_WARNINGS_URL
-        api_key = ""
-        location = entry.data[CONF_LOCATION]
-    else:
-        api_url = MOBILE_URL
-        warnings_url = MOBILE_WARNINGS_URL
-        # "mobile_api_key" is the current key; "api_key" is the legacy name
-        api_key = entry.data.get("mobile_api_key", entry.data.get("api_key", ""))
-        location = entry.data[CONF_NAME]
-
     config = WeatherUpdateCoordinatorConfig(
-        location=location,
+        location=entry.data[CONF_LOCATION],
         location_name=entry.data[CONF_NAME],
-        api_type=api,
-        latitude=entry.data.get(CONF_LATITUDE, hass.config.latitude),
-        longitude=entry.data.get(CONF_LONGITUDE, hass.config.longitude),
         tide_url=entry.data.get("tide_url", ""),
         boating_url=entry.data.get("boating_url", ""),
         surf_url=entry.data.get("surf_url", ""),
         unit_system_api=API_URL_METRIC,
         unit_system=API_METRIC,
-        api_url=api_url,
-        warnings_url=warnings_url,
-        api_key=api_key,
+        api_url=PUBLIC_URL,
+        warnings_url=PUBLIC_WARNINGS_URL,
     )
 
     weathercoordinator = WeatherUpdateCoordinator(hass, config)
