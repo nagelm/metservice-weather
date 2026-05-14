@@ -98,21 +98,16 @@ class WeatherSensor(CoordinatorEntity, SensorEntity):
         )
 
         self._attr_unique_id = (
-            f"{self.coordinator.location_name},{description.key}".lower()
+            f"{self.coordinator.location}_{description.key}".lower()
         )
         self._unit_system = coordinator.unit_system
         if self.coordinator.api_type == 'mobile':
-            self._sensor_data = coordinator.get_current_mobile(description.key)
+            self._sensor_data = None
         else:
             self._sensor_data = coordinator.data
         self._attr_native_unit_of_measurement = self.entity_description.unit_fn(
             self.coordinator.hass.config.units is METRIC_SYSTEM
         )
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self.entity_description.name
 
     @property
     def native_value(self) -> StateType:

@@ -1,7 +1,7 @@
 """Tests for MetService weather entities (public and mobile)."""
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 
 from custom_components.metservice_weather.coordinator import (
@@ -118,7 +118,7 @@ async def test_weather_setup_entry_mobile(hass):
 async def test_public_entity_name(hass):
     coord = _make_coordinator(hass)
     entity = MetServiceForecastPublic(coord)
-    assert entity.name == "Napier Forecast"
+    assert entity.name == "Forecast"
 
 
 async def test_public_entity_unique_id(hass):
@@ -254,7 +254,7 @@ async def test_public_forecast_hourly_with_data(hass):
     entity = MetServiceForecastPublic(coord)
     result = entity.forecast_hourly
     assert len(result) == 2
-    assert result[0]["temperature"] == 18.0
+    assert result[0]["native_temperature"] == 18.0
 
 
 async def test_public_forecast_hourly_heavy_rain_icon(hass):
@@ -299,7 +299,7 @@ async def test_public_forecast_hourly_skip_offsets_start(hass):
     entity = MetServiceForecastPublic(coord)
     result = entity.forecast_hourly
     assert len(result) == 1
-    assert result[0]["temperature"] == 18.0
+    assert result[0]["native_temperature"] == 18.0
 
 
 # ---------------------------------------------------------------------------
@@ -324,21 +324,22 @@ async def test_public_forecast_daily_with_data(hass):
     entity = MetServiceForecastPublic(coord)
     result = entity.forecast_daily
     assert len(result) == 2
-    assert result[0]["temperature"] == 22.0
-    assert result[0]["templow"] == 12.0
+    assert result[0]["native_temperature"] == 22.0
+    assert result[0]["native_templow"] == 12.0
     assert result[0]["condition"] == CONDITION_MAP["fine"]
 
 
 async def test_public_forecast_daily_precipitation_fields(hass):
-    """Both rainfall_low and rainfall_high are surfaced as extra attrs."""
+    """rainfall_low is mapped to the standard native_precipitation key."""
     coord = _make_coordinator(hass)
     coord.data = MetServicePublicData(
         daily_entries=[DailyEntry(condition="rain", temp_high=15.0, temp_low=8.0, datetime="2024-06-15", rainfall_low=2.0, rainfall_high=8.0)]
     )
     entity = MetServiceForecastPublic(coord)
     result = entity.forecast_daily
-    assert result[0]["precipitation_low_mm"] == 2.0
-    assert result[0]["precipitation_high_mm"] == 8.0
+    assert result[0]["native_precipitation"] == 2.0
+    assert "precipitation_low_mm" not in result[0]
+    assert "precipitation_high_mm" not in result[0]
 
 
 async def test_public_async_forecast_hourly(hass):
@@ -355,12 +356,10 @@ async def test_public_async_forecast_daily(hass):
     assert result == []
 
 
-async def test_public_extra_state_attributes(hass):
+async def test_public_extra_state_attributes_is_none(hass):
     coord = _make_coordinator(hass)
     entity = MetServiceForecastPublic(coord)
-    attrs = entity.extra_state_attributes
-    assert "forecast_hourly" in attrs
-    assert "forecast_daily" in attrs
+    assert entity.extra_state_attributes is None
 
 
 # ---------------------------------------------------------------------------
@@ -370,7 +369,7 @@ async def test_public_extra_state_attributes(hass):
 async def test_mobile_entity_name(hass):
     coord = _make_coordinator(hass, api_type="mobile")
     entity = MetServiceForecastMobile(coord)
-    assert entity.name == "Napier Forecast"
+    assert entity.name == "Forecast"
 
 
 async def test_mobile_entity_temperature(hass):
@@ -474,7 +473,7 @@ async def test_mobile_forecast_hourly_with_data(hass):
         result = entity.forecast_hourly
 
     assert len(result) == 2
-    assert result[0]["temperature"] == 18.0
+    assert result[0]["native_temperature"] == 18.0
 
 
 async def test_mobile_forecast_hourly_heavy_rain(hass):
@@ -599,14 +598,10 @@ async def test_mobile_async_forecast_daily(hass):
     assert result == []
 
 
-async def test_mobile_extra_state_attributes(hass):
+async def test_mobile_extra_state_attributes_is_none(hass):
     coord = _make_coordinator(hass, api_type="mobile")
     entity = MetServiceForecastMobile(coord)
-    with patch.object(coord, "get_current_mobile", return_value=None), \
-         patch.object(coord, "get_forecast_daily_mobile", return_value=0):
-        attrs = entity.extra_state_attributes
-    assert "forecast_hourly" in attrs
-    assert "forecast_daily" in attrs
+    assert entity.extra_state_attributes is None
 
 
 async def test_entity_unavailable_when_coordinator_fails(hass):
@@ -614,3 +609,134 @@ async def test_entity_unavailable_when_coordinator_fails(hass):
     coord.last_update_success = False
     entity = MetServiceForecastPublic(coord)
     assert entity.available is False
+
+
+# ---------------------------------------------------------------------------
+# Test: forecast caching — public
+# ---------------------------------------------------------------------------
+
+async def test_public_async_forecast_hourly_populates_cache(hass):
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        hourly_entries=[HourlyEntry(datetime="2024-06-15T10:00:00+12:00", temperature=20.0, rainfall=0.0, wind_speed=10.0)],
+        hourly_obs=1,
+        hourly_skip=0,
+    )
+    entity = MetServiceForecastPublic(coord)
+    assert entity._forecast_hourly_cache is None
+    result = await entity.async_forecast_hourly()
+    assert result is not None and len(result) == 1
+    assert entity._forecast_hourly_cache is result
+
+
+async def test_public_async_forecast_daily_populates_cache(hass):
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        daily_entries=[DailyEntry(condition="fine", temp_high=22.0, temp_low=12.0, datetime="2024-06-15")]
+    )
+    entity = MetServiceForecastPublic(coord)
+    assert entity._forecast_daily_cache is None
+    result = await entity.async_forecast_daily()
+    assert result is not None and len(result) == 1
+    assert entity._forecast_daily_cache is result
+
+
+async def test_public_async_forecast_hourly_returns_same_object_on_second_call(hass):
+    coord = _make_coordinator(hass)
+    entity = MetServiceForecastPublic(coord)
+    result1 = await entity.async_forecast_hourly()
+    result2 = await entity.async_forecast_hourly()
+    assert result1 is result2
+
+
+async def test_public_async_forecast_daily_returns_same_object_on_second_call(hass):
+    coord = _make_coordinator(hass)
+    entity = MetServiceForecastPublic(coord)
+    result1 = await entity.async_forecast_daily()
+    result2 = await entity.async_forecast_daily()
+    assert result1 is result2
+
+
+async def test_public_handle_coordinator_update_clears_cache(hass):
+    coord = _make_coordinator(hass)
+    entity = MetServiceForecastPublic(coord)
+    entity.hass = hass
+    entity._forecast_hourly_cache = []
+    entity._forecast_daily_cache = []
+    with patch.object(entity, "async_write_ha_state"):
+        entity._handle_coordinator_update()
+    assert entity._forecast_hourly_cache is None
+    assert entity._forecast_daily_cache is None
+
+
+async def test_public_handle_coordinator_update_schedules_listeners(hass):
+    coord = _make_coordinator(hass)
+    entity = MetServiceForecastPublic(coord)
+    entity.hass = hass
+    with patch.object(entity, "async_write_ha_state"), \
+         patch.object(entity, "async_update_listeners", new_callable=AsyncMock) as mock_listeners:
+        entity._handle_coordinator_update()
+    mock_listeners.assert_called_once_with(None)
+
+
+# ---------------------------------------------------------------------------
+# Test: forecast caching — mobile
+# ---------------------------------------------------------------------------
+
+async def test_mobile_async_forecast_hourly_populates_cache(hass):
+    coord = _make_coordinator(hass, api_type="mobile")
+    entity = MetServiceForecastMobile(coord)
+    hourly_data = [{"dateISO": "2024-06-15T10:00:00+12:00", "temperature": 18.0, "rainFall": 0.0, "windSpeed": 10.0, "windDir": "N"}]
+    assert entity._forecast_hourly_cache is None
+    with patch.object(coord, "get_current_mobile", return_value=hourly_data):
+        result = await entity.async_forecast_hourly()
+    assert result is not None and len(result) == 1
+    assert entity._forecast_hourly_cache is result
+
+
+async def test_mobile_async_forecast_daily_populates_cache(hass):
+    coord = _make_coordinator(hass, api_type="mobile")
+    entity = MetServiceForecastMobile(coord)
+
+    def _mock_daily(field, day):
+        if field == "":
+            return 1
+        if field == "daily_condition":
+            return "fine"
+        if field == "daily_temp_high":
+            return 20.0
+        if field == "daily_temp_low":
+            return 10.0
+        if field == "daily_datetime":
+            return "2024-06-15"
+        if field == "daily_description":
+            return None
+        return None
+
+    assert entity._forecast_daily_cache is None
+    with patch.object(coord, "get_forecast_daily_mobile", side_effect=_mock_daily):
+        result = await entity.async_forecast_daily()
+    assert result is not None and len(result) == 1
+    assert entity._forecast_daily_cache is result
+
+
+async def test_mobile_handle_coordinator_update_clears_cache(hass):
+    coord = _make_coordinator(hass, api_type="mobile")
+    entity = MetServiceForecastMobile(coord)
+    entity.hass = hass
+    entity._forecast_hourly_cache = []
+    entity._forecast_daily_cache = []
+    with patch.object(entity, "async_write_ha_state"):
+        entity._handle_coordinator_update()
+    assert entity._forecast_hourly_cache is None
+    assert entity._forecast_daily_cache is None
+
+
+async def test_mobile_handle_coordinator_update_schedules_listeners(hass):
+    coord = _make_coordinator(hass, api_type="mobile")
+    entity = MetServiceForecastMobile(coord)
+    entity.hass = hass
+    with patch.object(entity, "async_write_ha_state"), \
+         patch.object(entity, "async_update_listeners", new_callable=AsyncMock) as mock_listeners:
+        entity._handle_coordinator_update()
+    mock_listeners.assert_called_once_with(None)

@@ -7,9 +7,6 @@ from homeassistant.data_entry_flow import FlowResultType
 from custom_components.metservice_weather.const import DOMAIN, DEFAULT_LOCATION
 from custom_components.metservice_weather.config_flow import (
     CONF_MARINE_REGION,
-    CONF_TIDE_URL,
-    CONF_BOATING_URL,
-    CONF_SURF_URL,
     CONF_USE_MOBILE,
     CONF_MOBILE_API_KEY,
     WeatherFlowHandler,
@@ -77,7 +74,7 @@ async def test_public_with_marine_region(hass, mock_coordinator_refresh):
     ])
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_init(
@@ -126,7 +123,7 @@ async def test_mobile_valid_key(hass, mock_coordinator_refresh):
     session_mock.get = AsyncMock(side_effect=[marine_resp, key_valid_resp])
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_init(
@@ -191,7 +188,7 @@ async def test_mobile_invalid_key(hass, mock_coordinator_refresh):
     session_mock.get = AsyncMock(side_effect=[marine_resp, bad_key_resp])
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_init(
@@ -229,7 +226,7 @@ async def test_mobile_timeout(hass, mock_coordinator_refresh):
     session_mock.get = AsyncMock(side_effect=[marine_resp, TimeoutError()])
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_init(
@@ -303,7 +300,7 @@ async def test_marine_fetch_fails_gracefully(hass, mock_coordinator_refresh):
     session_mock.get = AsyncMock(side_effect=Exception("network error"))
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_init(
@@ -471,7 +468,7 @@ async def test_reauth_mobile_invalid_key(hass, mock_coordinator_refresh):
     assert result["type"] == FlowResultType.FORM
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_configure(
@@ -520,7 +517,7 @@ async def test_reauth_mobile_valid_key(hass, mock_coordinator_refresh):
     assert result["type"] == FlowResultType.FORM
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_configure(
@@ -567,7 +564,7 @@ async def test_reauth_mobile_cannot_connect(hass, mock_coordinator_refresh):
     assert result["type"] == FlowResultType.FORM
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_configure(
@@ -612,7 +609,7 @@ async def test_locations_fetch_exception_graceful(hass, mock_coordinator_refresh
     ])
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_init(
@@ -722,7 +719,7 @@ async def test_reconfigure_prefills_marine_region(hass, mock_coordinator_refresh
     session_mock.get = AsyncMock(return_value=marine_resp)
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         result = await hass.config_entries.flow.async_init(

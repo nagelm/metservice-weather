@@ -42,7 +42,7 @@ def mock_marine_session(mock_coordinator_refresh):
     session_mock.__aexit__ = AsyncMock(return_value=None)
 
     with patch(
-        "custom_components.metservice_weather.config_flow.async_create_clientsession",
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
         return_value=session_mock,
     ):
         yield session_mock, marine_resp
