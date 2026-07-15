@@ -170,6 +170,17 @@ def test_pollen_level_present(napier):
     assert napier.pollen_level is not None
 
 
+def test_pollen_state_none_for_fixtures_without_groups(napier, kumeu):
+    """Fixtures predate the groups format, so pollen_state falls back to None.
+
+    The checked-in fixtures' pollen payload has no "groups" key, so the
+    derived one-sensor model must fall back to pollen_state None (unknown)
+    rather than inventing a state.
+    """
+    assert napier.pollen_state is None
+    assert kumeu.pollen_state is None
+
+
 def test_tomorrow_fields_present(napier):
     """Normalized tomorrow_condition and tomorrow_temp_high are populated."""
     assert napier.tomorrow_condition is not None
@@ -865,3 +876,138 @@ def test_pollen_groups_default_empty():
     """pollen_groups defaults to an empty list when no pollen data is injected."""
     result = normalize_public_data({}, {})
     assert result.pollen_groups == []
+
+
+# ---------------------------------------------------------------------------
+# Pollen — derived one-sensor model (state, level_label, active, imminent)
+# ---------------------------------------------------------------------------
+
+
+def _pollen_current(groups: list[dict]) -> dict:
+    """Build a synthetic `current` payload carrying the given pollen groups."""
+    return {"pollen": {"groups": groups}}
+
+
+def test_pollen_imminent_only_groups():
+    """Imminent-only (medium-good) groups yield state "none" with imminent allergens."""
+    current = _pollen_current(
+        [
+            {
+                "level": "Imminent",
+                "type": "Macrocarpa, Pinus Radiata, Early Grasses",
+                "status_class": "medium-good",
+            }
+        ]
+    )
+    result = normalize_public_data(current, {})
+    assert result.pollen_state == "none"
+    assert result.pollen_active == {}
+    assert result.pollen_imminent == ["Macrocarpa", "Pinus Radiata", "Early Grasses"]
+
+
+def test_pollen_single_good_block():
+    """A single "good" block maps to state "low" with a verbatim level label."""
+    current = _pollen_current(
+        [{"level": "Low", "type": "Wattle, Cypress, Hazelnut", "status_class": "good"}]
+    )
+    result = normalize_public_data(current, {})
+    assert result.pollen_state == "low"
+    assert result.pollen_level_label == "Low"
+    assert result.pollen_active == {"low": ["Wattle", "Cypress", "Hazelnut"]}
+
+
+def test_pollen_good_and_bad_worst_wins():
+    """A "good" and a "bad" block together: state is "high" and both keys populate."""
+    current = _pollen_current(
+        [
+            {"level": "Low", "type": "Wattle, Cypress", "status_class": "good"},
+            {"level": "High", "type": "Ragweed", "status_class": "bad"},
+        ]
+    )
+    result = normalize_public_data(current, {})
+    assert result.pollen_state == "high"
+    assert result.pollen_level_label == "High"
+    assert result.pollen_active == {
+        "low": ["Wattle", "Cypress"],
+        "high": ["Ragweed"],
+    }
+
+
+def test_pollen_medium_good_and_good_real_shape():
+    """The real July Wellington shape: an imminent notice alongside active low pollen."""
+    current = _pollen_current(
+        [
+            {
+                "level": "Imminent",
+                "type": "Macrocarpa, Pinus Radiata, Early Grasses",
+                "status_class": "medium-good",
+            },
+            {
+                "level": "Low",
+                "type": "Wattle, Cypress, Hazelnut, Cedar, Alder, Fungal Spores",
+                "status_class": "good",
+            },
+        ]
+    )
+    result = normalize_public_data(current, {})
+    assert result.pollen_state == "low"
+    assert result.pollen_level_label == "Low"
+    assert result.pollen_imminent == ["Macrocarpa", "Pinus Radiata", "Early Grasses"]
+    assert result.pollen_active == {
+        "low": ["Wattle", "Cypress", "Hazelnut", "Cedar", "Alder", "Fungal Spores"]
+    }
+
+
+def test_pollen_none_class_only():
+    """A single "none"-class block (no data) yields state "none"."""
+    current = _pollen_current([{"level": None, "type": None, "status_class": "none"}])
+    result = normalize_public_data(current, {})
+    assert result.pollen_state == "none"
+    assert result.pollen_active == {}
+    assert result.pollen_imminent == []
+
+
+def test_pollen_unknown_class_ignored_and_warns_once(caplog):
+    """An unknown status class is ignored for state but logged once per runtime."""
+    from custom_components.metservice_weather import coordinator_types
+
+    coordinator_types._UNKNOWN_POLLEN_CLASSES_LOGGED.clear()
+    current = _pollen_current(
+        [{"level": "Mystery", "type": "Unknown Plant", "status_class": "purple"}]
+    )
+    with caplog.at_level(
+        logging.WARNING, logger="custom_components.metservice_weather.coordinator_types"
+    ):
+        result = normalize_public_data(current, {})
+        normalize_public_data(current, {})  # second call must not warn again
+
+    assert result.pollen_state == "none"
+    assert result.pollen_active == {}
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warning_records) == 1
+    assert "purple" in warning_records[0].getMessage()
+
+
+def test_pollen_state_none_when_no_groups_at_all():
+    """No pollen groups at all (module not published) leaves pollen_state None."""
+    result = normalize_public_data({}, {})
+    assert result.pollen_state is None
+    assert result.pollen_level_label is None
+    assert result.pollen_active == {}
+    assert result.pollen_imminent == []
+
+
+def test_pollen_allergen_type_splitting():
+    """The comma-separated `type` string is split and stripped into a list."""
+    current = _pollen_current(
+        [{"level": "Low", "type": "A, B, C", "status_class": "good"}]
+    )
+    result = normalize_public_data(current, {})
+    assert result.pollen_active["low"] == ["A", "B", "C"]
+
+
+def test_pollen_empty_type_splits_to_empty_list():
+    """An empty/missing `type` string splits to an empty allergen list."""
+    current = _pollen_current([{"level": "Low", "type": "", "status_class": "good"}])
+    result = normalize_public_data(current, {})
+    assert result.pollen_active["low"] == []

@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 from unittest.mock import patch
 
+from homeassistant.components.sensor import SensorDeviceClass
 
 from custom_components.metservice_weather.coordinator import (
     WeatherUpdateCoordinator,
@@ -244,6 +245,57 @@ def test_warnings_state_attr_count_matches_list_length():
 def test_public_sensor_descriptions_non_empty():
     """current_condition_sensor_descriptions_public is a non-empty list."""
     assert len(current_condition_sensor_descriptions_public) > 0
+
+
+# ---------------------------------------------------------------------------
+# Test: pollen sensor description (one-sensor redesign)
+# ---------------------------------------------------------------------------
+
+
+def test_pollen_sensor_replaces_old_keys():
+    """The single "pollen" ENUM description replaces pollen_levels/pollen_type."""
+    keys = {d.key for d in current_condition_sensor_descriptions_public}
+    assert "pollen_levels" not in keys
+    assert "pollen_type" not in keys
+    assert "pollen" in keys
+
+
+def test_pollen_sensor_is_enum_with_four_options():
+    """The pollen description is an ENUM sensor with the four documented states."""
+    desc = next(
+        d for d in current_condition_sensor_descriptions_public if d.key == "pollen"
+    )
+    assert desc.device_class == SensorDeviceClass.ENUM
+    assert desc.options == ["none", "low", "moderate", "high"]
+
+
+def test_pollen_sensor_value_and_attrs_from_derived_fields():
+    """value_fn/attr_fn read pollen_state and the derived attribute fields."""
+    desc = next(
+        d for d in current_condition_sensor_descriptions_public if d.key == "pollen"
+    )
+    data = MetServicePublicData(
+        pollen_state="low",
+        pollen_level_label="Low",
+        pollen_active={"low": ["Wattle", "Cypress"]},
+        pollen_imminent=["Macrocarpa"],
+    )
+    assert desc.value_fn(data, "metric") == "low"
+    assert desc.attr_fn(data) == {
+        "level_label": "Low",
+        "active": {"low": ["Wattle", "Cypress"]},
+        "imminent_allergens": ["Macrocarpa"],
+    }
+
+
+def test_pollen_sensor_attrs_empty_when_state_unknown():
+    """attr_fn returns {} when pollen_state is None (module not published)."""
+    desc = next(
+        d for d in current_condition_sensor_descriptions_public if d.key == "pollen"
+    )
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {}
 
 
 # ---------------------------------------------------------------------------

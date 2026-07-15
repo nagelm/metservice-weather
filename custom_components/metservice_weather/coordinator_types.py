@@ -93,6 +93,63 @@ def _scan_forecasts(day: Any, key: str) -> Any:
     return day.get(key)
 
 
+# MetService's site-wide pollen status_class taxonomy: good/medium/bad form
+# the exposure severity ramp; medium-good is an informational outlook notice
+# (e.g. pre-season "Imminent"); none means no data for that block.
+_POLLEN_CLASS_TO_STATE = {"good": "low", "medium": "moderate", "bad": "high"}
+_POLLEN_STATE_RANK = {"low": 1, "moderate": 2, "high": 3}
+_UNKNOWN_POLLEN_CLASSES_LOGGED: set[str] = set()
+
+
+def _derive_pollen(
+    groups: list[dict[str, str | None]],
+) -> tuple[str | None, str | None, dict[str, list[str]], list[str]]:
+    """Derive the one-sensor pollen model from raw MetService status groups.
+
+    Returns (pollen_state, pollen_level_label, pollen_active, pollen_imminent):
+    - pollen_state: highest-ranked state among the exposure-ramp blocks
+      (good/medium/bad); "none" if groups exist but none are exposure blocks;
+      None if there are no groups at all (module wasn't published).
+    - pollen_level_label: verbatim `level` text of the block that set the
+      state; None when state is "none" or None.
+    - pollen_active: state -> list of allergens, from good/medium/bad blocks.
+    - pollen_imminent: allergens from medium-good (informational) blocks.
+    """
+    if not groups:
+        return None, None, {}, []
+
+    active: dict[str, list[str]] = {}
+    imminent: list[str] = []
+    level_labels: dict[str, str | None] = {}
+
+    for group in groups:
+        cls = group.get("status_class")
+        allergens = [
+            t.strip() for t in (group.get("type") or "").split(",") if t.strip()
+        ]
+        if cls == "medium-good":
+            imminent.extend(allergens)
+        elif cls in _POLLEN_CLASS_TO_STATE:
+            state = _POLLEN_CLASS_TO_STATE[cls]
+            active.setdefault(state, []).extend(allergens)
+            level_labels[state] = group.get("level")
+        elif cls == "none" or cls is None:
+            continue
+        elif cls not in _UNKNOWN_POLLEN_CLASSES_LOGGED:
+            _UNKNOWN_POLLEN_CLASSES_LOGGED.add(cls)
+            _LOGGER.warning(
+                "Unknown MetService pollen status class %r — please report at "
+                "https://github.com/nagelm/metservice-weather/issues",
+                cls,
+            )
+
+    if not active:
+        return "none", None, active, imminent
+
+    best_state = max(active, key=lambda s: _POLLEN_STATE_RANK[s])
+    return best_state, level_labels.get(best_state), active, imminent
+
+
 @dataclass
 class HourlyEntry:
     """Single hourly forecast entry."""
@@ -170,6 +227,12 @@ class MetServicePublicData:
     pollen_level: str | None = None
     pollen_type: str | None = None
     pollen_groups: list[dict[str, str | None]] = field(default_factory=list)
+
+    # Derived pollen model (one-sensor design)
+    pollen_state: str | None = None  # none | low | moderate | high
+    pollen_level_label: str | None = None
+    pollen_active: dict[str, list[str]] = field(default_factory=dict)
+    pollen_imminent: list[str] = field(default_factory=list)
 
     # Derived / injected
     weather_warnings: str = "No warnings"
@@ -319,6 +382,14 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     is_rural = str(day0.get("isRural", "")).lower() == "true"
 
     # ------------------------------------------------------------------
+    # Pollen — derive the one-sensor model from the raw status groups
+    # ------------------------------------------------------------------
+    pollen_groups = current.get("pollen", {}).get("groups") or []
+    pollen_state, pollen_level_label, pollen_active, pollen_imminent = _derive_pollen(
+        pollen_groups
+    )
+
+    # ------------------------------------------------------------------
     # Moon phase date — MetService recomputes this per backend refresh with
     # second-level jitter; round to 5 minutes so state only changes when
     # the phase event actually advances. Log the raw value so prod debug
@@ -374,7 +445,12 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         # Pollen (injected at root as {"pollenLevels": {...}})
         pollen_level=_get(current, "pollen", "pollenLevels", "level"),
         pollen_type=_get(current, "pollen", "pollenLevels", "type"),
-        pollen_groups=_get(current, "pollen", "groups") or [],
+        pollen_groups=pollen_groups,
+        # Derived pollen model (one-sensor design)
+        pollen_state=pollen_state,
+        pollen_level_label=pollen_level_label,
+        pollen_active=pollen_active,
+        pollen_imminent=pollen_imminent,
         # Injected derived fields
         weather_warnings=current.get("weather_warnings", "No warnings"),
         warnings_list=current.get("warnings_list") or [],

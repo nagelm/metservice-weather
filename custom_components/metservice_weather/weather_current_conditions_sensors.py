@@ -256,30 +256,20 @@ current_condition_sensor_descriptions_public = [
         value_fn=lambda data, _: cast(str, data.pressure_trend),
     ),
     WeatherSensorEntityDescription(
-        key="pollen_levels",
-        translation_key="pollen_levels",
-        name="Pollen Levels",
-        value_fn=lambda data, _: cast(str, data.pollen_level),
-        # All concurrent status blocks (e.g. pre-season "Imminent" for trees
-        # plus "Low" for active allergens); the state is the first block.
+        key="pollen",
+        translation_key="pollen",
+        name="Pollen",
+        device_class=SensorDeviceClass.ENUM,
+        options=["none", "low", "moderate", "high"],
+        value_fn=lambda data, _: data.pollen_state,
         attr_fn=lambda data: (
-            {"groups": data.pollen_groups} if data.pollen_groups else {}
-        ),
-    ),
-    WeatherSensorEntityDescription(
-        key="pollen_type",
-        translation_key="pollen_type",
-        name="Pollen Type",
-        value_fn=lambda data, _: (
-            cast(
-                str,
-                ". ".join(
-                    i.capitalize()
-                    for i in data.pollen_type.lstrip(" ")[0:254].split(". ")
-                ),
-            )
-            if data.pollen_type
-            else None
+            {
+                "level_label": data.pollen_level_label,
+                "active": data.pollen_active,
+                "imminent_allergens": data.pollen_imminent,
+            }
+            if data.pollen_state is not None
+            else {}
         ),
     ),
     WeatherSensorEntityDescription(

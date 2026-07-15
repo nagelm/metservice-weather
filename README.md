@@ -74,8 +74,7 @@ Earlier versions of this integration included an option to use the MetService mo
 
 | Sensor | Notes |
 |--------|-------|
-| Pollen Level | When in season |
-| Pollen Type | When in season |
+| Pollen | Always (see seasonal notes) |
 | Clothes Drying Time — Morning | Time window for drying |
 | Clothes Drying Time — Afternoon | Time window for drying |
 | Clothes Drying — Next Good Day | Day name when today is a washout |
@@ -127,7 +126,7 @@ seasons:
 
 | Sensor | Behaviour |
 |---|---|
-| Pollen Levels / Pollen Type | Runs year-round. Pre-season it reads `Imminent` with the upcoming allergens (e.g. wattle, pinus radiata); in season, levels like `Low` |
+| Pollen | Runs year-round. State is the current exposure level (`none`/`low`/`moderate`/`high`, from MetService's own severity taxonomy); allergens about to start their season appear in the `imminent_allergens` attribute, active allergens per level in the `active` attribute |
 | Clothes Drying | Year-round for towns/cities; rural locations may not carry it |
 
 Sensors a **location can never provide** (e.g. wind/temperature observations for
@@ -141,6 +140,16 @@ A full Home Assistant weather entity with:
 - Current condition (correctly returns `clear-night` when the sun is below the horizon)
 - 48-hour hourly forecast — temperature, precipitation, wind speed and bearing
 - 7-day daily forecast — high/low temperature, condition, plain-English description, and chance of rain (MetService's probability of at least 1 mm falling that day)
+
+**Where to find the chance of rain:** Home Assistant no longer exposes forecasts
+as entity attributes — forecast fields are only visible via the
+`weather.get_forecasts` action, template sensors built on it, or forecast cards
+(the built-in weather card's daily tiles don't render probability; custom cards
+like clock-weather-card do). Also note an upstream limitation: **towns-cities
+locations only publish the chance of rain from roughly day 3 onward** — MetService
+covers the nearer days with hourly rainfall amounts instead, which this
+integration relays in the hourly forecast. Rural locations publish the
+probability for all seven days.
 
 ---
 

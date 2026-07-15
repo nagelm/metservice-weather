@@ -56,8 +56,15 @@
       "wind_speed": {"name": "Wind Speed"},
       "rainfall": {"name": "Rainfall"},
       "pressure_tendency_trend": {"name": "Pressure Tendency Trend"},
-      "pollen_levels": {"name": "Pollen Levels"},
-      "pollen_type": {"name": "Pollen Type"},
+      "pollen": {
+        "name": "Pollen",
+        "state": {
+          "none": "None",
+          "low": "Low",
+          "moderate": "Moderate",
+          "high": "High"
+        }
+      },
       "weather_warnings": {"name": "MetService Weather Warnings"},
       "fire_season": {"name": "Fire Season"},
       "fire_danger": {"name": "Fire Danger"},
