@@ -34,6 +34,12 @@ homeassistant / pytest-homeassistant-custom-component pair matched), `validate.y
 (hassfest + HACS), `release.yml` (zip upload on release publish). All must be green;
 the ruff debt was cleared 2026-07-15 — don't reintroduce it.
 
+**Fork-PR workflow policy:** Actions from fork PRs require Matt's manual
+"Approve and run" for ALL outside collaborators (set 2026-07-15 via
+`actions/permissions/fork-pr-contributor-approval = all_external_contributors`).
+Own-branch PRs and Dependabot PRs (in-repo branches) run automatically.
+Do not relax this setting.
+
 ## Key file map
 ```
 custom_components/metservice_weather/
