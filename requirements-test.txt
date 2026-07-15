@@ -1,0 +1,4 @@
+# Test harness — keep this pair matched: pytest-homeassistant-custom-component
+# releases track specific Home Assistant versions.
+homeassistant==2026.5.1
+pytest-homeassistant-custom-component==0.13.330

@@ -1,4 +1,5 @@
 """Tests for the metservice_weather config flow."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant import config_entries
@@ -15,6 +16,7 @@ from homeassistant.const import CONF_NAME, CONF_LOCATION
 # ---------------------------------------------------------------------------
 # Test 1 — public API, no marine region
 # ---------------------------------------------------------------------------
+
 
 async def test_public_no_marine(hass, mock_marine_session):
     """User flow with public API and marine skipped creates entry."""
@@ -40,34 +42,48 @@ async def test_public_no_marine(hass, mock_marine_session):
 # Test 2 — public API with marine region (proceeds to locations step)
 # ---------------------------------------------------------------------------
 
+
 async def test_public_with_marine_region(hass, mock_coordinator_refresh):
     """Selecting a marine region shows the locations step; skipping all creates entry."""
     empty_markers_resp = AsyncMock()
-    empty_markers_resp.json = AsyncMock(return_value={
-        "layout": {"primary": {"map": {"modules": [], "markers": []}}}
-    })
+    empty_markers_resp.json = AsyncMock(
+        return_value={"layout": {"primary": {"map": {"modules": [], "markers": []}}}}
+    )
     empty_markers_resp.status = 200
 
     marine_resp = AsyncMock()
-    marine_resp.json = AsyncMock(return_value={
-        "layout": {
-            "search": {
-                "searchLocations": [{"items": [
-                    {"heading": {"label": "Northland", "url": "/marine/regions/northland"}}
-                ]}]
+    marine_resp.json = AsyncMock(
+        return_value={
+            "layout": {
+                "search": {
+                    "searchLocations": [
+                        {
+                            "items": [
+                                {
+                                    "heading": {
+                                        "label": "Northland",
+                                        "url": "/marine/regions/northland",
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
             }
         }
-    })
+    )
     marine_resp.status = 200
 
     session_mock = MagicMock()
     # First call: marine fetch; subsequent calls: tide/boating/surf location fetches
-    session_mock.get = AsyncMock(side_effect=[
-        marine_resp,
-        empty_markers_resp,
-        empty_markers_resp,
-        empty_markers_resp,
-    ])
+    session_mock.get = AsyncMock(
+        side_effect=[
+            marine_resp,
+            empty_markers_resp,
+            empty_markers_resp,
+            empty_markers_resp,
+        ]
+    )
 
     with patch(
         "custom_components.metservice_weather.config_flow.async_get_clientsession",
@@ -101,6 +117,7 @@ async def test_public_with_marine_region(hass, mock_coordinator_refresh):
 # ---------------------------------------------------------------------------
 # Test 7 — duplicate location aborts
 # ---------------------------------------------------------------------------
+
 
 async def test_duplicate_location_aborts(hass, mock_marine_session):
     """Second setup with same location unique_id aborts."""
@@ -140,6 +157,7 @@ async def test_duplicate_location_aborts(hass, mock_marine_session):
 # Test 8 — marine fetch fails gracefully
 # ---------------------------------------------------------------------------
 
+
 async def test_marine_fetch_fails_gracefully(hass, mock_coordinator_refresh):
     """If marine fetch raises an exception, the form still shows with no crash."""
     session_mock = MagicMock()
@@ -159,6 +177,7 @@ async def test_marine_fetch_fails_gracefully(hass, mock_coordinator_refresh):
 # ---------------------------------------------------------------------------
 # Test 9 — reconfigure
 # ---------------------------------------------------------------------------
+
 
 async def test_reconfigure(hass, mock_marine_session):
     """Reconfigure flow pre-fills existing entry data and updates on submit."""
@@ -206,34 +225,48 @@ async def test_reconfigure(hass, mock_marine_session):
 # Test 15 — location fetch exception is swallowed, step still shows
 # ---------------------------------------------------------------------------
 
+
 async def test_locations_fetch_exception_graceful(hass, mock_coordinator_refresh):
     """If one of tide/boating/surf fetches raises, the locations form still shows."""
     marine_resp = AsyncMock()
-    marine_resp.json = AsyncMock(return_value={
-        "layout": {
-            "search": {
-                "searchLocations": [{"items": [
-                    {"heading": {"label": "Northland", "url": "/marine/regions/northland"}}
-                ]}]
+    marine_resp.json = AsyncMock(
+        return_value={
+            "layout": {
+                "search": {
+                    "searchLocations": [
+                        {
+                            "items": [
+                                {
+                                    "heading": {
+                                        "label": "Northland",
+                                        "url": "/marine/regions/northland",
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
             }
         }
-    })
+    )
     marine_resp.status = 200
 
     ok_resp = AsyncMock()
-    ok_resp.json = AsyncMock(return_value={
-        "layout": {"primary": {"map": {"modules": [], "markers": []}}}
-    })
+    ok_resp.json = AsyncMock(
+        return_value={"layout": {"primary": {"map": {"modules": [], "markers": []}}}}
+    )
     ok_resp.status = 200
 
     session_mock = MagicMock()
     # Marine fetch succeeds; tide raises; boating and surf succeed
-    session_mock.get = AsyncMock(side_effect=[
-        marine_resp,
-        Exception("tide fetch failed"),
-        ok_resp,
-        ok_resp,
-    ])
+    session_mock.get = AsyncMock(
+        side_effect=[
+            marine_resp,
+            Exception("tide fetch failed"),
+            ok_resp,
+            ok_resp,
+        ]
+    )
 
     with patch(
         "custom_components.metservice_weather.config_flow.async_get_clientsession",
@@ -253,15 +286,14 @@ async def test_locations_fetch_exception_graceful(hass, mock_coordinator_refresh
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "locations"
 
-        result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], {}
-        )
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
         assert result["type"] == FlowResultType.CREATE_ENTRY
 
 
 # ---------------------------------------------------------------------------
 # Test 16 — _marker_url returns empty string on malformed marker
 # ---------------------------------------------------------------------------
+
 
 def test_marker_url_malformed():
     """_marker_url returns '' when the marker dict is missing expected keys."""
@@ -275,22 +307,29 @@ def test_marker_url_malformed():
 # Test 17 — _resolve_url uses action string path when marker URL is empty
 # ---------------------------------------------------------------------------
 
+
 def test_resolve_url_action_string_path(hass):
     """_resolve_url returns the action string when _marker_url returns empty."""
     flow = WeatherFlowHandler()
     flow.hass = hass
 
-    marker = {"label": {"text": "Mangawhai"}, "action": "/marine/regions/northland/tides/locations/mangawhai"}
+    marker = {
+        "label": {"text": "Mangawhai"},
+        "action": "/marine/regions/northland/tides/locations/mangawhai",
+    }
     label_map = {"0": "Mangawhai"}
     locations = [marker]
 
-    result = flow._resolve_url("Mangawhai", label_map, locations, "marine/regions/northland", "tides")
+    result = flow._resolve_url(
+        "Mangawhai", label_map, locations, "marine/regions/northland", "tides"
+    )
     assert result == "/marine/regions/northland/tides/locations/mangawhai"
 
 
 # ---------------------------------------------------------------------------
 # Test 18 — _resolve_url falls back to slug-constructed URL
 # ---------------------------------------------------------------------------
+
 
 def test_resolve_url_fallback_slug(hass):
     """_resolve_url constructs a fallback URL when neither URL nor action is usable."""
@@ -301,13 +340,16 @@ def test_resolve_url_fallback_slug(hass):
     label_map = {"0": "Big Beach"}
     locations = [marker]
 
-    result = flow._resolve_url("Big Beach", label_map, locations, "marine/regions/northland", "surf")
+    result = flow._resolve_url(
+        "Big Beach", label_map, locations, "marine/regions/northland", "surf"
+    )
     assert result == "/marine/regions/northland/surf/locations/big-beach"
 
 
 # ---------------------------------------------------------------------------
 # Test 19 — reconfigure pre-fills existing marine region label
 # ---------------------------------------------------------------------------
+
 
 async def test_reconfigure_prefills_marine_region(hass, mock_coordinator_refresh):
     """Reconfigure of an entry with a marine_region pre-fills the region label."""
@@ -329,15 +371,26 @@ async def test_reconfigure_prefills_marine_region(hass, mock_coordinator_refresh
     existing_entry.add_to_hass(hass)
 
     marine_resp = AsyncMock()
-    marine_resp.json = AsyncMock(return_value={
-        "layout": {
-            "search": {
-                "searchLocations": [{"items": [
-                    {"heading": {"label": "Northland", "url": "/marine/regions/northland"}}
-                ]}]
+    marine_resp.json = AsyncMock(
+        return_value={
+            "layout": {
+                "search": {
+                    "searchLocations": [
+                        {
+                            "items": [
+                                {
+                                    "heading": {
+                                        "label": "Northland",
+                                        "url": "/marine/regions/northland",
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
             }
         }
-    })
+    )
     marine_resp.status = 200
 
     session_mock = MagicMock()

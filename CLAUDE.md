@@ -28,6 +28,12 @@ wsl bash -c "source /home/mattn/.venv/metservice-weather/bin/activate && cd /mnt
 **WSL venv path:** `/home/mattn/.venv/metservice-weather/`
 **pytest requires WSL** — `pytest-homeassistant-custom-component` needs `fcntl` (Linux only).
 
+**CI workflows** (`.github/workflows/`): `lint.yml` (ruff check + format check),
+`test.yml` (pytest + 95% coverage gate; pins in `requirements-test.txt` — keep the
+homeassistant / pytest-homeassistant-custom-component pair matched), `validate.yml`
+(hassfest + HACS), `release.yml` (zip upload on release publish). All must be green;
+the ruff debt was cleared 2026-07-15 — don't reintroduce it.
+
 ## Key file map
 ```
 custom_components/metservice_weather/

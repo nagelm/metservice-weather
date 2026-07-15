@@ -1,4 +1,5 @@
 """Tests for async_setup_entry and async_unload_entry in __init__.py."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
@@ -31,6 +32,7 @@ def _make_entry(data: dict) -> MockConfigEntry:
 # ---------------------------------------------------------------------------
 # Test: async_setup_entry and async_unload_entry (public API)
 # ---------------------------------------------------------------------------
+
 
 async def test_setup_and_unload_public(hass):
     """Entry sets up correctly and unloads cleanly for the public API path."""
@@ -92,7 +94,9 @@ async def test_setup_first_refresh_failure_raises(hass):
 
 async def test_runtime_data_set_after_setup(hass):
     """Coordinator is accessible via entry.runtime_data after setup."""
-    from custom_components.metservice_weather.coordinator import WeatherUpdateCoordinator
+    from custom_components.metservice_weather.coordinator import (
+        WeatherUpdateCoordinator,
+    )
 
     entry = _make_entry(_PUBLIC_ENTRY_DATA)
     entry.add_to_hass(hass)

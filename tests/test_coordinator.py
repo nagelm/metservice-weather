@@ -1,4 +1,5 @@
 """Tests for WeatherUpdateCoordinator fetch paths, accessors, and error handling."""
+
 from __future__ import annotations
 
 import json
@@ -30,6 +31,7 @@ def _load(name: str) -> dict:
 
 _PUBLIC_CURRENT = _load("napier_public_current.json")
 _PUBLIC_DAILY = _load("napier_public_daily.json")
+
 
 def _make_config(
     tide_url="",
@@ -66,7 +68,9 @@ def _mock_response(data, status=200):
 # Test: properties
 # ---------------------------------------------------------------------------
 
+
 async def test_coordinator_properties(hass):
+    """Coordinator exposes location and disables tides/boating/surf by default."""
     coord = _make_coordinator(hass)
     assert coord.location == "/towns-cities/regions/hawkes-bay/locations/napier"
     assert coord.location_name == "Napier"
@@ -76,6 +80,7 @@ async def test_coordinator_properties(hass):
 
 
 async def test_coordinator_properties_with_urls(hass):
+    """Coordinator enables tides, boating, and surf when their URLs are configured."""
     coord = _make_coordinator(
         hass,
         tide_url="https://example.com/tides",
@@ -92,31 +97,37 @@ async def test_coordinator_properties_with_urls(hass):
 # Test: get_from_dict (DFS)
 # ---------------------------------------------------------------------------
 
+
 async def test_get_from_dict_simple(hass):
+    """get_from_dict resolves a simple nested key path."""
     coord = _make_coordinator(hass)
     data = {"a": {"b": {"c": 42}}}
     assert coord.get_from_dict(data, ["a", "b", "c"]) == 42
 
 
 async def test_get_from_dict_list_traversal(hass):
+    """get_from_dict extracts a field from the first item of a list."""
     coord = _make_coordinator(hass)
     data = {"items": [{"val": 1}, {"val": 2}]}
     assert coord.get_from_dict(data, ["items", "val"]) == 1
 
 
 async def test_get_from_dict_indexed_list(hass):
+    """get_from_dict resolves a numeric string key as a list index."""
     coord = _make_coordinator(hass)
     data = [{"val": 10}, {"val": 20}]
     assert coord.get_from_dict(data, ["1", "val"]) == 20
 
 
 async def test_get_from_dict_missing_key(hass):
+    """get_from_dict returns None when the key path doesn't exist."""
     coord = _make_coordinator(hass)
     data = {"a": 1}
     assert coord.get_from_dict(data, ["b"]) is None
 
 
 async def test_get_from_dict_empty_keys(hass):
+    """get_from_dict returns the original data when no keys are given."""
     coord = _make_coordinator(hass)
     assert coord.get_from_dict({"x": 1}, []) == {"x": 1}
 
@@ -125,27 +136,35 @@ async def test_get_from_dict_empty_keys(hass):
 # Test: _check_errors
 # ---------------------------------------------------------------------------
 
+
 async def test_check_errors_no_errors(hass):
+    """_check_errors does not raise when the response has no errors key."""
     coord = _make_coordinator(hass)
     coord._check_errors("http://x", {"data": 1})  # should not raise
 
 
 async def test_check_errors_empty_errors_list(hass):
+    """_check_errors does not raise when the errors list is empty."""
     coord = _make_coordinator(hass)
     coord._check_errors("http://x", {"errors": []})  # empty list — no raise
 
 
 async def test_check_errors_raises(hass):
+    """_check_errors raises ValueError with the API's error message."""
     coord = _make_coordinator(hass)
     with pytest.raises(ValueError, match="something went wrong"):
-        coord._check_errors("http://x", {"errors": [{"message": "something went wrong"}]})
+        coord._check_errors(
+            "http://x", {"errors": [{"message": "something went wrong"}]}
+        )
 
 
 # ---------------------------------------------------------------------------
 # Test: _parse_pollen_html
 # ---------------------------------------------------------------------------
 
+
 async def test_parse_pollen_html_level_and_plants(hass):
+    """_parse_pollen_html extracts the pollen level and plant types."""
     coord = _make_coordinator(hass)
     html = '<span class="status-high">High</span><br/>Grass, Timothy'
     result = coord._parse_pollen_html(html)
@@ -154,6 +173,7 @@ async def test_parse_pollen_html_level_and_plants(hass):
 
 
 async def test_parse_pollen_html_empty(hass):
+    """_parse_pollen_html returns None level and type for unrecognized HTML."""
     coord = _make_coordinator(hass)
     result = coord._parse_pollen_html("<div>nothing here</div>")
     assert result["level"] is None
@@ -164,30 +184,45 @@ async def test_parse_pollen_html_empty(hass):
 # Test: _format_timestamp
 # ---------------------------------------------------------------------------
 
+
 async def test_format_timestamp(hass):
+    """_format_timestamp converts a local ISO timestamp to UTC."""
     coord = _make_coordinator(hass)
     result = coord._format_timestamp("2024-06-15T12:00:00+12:00")
     assert "2024-06-15" in result
-    assert result.endswith("+00:00") or "Z" in result or "UTC" in result or "00:00" in result
+    assert (
+        result.endswith("+00:00")
+        or "Z" in result
+        or "UTC" in result
+        or "00:00" in result
+    )
 
 
 # ---------------------------------------------------------------------------
 # Test: get_public_weather — happy path
 # ---------------------------------------------------------------------------
 
+
 async def test_get_public_weather_returns_data(hass):
+    """get_public_weather returns typed data including weather warnings."""
     coord = _make_coordinator(hass)
 
-    warnings_data = {"warnings": [
-        {"name": "Strong Wind", "text": "Gale force winds", "threatPeriod": "Tonight"}
-    ]}
+    warnings_data = {
+        "warnings": [
+            {
+                "name": "Strong Wind",
+                "text": "Gale force winds",
+                "threatPeriod": "Tonight",
+            }
+        ]
+    }
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
 
     responses = [
-        _mock_response(_PUBLIC_CURRENT),        # main fetch
-        _mock_response(warnings_data),          # warnings fetch
-        _mock_response(_PUBLIC_DAILY),          # 7-day fetch
-        _mock_response(pollen_data),            # pollen fetch (best-effort)
+        _mock_response(_PUBLIC_CURRENT),  # main fetch
+        _mock_response(warnings_data),  # warnings fetch
+        _mock_response(_PUBLIC_DAILY),  # 7-day fetch
+        _mock_response(pollen_data),  # pollen fetch (best-effort)
     ]
 
     mock_session = MagicMock()
@@ -207,12 +242,14 @@ async def test_get_public_weather_no_warnings(hass):
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
 
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_PUBLIC_CURRENT),
-        _mock_response(warnings_data),
-        _mock_response(_PUBLIC_DAILY),
-        _mock_response(pollen_data),
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(warnings_data),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_data),
+        ]
+    )
     coord._session = mock_session
 
     result = await coord.get_public_weather()
@@ -220,6 +257,7 @@ async def test_get_public_weather_no_warnings(hass):
 
 
 async def test_get_public_weather_timeout_raises_update_failed(hass):
+    """get_public_weather raises UpdateFailed when the request times out."""
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(side_effect=TimeoutError())
@@ -230,6 +268,7 @@ async def test_get_public_weather_timeout_raises_update_failed(hass):
 
 
 async def test_get_public_weather_client_error_raises_update_failed(hass):
+    """get_public_weather raises UpdateFailed on an aiohttp client error."""
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(side_effect=aiohttp.ClientError("conn failed"))
@@ -240,6 +279,7 @@ async def test_get_public_weather_client_error_raises_update_failed(hass):
 
 
 async def test_get_public_weather_none_response_raises_update_failed(hass):
+    """get_public_weather raises UpdateFailed when the main fetch returns no data."""
     coord = _make_coordinator(hass)
     resp = _mock_response(None)
     mock_session = MagicMock()
@@ -251,6 +291,7 @@ async def test_get_public_weather_none_response_raises_update_failed(hass):
 
 
 async def test_get_public_weather_api_error_raises_update_failed(hass):
+    """get_public_weather raises UpdateFailed when the API response contains an error."""
     coord = _make_coordinator(hass)
     error_resp = {"errors": [{"message": "rate limit exceeded"}]}
     mock_session = MagicMock()
@@ -265,9 +306,16 @@ async def test_get_public_weather_api_error_raises_update_failed(hass):
 # Test: _async_update_data dispatches correctly
 # ---------------------------------------------------------------------------
 
+
 async def test_async_update_data_public(hass):
+    """_async_update_data delegates to get_public_weather."""
     coord = _make_coordinator(hass)
-    with patch.object(coord, "get_public_weather", new_callable=AsyncMock, return_value={"current": {}, "daily": {}}) as mock:
+    with patch.object(
+        coord,
+        "get_public_weather",
+        new_callable=AsyncMock,
+        return_value={"current": {}, "daily": {}},
+    ) as mock:
         await coord._async_update_data()
         mock.assert_called_once()
 
@@ -276,13 +324,23 @@ async def test_async_update_data_public(hass):
 # Test: get_pollen_data
 # ---------------------------------------------------------------------------
 
+
 async def test_get_pollen_data_success(hass):
+    """get_pollen_data parses the pollen level from the fetched module."""
     coord = _make_coordinator(hass)
     pollen_html = '<span class="status-low">Low</span><br/>Grass'
     pollen_data = {
-        "layout": {"primary": {"slots": {"main": {"modules": [
-            {"content": [{"iconName": "pollen", "html": pollen_html}]}
-        ]}}}}
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {
+                        "modules": [
+                            {"content": [{"iconName": "pollen", "html": pollen_html}]}
+                        ]
+                    }
+                }
+            }
+        }
     }
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response(pollen_data))
@@ -293,6 +351,7 @@ async def test_get_pollen_data_success(hass):
 
 
 async def test_get_pollen_data_non_200_returns_empty(hass):
+    """get_pollen_data returns empty pollen levels on a non-200 response."""
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response({}, status=404))
@@ -303,6 +362,7 @@ async def test_get_pollen_data_non_200_returns_empty(hass):
 
 
 async def test_get_pollen_data_exception_returns_empty(hass):
+    """get_pollen_data returns empty pollen levels when the fetch raises."""
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(side_effect=Exception("network error"))
@@ -316,11 +376,25 @@ async def test_get_pollen_data_exception_returns_empty(hass):
 # Test: get_tides
 # ---------------------------------------------------------------------------
 
+
 async def test_get_tides_success(hass):
+    """get_tides returns the parsed tide entries."""
     tide_data = {
-        "layout": {"primary": {"slots": {"main": {"modules": [
-            {"tideData": [{"time": "06:30", "type": "HIGH", "height": 1.8}]}
-        ]}}}}
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {
+                        "modules": [
+                            {
+                                "tideData": [
+                                    {"time": "06:30", "type": "HIGH", "height": 1.8}
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
     }
     coord = _make_coordinator(hass, tide_url="https://example.com/tides")
     mock_session = MagicMock()
@@ -333,6 +407,7 @@ async def test_get_tides_success(hass):
 
 
 async def test_get_tides_non_200_returns_none(hass):
+    """get_tides returns None on a non-200 response."""
     coord = _make_coordinator(hass, tide_url="https://example.com/tides")
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response({}, status=404))
@@ -343,6 +418,7 @@ async def test_get_tides_non_200_returns_none(hass):
 
 
 async def test_get_tides_none_response_returns_none(hass):
+    """get_tides returns None when the response body is None."""
     coord = _make_coordinator(hass, tide_url="https://example.com/tides")
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response(None))
@@ -353,7 +429,10 @@ async def test_get_tides_none_response_returns_none(hass):
 
 
 async def test_get_tides_missing_tidedata_returns_none(hass):
-    tide_data = {"layout": {"primary": {"slots": {"main": {"modules": [{"other": "data"}]}}}}}
+    """get_tides returns None when no module contains tideData."""
+    tide_data = {
+        "layout": {"primary": {"slots": {"main": {"modules": [{"other": "data"}]}}}}
+    }
     coord = _make_coordinator(hass, tide_url="https://example.com/tides")
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response(tide_data))
@@ -364,6 +443,7 @@ async def test_get_tides_missing_tidedata_returns_none(hass):
 
 
 async def test_get_tides_network_error_returns_none(hass):
+    """get_tides returns None on a network error."""
     coord = _make_coordinator(hass, tide_url="https://example.com/tides")
     mock_session = MagicMock()
     mock_session.get = AsyncMock(side_effect=aiohttp.ClientError("fail"))
@@ -377,15 +457,32 @@ async def test_get_tides_network_error_returns_none(hass):
 # Test: get_boating_data
 # ---------------------------------------------------------------------------
 
+
 async def test_get_boating_data_success(hass):
+    """get_boating_data returns the boating status and forecast text."""
     boating_data = {
-        "layout": {"primary": {"slots": {"main": {"modules": [{"days": [
-            {
-                "view": {"text": "Good", "status": "good"},
-                "forecast": {"text": "Calm seas", "issuedAt": "2024-06-15"},
-                "table": {"columns": []},
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {
+                        "modules": [
+                            {
+                                "days": [
+                                    {
+                                        "view": {"text": "Good", "status": "good"},
+                                        "forecast": {
+                                            "text": "Calm seas",
+                                            "issuedAt": "2024-06-15",
+                                        },
+                                        "table": {"columns": []},
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
             }
-        ]}]}}}}
+        }
     }
     coord = _make_coordinator(hass, boating_url="https://example.com/boating")
     mock_session = MagicMock()
@@ -398,6 +495,7 @@ async def test_get_boating_data_success(hass):
 
 
 async def test_get_boating_data_non_200_returns_empty(hass):
+    """get_boating_data returns an empty dict on a non-200 response."""
     coord = _make_coordinator(hass, boating_url="https://example.com/boating")
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response({}, status=503))
@@ -407,7 +505,10 @@ async def test_get_boating_data_non_200_returns_empty(hass):
 
 
 async def test_get_boating_data_no_days_returns_empty(hass):
-    boating_data = {"layout": {"primary": {"slots": {"main": {"modules": [{"days": []}]}}}}}
+    """get_boating_data returns an empty dict when the days list is empty."""
+    boating_data = {
+        "layout": {"primary": {"slots": {"main": {"modules": [{"days": []}]}}}}
+    }
     coord = _make_coordinator(hass, boating_url="https://example.com/boating")
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response(boating_data))
@@ -417,6 +518,7 @@ async def test_get_boating_data_no_days_returns_empty(hass):
 
 
 async def test_get_boating_data_no_modules_returns_empty(hass):
+    """get_boating_data returns an empty dict when there are no modules."""
     boating_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
     coord = _make_coordinator(hass, boating_url="https://example.com/boating")
     mock_session = MagicMock()
@@ -427,6 +529,7 @@ async def test_get_boating_data_no_modules_returns_empty(hass):
 
 
 async def test_get_boating_data_network_error_returns_empty(hass):
+    """get_boating_data returns an empty dict on a network error."""
     coord = _make_coordinator(hass, boating_url="https://example.com/boating")
     mock_session = MagicMock()
     mock_session.get = AsyncMock(side_effect=aiohttp.ClientError("fail"))
@@ -439,25 +542,36 @@ async def test_get_boating_data_network_error_returns_empty(hass):
 # Test: get_surf_data
 # ---------------------------------------------------------------------------
 
+
 def _surf_marker(path="/marine/regions/northland/surf/locations/waihi-beach"):
     return {
-        "action": {"modules": [{"link": {"url": path}, "value": {
-            "rating": 3,
-            "waveHeight": 1.2,
-            "setFace": 1.5,
-            "swell": {"direction": "NW", "swellHeight": 1.0},
-            "wind": {"direction": "SW", "averageSpeed": 20, "gustSpeed": 30},
-            "period": 8,
-        }}]},
+        "action": {
+            "modules": [
+                {
+                    "link": {"url": path},
+                    "value": {
+                        "rating": 3,
+                        "waveHeight": 1.2,
+                        "setFace": 1.5,
+                        "swell": {"direction": "NW", "swellHeight": 1.0},
+                        "wind": {
+                            "direction": "SW",
+                            "averageSpeed": 20,
+                            "gustSpeed": 30,
+                        },
+                        "period": 8,
+                    },
+                }
+            ]
+        },
         "view": {"text": "Fair"},
     }
 
 
 async def test_get_surf_data_success(hass):
+    """get_surf_data returns the surf rating and conditions for a matching marker."""
     surf_url = "https://www.metservice.com/publicData/webdata/marine/regions/northland/surf/locations/waihi-beach"
-    surf_data = {
-        "layout": {"primary": {"map": {"markers": [_surf_marker()]}}}
-    }
+    surf_data = {"layout": {"primary": {"map": {"markers": [_surf_marker()]}}}}
     coord = _make_coordinator(hass, surf_url=surf_url)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response(surf_data))
@@ -469,6 +583,7 @@ async def test_get_surf_data_success(hass):
 
 
 async def test_get_surf_data_no_matching_marker_returns_empty(hass):
+    """get_surf_data returns an empty dict when no marker matches the surf URL."""
     surf_url = "https://www.metservice.com/publicData/webdata/marine/regions/northland/surf/locations/waihi-beach"
     surf_data = {"layout": {"primary": {"map": {"markers": []}}}}
     coord = _make_coordinator(hass, surf_url=surf_url)
@@ -480,6 +595,7 @@ async def test_get_surf_data_no_matching_marker_returns_empty(hass):
 
 
 async def test_get_surf_data_non_200_returns_empty(hass):
+    """get_surf_data returns an empty dict on a non-200 response."""
     surf_url = "https://www.metservice.com/publicData/webdata/marine/regions/northland/surf/locations/waihi-beach"
     coord = _make_coordinator(hass, surf_url=surf_url)
     mock_session = MagicMock()
@@ -490,6 +606,7 @@ async def test_get_surf_data_non_200_returns_empty(hass):
 
 
 async def test_get_surf_data_network_error_returns_empty(hass):
+    """get_surf_data returns an empty dict on a network error."""
     surf_url = "https://www.metservice.com/publicData/webdata/marine/regions/northland/surf/locations/waihi-beach"
     coord = _make_coordinator(hass, surf_url=surf_url)
     mock_session = MagicMock()
@@ -503,7 +620,9 @@ async def test_get_surf_data_network_error_returns_empty(hass):
 # Test: expand_data_urls
 # ---------------------------------------------------------------------------
 
+
 async def test_expand_data_urls_replaces_node(hass):
+    """expand_data_urls replaces a dataUrl node with the fetched payload."""
     coord = _make_coordinator(hass)
     expanded = {"realData": 42}
     mock_session = MagicMock()
@@ -516,6 +635,7 @@ async def test_expand_data_urls_replaces_node(hass):
 
 
 async def test_expand_data_urls_non_200_sets_none(hass):
+    """expand_data_urls sets the node to None on a non-200 response."""
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response({}, status=500))
@@ -527,6 +647,7 @@ async def test_expand_data_urls_non_200_sets_none(hass):
 
 
 async def test_expand_data_urls_no_data_url_unchanged(hass):
+    """expand_data_urls leaves data unchanged and makes no requests when there's no dataUrl."""
     coord = _make_coordinator(hass)
     data = {"a": 1, "b": {"c": 2}}
     mock_session = MagicMock()
@@ -539,6 +660,7 @@ async def test_expand_data_urls_no_data_url_unchanged(hass):
 
 
 async def test_expand_data_urls_list(hass):
+    """expand_data_urls expands a dataUrl found inside a list."""
     coord = _make_coordinator(hass)
     expanded = {"val": 99}
     mock_session = MagicMock()
@@ -566,26 +688,41 @@ async def test_expand_data_urls_max_depth_guard(hass):
 # Test: tide/boating/surf injected into public weather fetch
 # ---------------------------------------------------------------------------
 
+
 async def test_get_public_weather_injects_tides(hass):
     """When tide_url is set, tideImport is injected into result_current."""
     coord = _make_coordinator(hass, tide_url="https://example.com/tides")
 
     tide_resp = {
-        "layout": {"primary": {"slots": {"main": {"modules": [
-            {"tideData": [{"type": "HIGH", "time": "06:00", "height": 1.5}]}
-        ]}}}}
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {
+                        "modules": [
+                            {
+                                "tideData": [
+                                    {"type": "HIGH", "time": "06:00", "height": 1.5}
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
     }
     warnings_data = {"warnings": []}
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
 
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_PUBLIC_CURRENT),
-        _mock_response(warnings_data),
-        _mock_response(_PUBLIC_DAILY),
-        _mock_response(pollen_data),
-        _mock_response(tide_resp),
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(warnings_data),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_data),
+            _mock_response(tide_resp),
+        ]
+    )
     coord._session = mock_session
 
     result = await coord.get_public_weather()
@@ -595,22 +732,40 @@ async def test_get_public_weather_injects_tides(hass):
 async def test_get_public_weather_injects_boating(hass):
     """When boating_url is set, boating_data is injected into result_current."""
     boating_data_resp = {
-        "layout": {"primary": {"slots": {"main": {"modules": [{"days": [
-            {"view": {"text": "Good", "status": "good"}, "forecast": {"text": "Calm", "issuedAt": ""}, "table": {"columns": []}}
-        ]}]}}}}
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {
+                        "modules": [
+                            {
+                                "days": [
+                                    {
+                                        "view": {"text": "Good", "status": "good"},
+                                        "forecast": {"text": "Calm", "issuedAt": ""},
+                                        "table": {"columns": []},
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
     }
     warnings_data = {"warnings": []}
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
 
     coord = _make_coordinator(hass, boating_url="https://example.com/boating")
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_PUBLIC_CURRENT),
-        _mock_response(warnings_data),
-        _mock_response(_PUBLIC_DAILY),
-        _mock_response(pollen_data),
-        _mock_response(boating_data_resp),
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(warnings_data),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_data),
+            _mock_response(boating_data_resp),
+        ]
+    )
     coord._session = mock_session
 
     result = await coord.get_public_weather()
@@ -628,13 +783,15 @@ async def test_get_public_weather_injects_surf(hass):
 
     coord = _make_coordinator(hass, surf_url=surf_url)
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_PUBLIC_CURRENT),
-        _mock_response(warnings_data),
-        _mock_response(_PUBLIC_DAILY),
-        _mock_response(pollen_data),
-        _mock_response(surf_resp),
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(warnings_data),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_data),
+            _mock_response(surf_resp),
+        ]
+    )
     coord._session = mock_session
 
     result = await coord.get_public_weather()
@@ -645,10 +802,12 @@ async def test_get_public_weather_warnings_none_raises_update_failed(hass):
     """When warnings fetch returns None, UpdateFailed is raised."""
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_PUBLIC_CURRENT),
-        _mock_response(None),   # warnings returns None
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(None),  # warnings returns None
+        ]
+    )
     coord._session = mock_session
 
     with pytest.raises(UpdateFailed, match="No warnings data"):
@@ -660,11 +819,13 @@ async def test_get_public_weather_daily_none_raises_update_failed(hass):
     warnings_data = {"warnings": []}
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_PUBLIC_CURRENT),
-        _mock_response(warnings_data),
-        _mock_response(None),  # daily returns None
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(warnings_data),
+            _mock_response(None),  # daily returns None
+        ]
+    )
     coord._session = mock_session
 
     with pytest.raises(UpdateFailed, match="No daily forecast"):
@@ -683,32 +844,55 @@ async def test_get_public_weather_unexpected_exception_raises_update_failed(hass
 
 
 async def test_get_public_weather_tomorrow_injection(hass):
-    """Tomorrow's forecast is derived by normalize_public_data from the 7-day
-    data (daily_entries[1]) when 2+ days are present — the coordinator no
-    longer injects it directly.
-    """
+    """Tomorrow's forecast is derived from daily_entries[1] by normalize_public_data, not injected by the coordinator."""
     warnings_data = {"warnings": []}
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
     daily_with_tomorrow = {
-        "layout": {"primary": {"slots": {"main": {"modules": [{"days": [
-            {
-                "condition": "fine",
-                "forecasts": [{"highTemp": 20, "lowTemp": 12, "statement": "Today fine"}],
-            },
-            {
-                "condition": "cloudy",
-                "forecasts": [{"highTemp": 17, "lowTemp": 10, "statement": "Tomorrow cloudy"}],
-            },
-        ]}]}}}}
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {
+                        "modules": [
+                            {
+                                "days": [
+                                    {
+                                        "condition": "fine",
+                                        "forecasts": [
+                                            {
+                                                "highTemp": 20,
+                                                "lowTemp": 12,
+                                                "statement": "Today fine",
+                                            }
+                                        ],
+                                    },
+                                    {
+                                        "condition": "cloudy",
+                                        "forecasts": [
+                                            {
+                                                "highTemp": 17,
+                                                "lowTemp": 10,
+                                                "statement": "Tomorrow cloudy",
+                                            }
+                                        ],
+                                    },
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
     }
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_PUBLIC_CURRENT),
-        _mock_response(warnings_data),
-        _mock_response(daily_with_tomorrow),
-        _mock_response(pollen_data),
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(warnings_data),
+            _mock_response(daily_with_tomorrow),
+            _mock_response(pollen_data),
+        ]
+    )
     coord._session = mock_session
 
     result = await coord.get_public_weather()
@@ -735,12 +919,14 @@ async def test_get_public_weather_drying_wet_all_day(hass):
     ]
 
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_PUBLIC_CURRENT),
-        _mock_response(warnings_data),
-        _mock_response(_PUBLIC_DAILY),
-        _mock_response(pollen_data),
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(warnings_data),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_data),
+        ]
+    )
     coord._session = mock_session
 
     original_get_from_dict = coord.get_from_dict
@@ -754,8 +940,10 @@ async def test_get_public_weather_drying_wet_all_day(hass):
         result = await coord.get_public_weather()
 
     assert result.drying_morning == "Wet all day"
-    assert result.drying_afternoon == "Wet all day"   # mirrored from morning
-    assert result.drying_next_good_day == "Thursday"  # extracted from "Next good day: Thursday"
+    assert result.drying_afternoon == "Wet all day"  # mirrored from morning
+    assert (
+        result.drying_next_good_day == "Thursday"
+    )  # extracted from "Next good day: Thursday"
 
 
 async def test_get_public_weather_drying_exception_silenced(hass):
@@ -766,12 +954,14 @@ async def test_get_public_weather_drying_exception_silenced(hass):
     coord = _make_coordinator(hass)
 
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(_PUBLIC_CURRENT),
-        _mock_response(warnings_data),
-        _mock_response(_PUBLIC_DAILY),
-        _mock_response(pollen_data),
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(warnings_data),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_data),
+        ]
+    )
     coord._session = mock_session
 
     def patched_get_from_dict(data, keys):
@@ -789,6 +979,7 @@ async def test_get_public_weather_drying_exception_silenced(hass):
 # ---------------------------------------------------------------------------
 # Test: exception paths in marine helpers
 # ---------------------------------------------------------------------------
+
 
 async def test_get_tides_unexpected_exception_returns_none(hass):
     """Unexpected exception in get_tides returns None (lines 366-368)."""
@@ -827,9 +1018,7 @@ async def test_get_surf_data_bad_marker_skipped(hass):
     surf_url = "https://www.metservice.com/publicData/webdata/marine/regions/northland/surf/locations/waihi-beach"
     bad_marker = {}  # missing 'action' key → KeyError
     good_marker = _surf_marker()
-    surf_data = {
-        "layout": {"primary": {"map": {"markers": [bad_marker, good_marker]}}}
-    }
+    surf_data = {"layout": {"primary": {"map": {"markers": [bad_marker, good_marker]}}}}
     coord = _make_coordinator(hass, surf_url=surf_url)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response(surf_data))
@@ -842,6 +1031,7 @@ async def test_get_surf_data_bad_marker_skipped(hass):
 # ---------------------------------------------------------------------------
 # Test: expand_data_urls exception path
 # ---------------------------------------------------------------------------
+
 
 async def test_expand_data_urls_exception_sets_none(hass):
     """When session.get raises (not timeout/client), parent key is set to None (lines 636-639)."""
@@ -856,12 +1046,9 @@ async def test_expand_data_urls_exception_sets_none(hass):
 
 
 async def test_get_public_weather_tomorrow_extraction_exception_silenced(hass):
-    """Tomorrow_* is derived by normalize_public_data, whose exact-path
-    traversal (_get) tolerates a short/empty 7-day payload without raising —
-    when the 7-day data has no days (e.g. empty modules list), tomorrow_*
-    fields simply stay None and get_public_weather still succeeds.
-    """
+    """Tomorrow_* fields stay None instead of raising when the 7-day payload has no days."""
     import copy
+
     warnings_data = {"warnings": []}
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
     # modules is explicitly [] — normalize_public_data's _get returns None
@@ -874,12 +1061,14 @@ async def test_get_public_weather_tomorrow_extraction_exception_silenced(hass):
 
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
-    mock_session.get = AsyncMock(side_effect=[
-        _mock_response(current_copy),
-        _mock_response(warnings_data),
-        _mock_response(daily_bad),
-        _mock_response(pollen_data),
-    ])
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(current_copy),
+            _mock_response(warnings_data),
+            _mock_response(daily_bad),
+            _mock_response(pollen_data),
+        ]
+    )
     coord._session = mock_session
 
     result = await coord.get_public_weather()

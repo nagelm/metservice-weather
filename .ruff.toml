@@ -38,6 +38,10 @@ lint.ignore = [
     "E731", # do not assign a lambda expression, use a def
 ]
 
+[lint.per-file-ignores]
+# Dev/CLI scripts legitimately print to the terminal.
+"scripts/*" = ["T20"]
+
 [lint.flake8-pytest-style]
 fixture-parentheses = false
 

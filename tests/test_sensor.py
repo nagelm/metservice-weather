@@ -1,4 +1,5 @@
 """Tests for WeatherSensor entity and weather_current_conditions_sensors helpers."""
+
 from __future__ import annotations
 
 import datetime
@@ -23,6 +24,7 @@ from custom_components.metservice_weather.coordinator_types import MetServicePub
 # ---------------------------------------------------------------------------
 # Helper: minimal coordinator with pre-loaded data
 # ---------------------------------------------------------------------------
+
 
 def _make_coordinator(hass) -> WeatherUpdateCoordinator:
     config = WeatherUpdateCoordinatorConfig(
@@ -63,54 +65,71 @@ def _make_sensor(coordinator, key="temperature", value=18.5) -> WeatherSensor:
 # Test: helper functions in weather_current_conditions_sensors.py
 # ---------------------------------------------------------------------------
 
+
 def test_safe_float_none():
+    """_safe_float returns None for a None input."""
     assert _safe_float(None) is None
 
 
 def test_safe_float_valid():
+    """_safe_float converts a numeric string or float to float."""
     assert _safe_float("18.5") == 18.5
     assert _safe_float(18.5) == 18.5
 
 
 def test_safe_float_invalid():
+    """_safe_float returns None for invalid or empty strings."""
     assert _safe_float("n/a") is None
     assert _safe_float("") is None
 
 
 def test_safe_int_none():
+    """_safe_int returns None for a None input."""
     assert _safe_int(None) is None
 
 
 def test_safe_int_valid():
+    """_safe_int converts a numeric string or int to int."""
     assert _safe_int("5") == 5
     assert _safe_int(5) == 5
 
 
 def test_safe_int_invalid():
+    """_safe_int returns None for an invalid string."""
     assert _safe_int("n/a") is None
 
 
 def test_next_tide_time_not_list():
+    """_next_tide_time returns None when tides is not a list."""
     assert _next_tide_time(None, "HIGH") is None
     assert _next_tide_time({}, "HIGH") is None
 
 
 def test_next_tide_time_future():
-    future = (datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)).isoformat()
+    """_next_tide_time returns a value for a future tide of the matching type."""
+    future = (
+        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
+    ).isoformat()
     tides = [{"type": "HIGH", "time": future}]
     result = _next_tide_time(tides, "HIGH")
     assert result is not None
 
 
 def test_next_tide_time_past_returns_none():
-    past = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)).isoformat()
+    """_next_tide_time returns None when the matching tide is in the past."""
+    past = (
+        datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+    ).isoformat()
     tides = [{"type": "HIGH", "time": past}]
     result = _next_tide_time(tides, "HIGH")
     assert result is None
 
 
 def test_next_tide_time_wrong_type_returns_none():
-    future = (datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)).isoformat()
+    """_next_tide_time returns None when no tide matches the requested type."""
+    future = (
+        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
+    ).isoformat()
     tides = [{"type": "LOW", "time": future}]
     result = _next_tide_time(tides, "HIGH")
     assert result is None
@@ -120,7 +139,9 @@ def test_next_tide_time_wrong_type_returns_none():
 # Test: sensor descriptions are non-empty lists
 # ---------------------------------------------------------------------------
 
+
 def test_public_sensor_descriptions_non_empty():
+    """current_condition_sensor_descriptions_public is a non-empty list."""
     assert len(current_condition_sensor_descriptions_public) > 0
 
 
@@ -128,13 +149,16 @@ def test_public_sensor_descriptions_non_empty():
 # Test: WeatherSensor properties
 # ---------------------------------------------------------------------------
 
+
 async def test_sensor_name(hass):
+    """WeatherSensor.name reflects the entity description's name."""
     coord = _make_coordinator(hass)
     sensor = _make_sensor(coord, value=20.0)
     assert sensor.name == "Test Sensor"
 
 
 async def test_sensor_native_value_with_data(hass):
+    """WeatherSensor.native_value returns the value_fn result when data is present."""
     coord = _make_coordinator(hass)
     sensor = _make_sensor(coord, value=18.5)
     # _sensor_data was set to 18.5 in the constructor; value_fn just returns data
@@ -142,6 +166,7 @@ async def test_sensor_native_value_with_data(hass):
 
 
 async def test_sensor_native_value_none_data(hass):
+    """WeatherSensor.native_value is None when the underlying value is None."""
     coord = _make_coordinator(hass)
     sensor = _make_sensor(coord, value=None)
     assert sensor.native_value is None
@@ -160,6 +185,7 @@ async def test_sensor_native_value_fn_error_returns_none(hass):
 
 
 async def test_sensor_extra_state_attributes_with_data(hass):
+    """WeatherSensor.extra_state_attributes returns the attr_fn result when data is present."""
     coord = _make_coordinator(hass)
     sensor = _make_sensor(coord, value="some text")
     attrs = sensor.extra_state_attributes
@@ -167,12 +193,14 @@ async def test_sensor_extra_state_attributes_with_data(hass):
 
 
 async def test_sensor_extra_state_attributes_none_data(hass):
+    """WeatherSensor.extra_state_attributes is empty when the underlying value is None."""
     coord = _make_coordinator(hass)
     sensor = _make_sensor(coord, value=None)
     assert sensor.extra_state_attributes == {}
 
 
 async def test_sensor_extra_state_attributes_fn_error_returns_empty(hass):
+    """If attr_fn raises, extra_state_attributes returns an empty dict without crashing."""
     coord = _make_coordinator(hass)
     desc = WeatherSensorEntityDescription(
         key="temperature",
@@ -185,6 +213,7 @@ async def test_sensor_extra_state_attributes_fn_error_returns_empty(hass):
 
 
 async def test_sensor_handle_coordinator_update_public(hass):
+    """_handle_coordinator_update refreshes _sensor_data from the coordinator."""
     coord = _make_coordinator(hass)
     sensor = _make_sensor(coord, value=10.0)
     updated_data = MetServicePublicData(temperature=22.5)
@@ -195,6 +224,7 @@ async def test_sensor_handle_coordinator_update_public(hass):
 
 
 async def test_sensor_available_when_coordinator_failed(hass):
+    """WeatherSensor.available is False when the coordinator's last update failed."""
     coord = _make_coordinator(hass)
     coord.last_update_success = False
     sensor = _make_sensor(coord, value=5.0)
@@ -202,6 +232,7 @@ async def test_sensor_available_when_coordinator_failed(hass):
 
 
 async def test_sensor_available_when_coordinator_ok(hass):
+    """WeatherSensor.available is True when the coordinator's last update succeeded."""
     coord = _make_coordinator(hass)
     coord.last_update_success = True
     sensor = _make_sensor(coord, value=5.0)
@@ -211,6 +242,7 @@ async def test_sensor_available_when_coordinator_ok(hass):
 # ---------------------------------------------------------------------------
 # Test: async_setup_entry creates expected sensors
 # ---------------------------------------------------------------------------
+
 
 async def test_sensor_setup_entry_public_skips_tide_sensors(hass):
     """When no tide URL, tides_high and tides_low are excluded."""
@@ -252,11 +284,9 @@ async def test_sensor_setup_entry_public_skips_tide_sensors(hass):
 # Test: async_setup_entry sensor gating by capability flags
 # ---------------------------------------------------------------------------
 
+
 async def test_setup_entry_rural_skips_observation_sensors(hass):
-    """A rural-like coordinator (all capability flags False, as _make_coordinator
-    sets by default) must not create observation or breakdown sensors, while
-    ungated sensors are still created.
-    """
+    """A rural-like coordinator (all capability flags False) skips observation and breakdown sensors while still creating ungated sensors."""
     from custom_components.metservice_weather.sensor import async_setup_entry
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from custom_components.metservice_weather.const import (
@@ -281,7 +311,9 @@ async def test_setup_entry_rural_skips_observation_sensors(hass):
             "surf_url": "",
         },
     )
-    coord = _make_coordinator(hass)  # coord.data = MetServicePublicData() — all capability flags False
+    coord = _make_coordinator(
+        hass
+    )  # coord.data = MetServicePublicData() — all capability flags False
     entry.runtime_data = coord
 
     added = []
@@ -322,9 +354,7 @@ async def test_setup_entry_rural_skips_observation_sensors(hass):
 
 
 async def test_setup_entry_towns_creates_observation_sensors(hass):
-    """A towns-cities coordinator with observations + breakdown present creates
-    the sensors that the rural-like default coordinator skips.
-    """
+    """A towns-cities coordinator with observations and breakdown present creates the sensors that the rural-like default coordinator skips."""
     from custom_components.metservice_weather.sensor import async_setup_entry
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from custom_components.metservice_weather.const import (
@@ -382,9 +412,7 @@ async def test_setup_entry_towns_creates_observation_sensors(hass):
 
 
 async def test_setup_entry_removes_stale_registry_entries(hass):
-    """Registry entries for sensors the location no longer provides are removed;
-    sensors still provided and the weather-domain entity are left untouched.
-    """
+    """Registry entries for sensors the location no longer provides are removed, while still-provided sensors and the weather-domain entity are left untouched."""
     from custom_components.metservice_weather.sensor import async_setup_entry
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from homeassistant.helpers import entity_registry as er
@@ -431,5 +459,3 @@ async def test_setup_entry_removes_stale_registry_entries(hass):
     assert ent_reg.async_get(stale.entity_id) is None
     assert ent_reg.async_get(keep.entity_id) is not None
     assert ent_reg.async_get(weather_ent.entity_id) is not None
-
-

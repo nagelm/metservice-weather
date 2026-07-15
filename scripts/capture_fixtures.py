@@ -10,6 +10,7 @@ Run from the project root:
 
 Requires: aiohttp, async_timeout (both present in the project venv).
 """
+
 import asyncio
 import json
 import re
@@ -59,14 +60,18 @@ async def expand_data_urls(session, data, parent=None, key=None, _depth=0):
                     result = await resp.json(content_type=None)
                 if parent is not None and key is not None:
                     parent[key] = result
-                await expand_data_urls(session, result, parent=parent, key=key, _depth=_depth + 1)
+                await expand_data_urls(
+                    session, result, parent=parent, key=key, _depth=_depth + 1
+                )
             except Exception as exc:
                 print(f"  [error] {full_url}: {exc}")
                 if parent is not None and key is not None:
                     parent[key] = None
         else:
             for k in list(data.keys()):
-                await expand_data_urls(session, data[k], parent=data, key=k, _depth=_depth)
+                await expand_data_urls(
+                    session, data[k], parent=data, key=k, _depth=_depth
+                )
     elif isinstance(data, list):
         for idx, item in enumerate(data):
             await expand_data_urls(session, item, parent=data, key=idx, _depth=_depth)
@@ -81,6 +86,7 @@ def inject_derived_fields(result_current, result_daily):
     # Drying index parsing
     try:
         drying_states = None
+
         # Walk result_current looking for dryingState (simplified get_from_dict)
         def find_key(data, target, _d=0):
             if _d > 15:
@@ -109,7 +115,9 @@ def inject_derived_fields(result_current, result_daily):
                 elif text.startswith("Afternoon:"):
                     drying_afternoon = text.removeprefix("Afternoon:").strip()
                 elif text.lower().startswith("next good day"):
-                    drying_next_good_day = text.split(":", 1)[-1].strip() if ":" in text else text
+                    drying_next_good_day = (
+                        text.split(":", 1)[-1].strip() if ":" in text else text
+                    )
                 elif text:
                     drying_morning = text
             if drying_afternoon is None and drying_morning is not None:
@@ -174,12 +182,25 @@ async def capture_location(session, fixtures_dir, name, location):
                     for item in module.get("content", []):
                         if item.get("iconName") == "pollen" and "html" in item:
                             html = item["html"]
-                            level_m = re.search(r'<span[^>]*class="status-[^"]*"[^>]*>([^<]+)</span>', html)
-                            plants_m = re.search(r'</span>(?:<br\s*/?>|</br>)(.*?)(?:<br\s*/?>|</br>|$)', html, re.IGNORECASE)
-                            result_current["pollen"] = {"pollenLevels": {
-                                "level": level_m.group(1).strip() if level_m else None,
-                                "type": plants_m.group(1).strip() if plants_m else None,
-                            }}
+                            level_m = re.search(
+                                r'<span[^>]*class="status-[^"]*"[^>]*>([^<]+)</span>',
+                                html,
+                            )
+                            plants_m = re.search(
+                                r"</span>(?:<br\s*/?>|</br>)(.*?)(?:<br\s*/?>|</br>|$)",
+                                html,
+                                re.IGNORECASE,
+                            )
+                            result_current["pollen"] = {
+                                "pollenLevels": {
+                                    "level": level_m.group(1).strip()
+                                    if level_m
+                                    else None,
+                                    "type": plants_m.group(1).strip()
+                                    if plants_m
+                                    else None,
+                                }
+                            }
     except Exception as exc:
         print(f"  [warn] pollen fetch failed: {exc}")
 
@@ -211,13 +232,16 @@ async def capture_location(session, fixtures_dir, name, location):
 
 
 async def main():
+    """Capture fixtures for the locations named on the command line (default: all)."""
     fixtures_dir = Path(__file__).parent.parent / "tests" / "fixtures"
     fixtures_dir.mkdir(parents=True, exist_ok=True)
 
     wanted = sys.argv[1:] or list(LOCATIONS)
     unknown = [n for n in wanted if n not in LOCATIONS]
     if unknown:
-        raise SystemExit(f"Unknown location name(s): {unknown}; known: {list(LOCATIONS)}")
+        raise SystemExit(
+            f"Unknown location name(s): {unknown}; known: {list(LOCATIONS)}"
+        )
 
     connector = aiohttp.TCPConnector(limit=10)
     async with aiohttp.ClientSession(connector=connector) as session:
