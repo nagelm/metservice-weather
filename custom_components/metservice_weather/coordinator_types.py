@@ -164,9 +164,12 @@ class MetServicePublicData:
     fire_danger: str | None = None
     fire_season: str | None = None
 
-    # Pollen (injected)
+    # Pollen (injected). pollen_level/type reflect the first (headline)
+    # block; pollen_groups carries every concurrent status block, e.g. a
+    # pre-season "Imminent" for trees alongside a "Low" for active allergens.
     pollen_level: str | None = None
     pollen_type: str | None = None
+    pollen_groups: list[dict[str, str | None]] = field(default_factory=list)
 
     # Derived / injected
     weather_warnings: str = "No warnings"
@@ -371,6 +374,7 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         # Pollen (injected at root as {"pollenLevels": {...}})
         pollen_level=_get(current, "pollen", "pollenLevels", "level"),
         pollen_type=_get(current, "pollen", "pollenLevels", "type"),
+        pollen_groups=_get(current, "pollen", "groups") or [],
         # Injected derived fields
         weather_warnings=current.get("weather_warnings", "No warnings"),
         warnings_list=current.get("warnings_list") or [],

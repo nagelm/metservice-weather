@@ -837,3 +837,31 @@ def test_moon_phase_raw_jitter_logged_at_debug(caplog):
         result = normalize_public_data(current, {})
     assert result.moon_phase_date == "2026-07-07T19:15:00+00:00"
     assert any("rounded to" in r.getMessage() for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Pollen groups — multiple concurrent status blocks
+# ---------------------------------------------------------------------------
+
+
+def test_pollen_groups_pass_through():
+    """Injected pollen groups land on pollen_groups; headline stays level/type."""
+    current = {
+        "pollen": {
+            "pollenLevels": {"level": "Imminent", "type": "Wattle, alder"},
+            "groups": [
+                {"level": "Imminent", "type": "Wattle, alder"},
+                {"level": "Low", "type": "Cypress, hazelnut"},
+            ],
+        }
+    }
+    result = normalize_public_data(current, {})
+    assert result.pollen_level == "Imminent"
+    assert len(result.pollen_groups) == 2
+    assert result.pollen_groups[1]["level"] == "Low"
+
+
+def test_pollen_groups_default_empty():
+    """pollen_groups defaults to an empty list when no pollen data is injected."""
+    result = normalize_public_data({}, {})
+    assert result.pollen_groups == []

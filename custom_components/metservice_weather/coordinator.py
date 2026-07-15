@@ -416,26 +416,40 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
 
     @staticmethod
     def _parse_pollen_html(html: str) -> dict:
-        """Extract pollen level and plant types from MetService allergen HTML."""
+        """Extract pollen level, plant types and status class from allergen HTML.
+
+        status_class is MetService's site-wide severity taxonomy (good/medium/
+        bad = exposure ramp; medium-good = blue informational, used for the
+        pre-season "Imminent" notice; none = no data). It is the machine-
+        orderable signal; the level text is the display label.
+        """
         level = None
         plants = None
+        status_class = None
         # Match <span class="status-...">Level</span>
         level_match = re.search(
-            r'<span[^>]*class="status-[^"]*"[^>]*>([^<]+)</span>', html
+            r'<span[^>]*class="status-([a-z-]+)"[^>]*>([^<]+)</span>', html
         )
         if level_match:
-            level = level_match.group(1).strip()
+            status_class = level_match.group(1).strip()
+            level = level_match.group(2).strip()
         # Plant types appear after the closing </span> tag
         plants_match = re.search(
             r"</span>(?:<br\s*/?>|</br>)(.*?)(?:<br\s*/?>|</br>|$)", html, re.IGNORECASE
         )
         if plants_match:
             plants = plants_match.group(1).strip()
-        return {"level": level, "type": plants}
+        return {"level": level, "type": plants, "status_class": status_class}
 
     async def get_pollen_data(self) -> dict:
-        """Fetch pollen/allergen data from MetService allergens endpoint."""
-        empty = {"pollenLevels": {"level": None, "type": None}}
+        """Fetch pollen/allergen data from MetService allergens endpoint.
+
+        The page can carry several concurrent pollen status blocks (e.g. a
+        pre-season "Imminent" for trees alongside a "Low" for currently
+        active allergens). The first block stays the headline value; all
+        blocks are returned under "groups".
+        """
+        empty = {"pollenLevels": {"level": None, "type": None}, "groups": []}
         try:
             async with asyncio.timeout(10):
                 url = f"{self._api_url}{self._location}/airborne-allergens"
@@ -448,7 +462,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     )
                     return empty
                 result = await response.json(content_type=None)
-            # Search all modules for the pollen iconWithText content block
+            # Search all modules for pollen iconWithText content blocks
             modules = (
                 result.get("layout", {})
                 .get("primary", {})
@@ -456,11 +470,15 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 .get("main", {})
                 .get("modules", [])
             )
-            for module in modules:
-                for item in module.get("content", []):
-                    if item.get("iconName") == "pollen" and "html" in item:
-                        parsed = self._parse_pollen_html(item["html"])
-                        return {"pollenLevels": parsed}
+            groups = [
+                self._parse_pollen_html(item["html"])
+                for module in modules
+                for item in module.get("content", [])
+                if item.get("iconName") == "pollen" and "html" in item
+            ]
+            if groups:
+                _LOGGER.debug("Pollen groups this cycle: %s", groups)
+                return {"pollenLevels": groups[0], "groups": groups}
         except Exception as err:
             _LOGGER.debug("Could not fetch pollen data: %s", repr(err))
         return empty

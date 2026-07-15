@@ -164,12 +164,14 @@ async def test_check_errors_raises(hass):
 
 
 async def test_parse_pollen_html_level_and_plants(hass):
-    """_parse_pollen_html extracts the pollen level and plant types."""
+    """_parse_pollen_html extracts level, plant types and the status class."""
     coord = _make_coordinator(hass)
-    html = '<span class="status-high">High</span><br/>Grass, Timothy'
+    # status-good is a real MetService class (green / low concern)
+    html = '<span class="status-good">Low</span><br/>Grass, Timothy'
     result = coord._parse_pollen_html(html)
-    assert result["level"] == "High"
+    assert result["level"] == "Low"
     assert "Grass" in result["type"]
+    assert result["status_class"] == "good"
 
 
 async def test_parse_pollen_html_empty(hass):
@@ -178,6 +180,7 @@ async def test_parse_pollen_html_empty(hass):
     result = coord._parse_pollen_html("<div>nothing here</div>")
     assert result["level"] is None
     assert result["type"] is None
+    assert result["status_class"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +397,7 @@ async def test_get_pollen_data_non_200_returns_empty(hass):
     coord._session = mock_session
 
     result = await coord.get_pollen_data()
-    assert result == {"pollenLevels": {"level": None, "type": None}}
+    assert result == {"pollenLevels": {"level": None, "type": None}, "groups": []}
 
 
 async def test_get_pollen_data_exception_returns_empty(hass):
@@ -405,7 +408,47 @@ async def test_get_pollen_data_exception_returns_empty(hass):
     coord._session = mock_session
 
     result = await coord.get_pollen_data()
-    assert result == {"pollenLevels": {"level": None, "type": None}}
+    assert result == {"pollenLevels": {"level": None, "type": None}, "groups": []}
+
+
+async def test_get_pollen_data_multiple_blocks(hass):
+    """Concurrent pollen blocks: first is the headline, all appear in groups."""
+    coord = _make_coordinator(hass)
+    pollen_data = {
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {
+                        "modules": [
+                            {
+                                "content": [
+                                    {
+                                        "iconName": "pollen",
+                                        "html": '<span class="status-medium-good">Imminent</span></br>Wattle, Pinus Radiata, Alder</br>',
+                                    },
+                                    {
+                                        "iconName": "pollen",
+                                        "html": '<span class="status-good">Low</span></br>Cypress, Hazelnut</br>',
+                                    },
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(return_value=_mock_response(pollen_data))
+    coord._session = mock_session
+
+    result = await coord.get_pollen_data()
+    assert result["pollenLevels"]["level"] == "Imminent"
+    assert len(result["groups"]) == 2
+    assert result["groups"][0]["status_class"] == "medium-good"
+    assert result["groups"][1]["level"] == "Low"
+    assert result["groups"][1]["status_class"] == "good"
+    assert "Cypress" in result["groups"][1]["type"]
 
 
 # ---------------------------------------------------------------------------

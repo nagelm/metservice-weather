@@ -162,10 +162,14 @@ async def capture_location(session, fixtures_dir, name, location):
         "\n".join(warnings_list) if warnings_list else "No warnings"
     )
 
-    # 3. Pollen (best-effort)
+    # 3. Pollen (best-effort) — mirror the coordinator: first block is the
+    # headline, every concurrent block is kept under "groups".
     pollen_url = f"{PUBLIC_URL}{location}/airborne-allergens"
     print(f"Fetching pollen {pollen_url}")
-    result_current["pollen"] = {"pollenLevels": {"level": None, "type": None}}
+    result_current["pollen"] = {
+        "pollenLevels": {"level": None, "type": None},
+        "groups": [],
+    }
     try:
         async with async_timeout.timeout(10):
             resp = await session.get(pollen_url, headers=HEADERS)
@@ -178,12 +182,13 @@ async def capture_location(session, fixtures_dir, name, location):
                     .get("main", {})
                     .get("modules", [])
                 )
+                groups = []
                 for module in modules:
                     for item in module.get("content", []):
                         if item.get("iconName") == "pollen" and "html" in item:
                             html = item["html"]
                             level_m = re.search(
-                                r'<span[^>]*class="status-[^"]*"[^>]*>([^<]+)</span>',
+                                r'<span[^>]*class="status-([a-z-]+)"[^>]*>([^<]+)</span>',
                                 html,
                             )
                             plants_m = re.search(
@@ -191,16 +196,24 @@ async def capture_location(session, fixtures_dir, name, location):
                                 html,
                                 re.IGNORECASE,
                             )
-                            result_current["pollen"] = {
-                                "pollenLevels": {
-                                    "level": level_m.group(1).strip()
+                            groups.append(
+                                {
+                                    "level": level_m.group(2).strip()
                                     if level_m
                                     else None,
                                     "type": plants_m.group(1).strip()
                                     if plants_m
                                     else None,
+                                    "status_class": level_m.group(1).strip()
+                                    if level_m
+                                    else None,
                                 }
-                            }
+                            )
+                if groups:
+                    result_current["pollen"] = {
+                        "pollenLevels": groups[0],
+                        "groups": groups,
+                    }
     except Exception as exc:
         print(f"  [warn] pollen fetch failed: {exc}")
 
