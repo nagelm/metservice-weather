@@ -721,6 +721,183 @@ def test_napier_daily_entries_have_some_rain_probability(napier):
 
 
 # ---------------------------------------------------------------------------
+# Daily rainfall aggregation — hourly forecast summed per local day
+# ---------------------------------------------------------------------------
+
+
+def _graph_payload(columns, skip=0, forecast_count=None, notes=None):
+    """Build a `current`-shaped payload carrying a 'graph' module for rainfall aggregation tests."""
+    if forecast_count is None:
+        forecast_count = len(columns) - skip
+    graph_module = {
+        "graph": {
+            "columns": columns,
+            "series": [
+                {"count": skip, "label": "Observed"},
+                {"count": forecast_count, "label": "Forecast"},
+            ],
+        }
+    }
+    if notes is not None:
+        graph_module["notes"] = notes
+    return {"layout": {"primary": {"slots": {"main": {"modules": [graph_module]}}}}}
+
+
+def _hourly_column(date_iso, rainfall):
+    """Build a single hourly graph column dict."""
+    return {"date": date_iso, "rainfall": rainfall}
+
+
+def test_rain_total_full_day_coverage_sums_correctly():
+    """24 hourly forecast entries on one local day sum onto the matching daily entry's rain_total_mm."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 0.5) for h in range(24)
+    ]
+    current = _graph_payload(columns)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm == 12.0
+
+
+def test_rain_total_none_below_coverage_threshold():
+    """19 hourly entries on a day fall below the 20-hour coverage threshold, leaving rain_total_mm None."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 1.0) for h in range(19)
+    ]
+    current = _graph_payload(columns)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm is None
+
+
+def test_rain_total_set_at_threshold_boundary():
+    """Exactly 20 hourly entries meets the coverage threshold and sets rain_total_mm."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 1.0) for h in range(20)
+    ]
+    current = _graph_payload(columns)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm == 20.0
+
+
+def test_rain_total_separates_by_local_calendar_day():
+    """Hourly entries spanning two local days bucket by their own local date, honouring the +12:00 offset at the midnight boundary."""
+    day1_hours = range(4, 24)  # 20 hours, includes 2026-07-16T23:00:00+12:00
+    day2_hours = range(1, 21)  # 20 hours, includes 2026-07-17T01:00:00+12:00
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 1.0) for h in day1_hours
+    ] + [_hourly_column(f"2026-07-17T{h:02d}:00:00+12:00", 2.0) for h in day2_hours]
+    current = _graph_payload(columns)
+    daily = _daily_payload(
+        [
+            {"date": "2026-07-16T12:00:00+12:00"},
+            {"date": "2026-07-17T12:00:00+12:00"},
+        ]
+    )
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm == 20.0
+    assert result.daily_entries[1].rain_total_mm == 40.0
+
+
+def test_rain_total_includes_observed_history_for_elapsed_hours():
+    """Observed-history hours count toward the day: actual-so-far + forecast-remainder.
+
+    The forecast section anchors to MetService's latest model run, so the
+    observed section is what completes day 0's coverage for elapsed hours.
+    """
+    observed = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 2.0) for h in range(4)
+    ]
+    forecast = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 0.5) for h in range(4, 24)
+    ]
+    current = _graph_payload(observed + forecast, skip=4, forecast_count=20)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm == 18.0
+
+
+def test_rain_total_observed_overrides_forecast_on_overlap():
+    """When observed and forecast sections carry the same timestamps, actuals win.
+
+    The graph keeps the model's original predictions for elapsed hours
+    alongside the recorded actuals — summing both would double-count.
+    """
+    observed = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 1.0) for h in range(6)
+    ]
+    forecast = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 0.5) for h in range(24)
+    ]
+    current = _graph_payload(observed + forecast, skip=6, forecast_count=24)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    result = normalize_public_data(current, daily)
+    # hours 0-5 use observed (6 * 1.0), hours 6-23 use forecast (18 * 0.5)
+    assert result.daily_entries[0].rain_total_mm == 15.0
+
+
+def test_rain_total_none_rainfall_counts_toward_coverage_as_zero():
+    """None rainfall values still count toward hourly coverage but contribute zero to the sum."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", None) for h in range(10)
+    ] + [_hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 1.0) for h in range(10, 20)]
+    current = _graph_payload(columns)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm == 10.0
+
+
+def test_rain_total_none_when_daily_date_has_no_hourly_bucket():
+    """A daily entry whose date has no matching hourly bucket keeps rain_total_mm None."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 1.0) for h in range(24)
+    ]
+    current = _graph_payload(columns)
+    daily = _daily_payload([{"date": "2026-07-20T12:00:00+12:00"}])
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm is None
+
+
+def test_rain_total_crosscheck_debug_logs_when_notes_diverge(caplog):
+    """A debug record fires when the summed total diverges from MetService's own note by more than 1.5 mm."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 0.5) for h in range(24)
+    ]
+    notes = [{"text": "Total rainfall forecast for today: 5.0 mm"}]
+    current = _graph_payload(columns, notes=notes)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    with caplog.at_level(logging.DEBUG, logger=_TYPES_LOGGER):
+        result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm == 12.0
+    matches = [r for r in caplog.records if "cross-check" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_rain_total_crosscheck_silent_within_tolerance(caplog):
+    """No debug record fires when the summed total is within 1.5 mm of MetService's own note."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 0.5) for h in range(24)
+    ]
+    notes = [{"text": "Total rainfall forecast for today: 11.9 mm"}]
+    current = _graph_payload(columns, notes=notes)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    with caplog.at_level(logging.DEBUG, logger=_TYPES_LOGGER):
+        result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm == 12.0
+    matches = [r for r in caplog.records if "cross-check" in r.getMessage()]
+    assert matches == []
+
+
+@pytest.mark.parametrize("location", ["napier", "kumeu"])
+def test_rain_total_fixture_regression(location, napier, kumeu):
+    """The napier and kumeu fixtures normalize without error; the first daily entry's rain_total_mm is None or a non-negative float."""
+    data = napier if location == "napier" else kumeu
+    rain_total = data.daily_entries[0].rain_total_mm
+    assert rain_total is None or (isinstance(rain_total, float) and rain_total >= 0)
+
+
+# ---------------------------------------------------------------------------
 # Debug logging for transient observation nulls
 # ---------------------------------------------------------------------------
 

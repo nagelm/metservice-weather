@@ -139,7 +139,7 @@ A full Home Assistant weather entity with:
 
 - Current condition (correctly returns `clear-night` when the sun is below the horizon)
 - 48-hour hourly forecast — temperature, precipitation, wind speed and bearing
-- 7-day daily forecast — high/low temperature, condition, plain-English description, and chance of rain (MetService's probability of at least 1 mm falling that day)
+- 7-day daily forecast — high/low temperature, condition, plain-English description, chance of rain (MetService's probability of at least 1 mm falling that day), and — for today and tomorrow — the expected rainfall amount in mm, aggregated from the hourly data (actual recorded rainfall for elapsed hours plus the forecast for the rest of the day)
 
 **Where to find the chance of rain:** Home Assistant no longer exposes forecasts
 as entity attributes — forecast fields are only visible via the
@@ -147,9 +147,11 @@ as entity attributes — forecast fields are only visible via the
 (the built-in weather card's daily tiles don't render probability; custom cards
 like clock-weather-card do). Also note an upstream limitation: **towns-cities
 locations only publish the chance of rain from roughly day 3 onward** — MetService
-covers the nearer days with hourly rainfall amounts instead, which this
-integration relays in the hourly forecast. Rural locations publish the
-probability for all seven days.
+covers the nearer days with hourly rainfall amounts instead. This integration
+relays those in the hourly forecast and also sums them into daily rainfall
+totals for today and tomorrow, so every day of the daily forecast carries rain
+information except day 2, which upstream covers in neither form. Rural
+locations publish the probability for all seven days.
 
 ---
 

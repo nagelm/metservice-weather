@@ -263,5 +263,11 @@ class MetServiceForecastPublic(MetServicePublic):
                 entry[ATTR_FORECAST_PRECIPITATION_PROBABILITY] = round(
                     day.rain_prob_1mm
                 )
+            # Unlike the daily chance-of-rain above (a probability),
+            # rain_total_mm is a genuine amount aggregated from the hourly
+            # forecast, so it belongs in native_precipitation, not
+            # precipitation_probability.
+            if day.rain_total_mm is not None:
+                entry[ATTR_FORECAST_NATIVE_PRECIPITATION] = day.rain_total_mm
             forecast.append(entry)
         return forecast

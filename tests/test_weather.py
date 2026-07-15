@@ -535,6 +535,69 @@ async def test_public_forecast_daily_precipitation_probability_rounds_to_int(has
     assert isinstance(result[0]["precipitation_probability"], int)
 
 
+async def test_public_forecast_daily_rain_total_sets_native_precipitation(hass):
+    """rain_total_mm (a genuine amount) maps to native_precipitation, not precipitation_probability."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        daily_entries=[
+            DailyEntry(
+                condition="rain",
+                temp_high=15.0,
+                temp_low=8.0,
+                datetime="2024-06-15",
+                rain_total_mm=11.8,
+                rain_prob_1mm=None,
+            )
+        ]
+    )
+    entity = MetServiceForecastPublic(coord)
+    result = entity.forecast_daily
+    assert result[0]["native_precipitation"] == 11.8
+    assert "precipitation_probability" not in result[0]
+
+
+async def test_public_forecast_daily_rain_prob_only_omits_native_precipitation(hass):
+    """When only rain_prob_1mm is set, precipitation_probability is present and native_precipitation is absent."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        daily_entries=[
+            DailyEntry(
+                condition="rain",
+                temp_high=15.0,
+                temp_low=8.0,
+                datetime="2024-06-15",
+                rain_total_mm=None,
+                rain_prob_1mm=30.0,
+            )
+        ]
+    )
+    entity = MetServiceForecastPublic(coord)
+    result = entity.forecast_daily
+    assert result[0]["precipitation_probability"] == 30
+    assert "native_precipitation" not in result[0]
+
+
+async def test_public_forecast_daily_rain_total_and_prob_both_present(hass):
+    """When both rain_total_mm and rain_prob_1mm are set, both keys appear in the forecast entry."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        daily_entries=[
+            DailyEntry(
+                condition="rain",
+                temp_high=15.0,
+                temp_low=8.0,
+                datetime="2024-06-15",
+                rain_total_mm=6.4,
+                rain_prob_1mm=80.0,
+            )
+        ]
+    )
+    entity = MetServiceForecastPublic(coord)
+    result = entity.forecast_daily
+    assert result[0]["native_precipitation"] == 6.4
+    assert result[0]["precipitation_probability"] == 80
+
+
 async def test_public_forecast_daily_unknown_condition_is_none(hass):
     """forecast_daily reports None for an unmapped condition instead of a raw token."""
     coord = _make_coordinator(hass)

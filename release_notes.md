@@ -29,6 +29,10 @@ With multiple simultaneous warnings, the old newline-joined state truncated at 2
 - **Attributes** now carry `count` and a structured `warnings` list (`name`, `text`, `threat_period` per warning) with no truncation.
 - If you templated against the old concatenated state or the old `warnings` attribute string, switch to the structured list. Automations checking `state != "No warnings"` are unaffected.
 
+#### Added: daily rainfall totals for today and tomorrow
+
+The daily forecast now carries a real precipitation amount (mm) for today and tomorrow, aggregated from the hourly data: actual recorded rainfall for elapsed hours plus the forecast for the remainder of the day (matching MetService's own "total rainfall for today" figure). Later days keep the chance-of-rain percentage. Totals only appear when a day has near-complete hourly coverage, and each cycle cross-checks the sum against MetService's stated total in debug logging.
+
 #### Fixed / hardened
 
 - **Unknown condition tokens can no longer break the weather card**: unmapped MetService condition tokens (e.g. unseen night variants) now fall back to their day equivalent, or report as unknown with a logged warning — previously they passed through as invalid Home Assistant conditions.

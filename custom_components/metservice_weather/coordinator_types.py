@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -169,6 +171,11 @@ class DailyEntry:
     probabilities (rainFall1 / rainFall10): the % chance of at least
     1 mm / 10 mm of rain that day. They are probabilities, NOT amounts —
     the public API does not publish daily rainfall amounts.
+
+    rain_total_mm is an amount, not a probability: it is aggregated by
+    summing the hourly forecast (mm/h) across this day's local calendar
+    date, and is only set when that day has (near-)complete hourly
+    coverage.
     """
 
     datetime: str | None = None
@@ -178,6 +185,7 @@ class DailyEntry:
     description: str | None = None
     rain_prob_1mm: float | None = None
     rain_prob_10mm: float | None = None
+    rain_total_mm: float | None = None
 
 
 @dataclass
@@ -305,7 +313,8 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     breakdown0 = day0.get("breakdown") or {}
 
     # Hourly graph: layout.primary.slots.main.modules → module with "graph"
-    graph = _find_module(main_mods, "graph").get("graph", {})
+    graph_module = _find_module(main_mods, "graph")
+    graph = graph_module.get("graph", {})
     graph_series = graph.get("series") or []
     hourly_skip = graph_series[0].get("count", 0) if graph_series else 0
     hourly_obs_count = graph_series[1].get("count", 0) if len(graph_series) > 1 else 0
@@ -357,6 +366,73 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         for d in raw_days
         if isinstance(d, dict)
     ]
+
+    # ------------------------------------------------------------------
+    # Daily rainfall totals — merge the hourly graph into an hour → mm map
+    # and sum per local calendar day. The forecast section is anchored to
+    # MetService's latest model run (NOT to midnight), so on its own it
+    # covers today only partially for much of the day; the observed section
+    # carries the actual recorded rainfall for today's elapsed hours. Fill
+    # the map from the forecast slice first, then overwrite overlapping
+    # timestamps with observed values (actuals beat predictions — the two
+    # sections both carry today's elapsed hours with different numbers),
+    # giving day 0 the "so far + remainder" total MetService itself quotes.
+    # Only attach a total when a day has near-complete coverage (>= 20 of
+    # 24 hours) so the window's tail fragment never produces a misleading
+    # partial-day figure. Hourly values are display-rounded to 0.1 mm
+    # upstream, so totals can drift ~1 mm from MetService's stated figure
+    # (see the notes cross-check below).
+    # ------------------------------------------------------------------
+    observed_hourly = hourly_entries[:hourly_skip]
+    forecast_hourly = hourly_entries[hourly_skip : hourly_skip + hourly_obs_count]
+    hour_mm: dict[Any, float | None] = {}
+    for slice_entries in (forecast_hourly, observed_hourly):
+        for h in slice_entries:
+            if not h.datetime:
+                continue
+            try:
+                parsed = datetime.fromisoformat(h.datetime)
+            except ValueError:
+                continue
+            hour_mm[parsed] = h.rainfall
+
+    rain_sums: dict[Any, float] = {}
+    rain_counts: dict[Any, int] = {}
+    for parsed, rainfall in hour_mm.items():
+        day_key = parsed.date()
+        rain_sums[day_key] = rain_sums.get(day_key, 0.0) + (rainfall or 0)
+        rain_counts[day_key] = rain_counts.get(day_key, 0) + 1
+
+    for entry in daily_entries:
+        if not entry.datetime:
+            continue
+        try:
+            entry_date = datetime.fromisoformat(entry.datetime).date()
+        except ValueError:
+            continue
+        if rain_counts.get(entry_date, 0) >= 20:
+            entry.rain_total_mm = round(rain_sums[entry_date], 1)
+
+    # Cross-check against MetService's own "Total rainfall forecast for
+    # today" note, when published — debug-only visibility into how far the
+    # summed total drifts from MetService's stated figure. Never raises:
+    # a malformed/missing note must never break normalization.
+    with contextlib.suppress(Exception):
+        notes = graph_module.get("notes") or []
+        note_text = " ".join(n.get("text", "") for n in notes if isinstance(n, dict))
+        match = re.search(
+            r"Total rainfall forecast for today:\s*([0-9.]+)\s*mm", note_text
+        )
+        if match and daily_entries and daily_entries[0].rain_total_mm is not None:
+            ours = daily_entries[0].rain_total_mm
+            theirs = float(match.group(1))
+            if abs(ours - theirs) > 1.5:
+                _LOGGER.debug(
+                    "Daily rainfall aggregation cross-check: summed %.1f mm vs "
+                    "MetService note %.1f mm",
+                    ours,
+                    theirs,
+                )
 
     # Tomorrow's forecast is day index 1 of the 7-day data.
     tomorrow = daily_entries[1] if len(daily_entries) > 1 else None
