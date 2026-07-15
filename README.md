@@ -126,7 +126,7 @@ seasons:
 
 | Sensor | Behaviour |
 |---|---|
-| Pollen | Runs year-round. State is the current exposure level (`none`/`low`/`moderate`/`high`, from MetService's own severity taxonomy); allergens about to start their season appear in the `imminent_allergens` attribute, active allergens per level in the `active` attribute |
+| Pollen | Runs year-round. State is the current exposure level (`none`/`low`/`moderate`/`high`, from MetService's own severity taxonomy); allergens about to start their season appear in the `imminent_allergens` attribute, active allergens per level in the `active_allergens` attribute |
 | Clothes Drying | Year-round for towns/cities; rural locations may not carry it |
 
 Sensors a **location can never provide** (e.g. wind/temperature observations for

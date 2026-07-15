@@ -283,7 +283,7 @@ def test_pollen_sensor_value_and_attrs_from_derived_fields():
     assert desc.value_fn(data, "metric") == "low"
     assert desc.attr_fn(data) == {
         "level_label": "Low",
-        "active": {"low": ["Wattle", "Cypress"]},
+        "active_allergens": {"low": ["Wattle", "Cypress"]},
         "imminent_allergens": ["Macrocarpa"],
     }
 

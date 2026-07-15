@@ -15,7 +15,7 @@ MetService's allergen page serves several concurrent status blocks — e.g. mid-
 The new `sensor.<device>_pollen`:
 
 - **State** = the current exposure level: `none` / `low` / `moderate` / `high`, keyed to MetService's own severity taxonomy (never `Imminent` — that's an outlook, not a level)
-- **`active`** attribute maps each level to its allergens, e.g. `low: [Wattle, Cypress, Hazelnut, …]`
+- **`active_allergens`** attribute maps each level to its allergens, e.g. `low: [Wattle, Cypress, Hazelnut, …]`
 - **`imminent_allergens`** attribute lists species whose season is about to start
 - **`level_label`** carries MetService's verbatim wording
 

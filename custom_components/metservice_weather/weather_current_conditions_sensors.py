@@ -265,7 +265,7 @@ current_condition_sensor_descriptions_public = [
         attr_fn=lambda data: (
             {
                 "level_label": data.pollen_level_label,
-                "active": data.pollen_active,
+                "active_allergens": data.pollen_active,
                 "imminent_allergens": data.pollen_imminent,
             }
             if data.pollen_state is not None
