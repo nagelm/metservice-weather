@@ -220,6 +220,12 @@ async def test_reconfigure(hass, mock_marine_session):
     assert result["reason"] == "reconfigure_successful"
     assert existing_entry.data[CONF_NAME] == "Napier Updated"
 
+    # The successful reconfigure reloads the entry, starting a coordinator
+    # refresh timer — unload so no timer lingers past the test.
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_unload(existing_entry.entry_id)
+    await hass.async_block_till_done()
+
 
 # ---------------------------------------------------------------------------
 # Test 15 — location fetch exception is swallowed, step still shows
