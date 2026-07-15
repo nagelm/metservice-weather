@@ -316,6 +316,19 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     is_rural = str(day0.get("isRural", "")).lower() == "true"
 
     # ------------------------------------------------------------------
+    # Moon phase date — MetService recomputes this per backend refresh with
+    # second-level jitter; round to 5 minutes so state only changes when
+    # the phase event actually advances. Log the raw value so prod debug
+    # logs record the jitter series for upstream characterisation.
+    # ------------------------------------------------------------------
+    raw_phase_date = _get(moon_phases, "0", "dateISO")
+    moon_phase_date = _round_iso_to_minutes(raw_phase_date)
+    if moon_phase_date != raw_phase_date:
+        _LOGGER.debug(
+            "Moon phase dateISO %s rounded to %s", raw_phase_date, moon_phase_date
+        )
+
+    # ------------------------------------------------------------------
     # Assemble dataclass
     # ------------------------------------------------------------------
     data = MetServicePublicData(
@@ -349,7 +362,7 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         moonrise=rise_set.get("moonRise"),
         moonset=rise_set.get("moonSet"),
         moon_phase=_get(moon_phases, "0", "phase"),
-        moon_phase_date=_round_iso_to_minutes(_get(moon_phases, "0", "dateISO")),
+        moon_phase_date=moon_phase_date,
         # Fire weather (from day 0's fireWeatherData)
         fire_danger=_get(
             day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"

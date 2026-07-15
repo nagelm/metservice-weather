@@ -806,3 +806,34 @@ def test_moon_phase_date_rounded_in_normalize(napier):
     parsed = _dt.fromisoformat(napier.moon_phase_date)
     assert parsed.second == 0 and parsed.microsecond == 0
     assert parsed.minute % 5 == 0
+
+
+def test_moon_phase_raw_jitter_logged_at_debug(caplog):
+    """A jittery raw dateISO is debug-logged with its rounded value."""
+    current = {
+        "layout": {
+            "secondary": {
+                "slots": {
+                    "major": {
+                        "modules": [
+                            {
+                                "riseSet": {},
+                                "moonPhases": [
+                                    {
+                                        "phase": "FULL",
+                                        "dateISO": "2026-07-07T19:15:27+00:00",
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    with caplog.at_level(
+        logging.DEBUG, logger="custom_components.metservice_weather.coordinator_types"
+    ):
+        result = normalize_public_data(current, {})
+    assert result.moon_phase_date == "2026-07-07T19:15:00+00:00"
+    assert any("rounded to" in r.getMessage() for r in caplog.records)
