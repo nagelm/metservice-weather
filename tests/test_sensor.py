@@ -248,3 +248,188 @@ async def test_sensor_setup_entry_public_skips_tide_sensors(hass):
     assert "tides_low" not in keys
 
 
+# ---------------------------------------------------------------------------
+# Test: async_setup_entry sensor gating by capability flags
+# ---------------------------------------------------------------------------
+
+async def test_setup_entry_rural_skips_observation_sensors(hass):
+    """A rural-like coordinator (all capability flags False, as _make_coordinator
+    sets by default) must not create observation or breakdown sensors, while
+    ungated sensors are still created.
+    """
+    from custom_components.metservice_weather.sensor import async_setup_entry
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.metservice_weather.const import (
+        DOMAIN,
+        FIELD_TEMP,
+        FIELD_WINDSPEED,
+        FIELD_WINDGUST,
+        FIELD_WINDDIR,
+        FIELD_HUMIDITY,
+        FIELD_PRESSURE,
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Kumeu",
+            "location": "/rural/regions/auckland/locations/kumeu",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    coord = _make_coordinator(hass)  # coord.data = MetServicePublicData() — all capability flags False
+    entry.runtime_data = coord
+
+    added = []
+
+    def add_entities(entities, *args, **kwargs):
+        added.extend(entities)
+
+    await async_setup_entry(hass, entry, add_entities)
+
+    keys = {s.entity_description.key for s in added}
+
+    excluded = {
+        FIELD_TEMP,
+        FIELD_WINDSPEED,
+        FIELD_WINDGUST,
+        FIELD_WINDDIR,
+        FIELD_HUMIDITY,
+        FIELD_PRESSURE,
+        "wind_strength",
+        "rainfall",
+        "pressureTendencyTrend",
+        "temperatureFeelsLike",
+        "breakdown_morning",
+        "breakdown_afternoon",
+        "breakdown_evening",
+        "breakdown_overnight",
+    }
+    assert keys.isdisjoint(excluded)
+
+    included = {
+        "temperature_today_high",
+        "temperature_today_low",
+        "tomorrow_temp_high",
+        "weather_warnings",
+        "uvIndex",
+    }
+    assert included.issubset(keys)
+
+
+async def test_setup_entry_towns_creates_observation_sensors(hass):
+    """A towns-cities coordinator with observations + breakdown present creates
+    the sensors that the rural-like default coordinator skips.
+    """
+    from custom_components.metservice_weather.sensor import async_setup_entry
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.metservice_weather.const import (
+        DOMAIN,
+        FIELD_TEMP,
+        FIELD_WINDSPEED,
+        FIELD_WINDGUST,
+        FIELD_WINDDIR,
+        FIELD_HUMIDITY,
+        FIELD_PRESSURE,
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(has_observations=True, has_breakdown=True)
+    entry.runtime_data = coord
+
+    added = []
+
+    def add_entities(entities, *args, **kwargs):
+        added.extend(entities)
+
+    await async_setup_entry(hass, entry, add_entities)
+
+    keys = {s.entity_description.key for s in added}
+
+    included = {
+        FIELD_TEMP,
+        FIELD_WINDSPEED,
+        FIELD_WINDGUST,
+        FIELD_WINDDIR,
+        FIELD_HUMIDITY,
+        FIELD_PRESSURE,
+        "wind_strength",
+        "rainfall",
+        "pressureTendencyTrend",
+        "temperatureFeelsLike",
+        "breakdown_morning",
+        "breakdown_afternoon",
+        "breakdown_evening",
+        "breakdown_overnight",
+    }
+    assert included.issubset(keys)
+
+
+async def test_setup_entry_removes_stale_registry_entries(hass):
+    """Registry entries for sensors the location no longer provides are removed;
+    sensors still provided and the weather-domain entity are left untouched.
+    """
+    from custom_components.metservice_weather.sensor import async_setup_entry
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.metservice_weather.const import DOMAIN, FIELD_TEMP
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)  # rural-like: obs sensors will NOT be created
+    entry.runtime_data = coord
+    loc = coord.location
+
+    ent_reg = er.async_get(hass)
+    # FIELD_TEMP is gated on has_observations, which the default (rural-like)
+    # coordinator data does not have — so it will be treated as stale.
+    stale = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{loc}_{FIELD_TEMP}".lower(), config_entry=entry
+    )
+    # weather_warnings is ungated, so it is always (re)created.
+    keep = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{loc}_weather_warnings".lower(), config_entry=entry
+    )
+    weather_ent = ent_reg.async_get_or_create(
+        "weather", DOMAIN, f"{loc}_weather".lower(), config_entry=entry
+    )
+
+    added = []
+
+    def add_entities(entities, *args, **kwargs):
+        added.extend(entities)
+
+    await async_setup_entry(hass, entry, add_entities)
+
+    assert ent_reg.async_get(stale.entity_id) is None
+    assert ent_reg.async_get(keep.entity_id) is not None
+    assert ent_reg.async_get(weather_ent.entity_id) is not None
+
+

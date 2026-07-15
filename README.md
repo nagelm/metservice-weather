@@ -116,7 +116,7 @@ A full Home Assistant weather entity with:
 
 - Current condition (correctly returns `clear-night` when the sun is below the horizon)
 - 48-hour hourly forecast — temperature, precipitation, wind speed and bearing
-- 7-day daily forecast — high/low temperature, condition, plain-English description, and precipitation range estimates
+- 7-day daily forecast — high/low temperature, condition, plain-English description, and chance of rain (MetService's probability of at least 1 mm falling that day)
 
 ---
 

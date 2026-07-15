@@ -41,19 +41,34 @@ custom_components/metservice_weather/
                                          get_from_dict DFS still used for drying index extraction
   coordinator_types.py                 — MetServicePublicData dataclass + HourlyEntry + DailyEntry
                                          normalize_public_data(current, daily) → MetServicePublicData
+                                         _scan_forecasts: field lookup across all forecasts[] entries
+                                         + day level (towns AND rural page shapes)
+                                         DailyEntry.rain_prob_1mm/10mm = rainFall1/rainFall10 exceedance
+                                         probabilities (% chance of ≥1mm/≥10mm — NOT amounts)
+                                         capability flags: has_observations/has_breakdown/is_rural
+                                         tomorrow_* derived from daily_entries[1] (no injection)
   entity.py                            — MetServiceEntity(CoordinatorEntity) base class;
                                          shared DeviceInfo (identifiers, manufacturer, model, config_url)
   const.py                             — LOCATIONS list, CONDITION_MAP, unit constants, URLs
   sensor.py                            — 40+ WeatherSensor(MetServiceEntity, SensorEntity); PARALLEL_UPDATES = 0
                                          value_fn(coordinator.data, unit_system)
+                                         entity creation gated per-description via exists_fn(coordinator);
+                                         stale sensor registry entries removed at setup
   weather.py                           — MetServiceForecastPublic(MetServicePublic); PARALLEL_UPDATES = 0
                                          reads coordinator.data.* directly (typed)
+                                         daily forecast: precipitation_probability from rain_prob_1mm
+                                         (never precipitation — API has no daily amounts)
   weather_current_conditions_sensors.py— sensor definitions (translation_key, value_fn lambda, unit, device class,
-                                         suggested_display_precision)
+                                         suggested_display_precision, exists_fn gate)
+                                         gate ONLY structural absences (observations, breakdown, marine config);
+                                         UV/fire/drying/pollen are SEASONAL — never gate them
   config_flow.py                       — 2-step flow (setup → locations); public API only; reconfigure support
 tests/
-  fixtures/napier_public_current.json  — captured public API fixture (post-expand, post-inject)
-  fixtures/napier_public_daily.json    — captured 7-day forecast fixture
+  fixtures/napier_public_current.json  — captured towns-cities fixture (post-expand, post-inject)
+  fixtures/napier_public_daily.json    — captured towns-cities 7-day forecast fixture
+  fixtures/kumeu_public_current.json   — captured RURAL fixture: empty observations, no breakdown,
+                                         regional+location forecasts entries, day-level temps
+  fixtures/kumeu_public_daily.json     — captured rural 7-day forecast fixture
   test_config_flow.py                  — config flow tests
   test_coordinator_data.py             — coordinator contract tests (direct dataclass attr access)
   test_coordinator.py                  — coordinator fetch/error path tests

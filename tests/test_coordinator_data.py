@@ -40,6 +40,22 @@ def coord(napier_data):
     return c
 
 
+@pytest.fixture(scope="module")
+def kumeu_data():
+    """Load the Kumeu (rural) public fixtures once for the whole module."""
+    current = json.loads((FIXTURES / "kumeu_public_current.json").read_text())
+    daily = json.loads((FIXTURES / "kumeu_public_daily.json").read_text())
+    return {"current": current, "daily": daily}
+
+
+@pytest.fixture
+def rural_coord(kumeu_data):
+    """Return a coordinator with normalised rural fixture data set, without touching HA framework."""
+    c = object.__new__(WeatherUpdateCoordinator)
+    c.data = normalize_public_data(kumeu_data["current"], kumeu_data["daily"])
+    return c
+
+
 # ---------------------------------------------------------------------------
 # Current-conditions sensors
 # ---------------------------------------------------------------------------
@@ -277,3 +293,33 @@ class TestDailyForecast:
     def test_all_days_have_high_temp(self, coord):
         missing = [i for i, d in enumerate(coord.data.daily_entries) if d.temp_high is None]
         assert not missing, f"Days missing temp_high: {missing}"
+
+
+# ---------------------------------------------------------------------------
+# Rural contract — Kumeu (no weather station, no breakdown, isRural)
+# ---------------------------------------------------------------------------
+
+
+class TestRuralContract:
+    def test_temperature_is_none(self, rural_coord):
+        assert rural_coord.data.temperature is None
+
+    def test_wind_speed_is_none(self, rural_coord):
+        assert rural_coord.data.wind_speed is None
+
+    def test_temp_today_high_is_float(self, rural_coord):
+        assert isinstance(rural_coord.data.temp_today_high, float)
+
+    def test_tomorrow_temp_high_is_present(self, rural_coord):
+        assert rural_coord.data.tomorrow_temp_high is not None
+
+    def test_all_daily_entries_have_temp_high_and_description(self, rural_coord):
+        for i, d in enumerate(rural_coord.data.daily_entries):
+            assert d.temp_high is not None, f"day {i} missing temp_high"
+            assert d.description is not None, f"day {i} missing description"
+
+    def test_is_rural_true(self, rural_coord):
+        assert rural_coord.data.is_rural is True
+
+    def test_has_observations_false(self, rural_coord):
+        assert rural_coord.data.has_observations is False
