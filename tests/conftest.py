@@ -1,13 +1,23 @@
 """Shared test fixtures for metservice_weather tests."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 MOCK_MARINE_RESPONSE = {
     "layout": {
         "search": {
-            "searchLocations": [{"items": [
-                {"heading": {"label": "Northland", "url": "/marine/regions/northland"}}
-            ]}]
+            "searchLocations": [
+                {
+                    "items": [
+                        {
+                            "heading": {
+                                "label": "Northland",
+                                "url": "/marine/regions/northland",
+                            }
+                        }
+                    ]
+                }
+            ]
         }
     }
 }

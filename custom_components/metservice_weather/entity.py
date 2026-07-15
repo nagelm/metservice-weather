@@ -1,4 +1,5 @@
 """Base entity for MetService weather integration."""
+
 from __future__ import annotations
 
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -14,6 +15,7 @@ class MetServiceEntity(CoordinatorEntity[WeatherUpdateCoordinator]):
     _attr_has_entity_name = True
 
     def __init__(self, coordinator: WeatherUpdateCoordinator) -> None:
+        """Attach the shared MetService device info to the entity."""
         super().__init__(coordinator)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.location)},

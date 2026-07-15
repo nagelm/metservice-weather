@@ -2,6 +2,39 @@
 
 ---
 
+## v2026.7.0
+
+### Rural locations fixed, correct rain probabilities — and a new version scheme
+
+> **Versioning change:** this integration now uses Home Assistant–style calendar versioning (`YYYY.M.patch`), so v1.0.1 is followed by v2026.7.0. Upgrades through HACS are unaffected.
+
+Fixes [#2](https://github.com/nagelm/metservice-weather/issues/2) and [#3](https://github.com/nagelm/metservice-weather/issues/3); delivers the rural-town half of [#4](https://github.com/nagelm/metservice-weather/issues/4).
+
+#### Rain "amounts" were actually probabilities (#3)
+
+MetService's daily `rainFall1`/`rainFall10` fields are **exceedance probabilities** — the % chance of at least 1 mm / 10 mm of rain that day — not rainfall amounts. Earlier releases reported them as `precipitation` in mm (so "95% chance of ≥1 mm" showed as 95 mm of rain, and "low" always looked bigger than "high").
+
+- The daily forecast now exposes `precipitation_probability` (the ≥1 mm probability, matching the "chance of rain" shown on metservice.com) and no longer reports a daily precipitation amount — the public API doesn't publish one.
+- The `precipitation_low_mm` / `precipitation_high_mm` attributes from v0.9.x are gone. If you templated against them, switch to `precipitation_probability`.
+- Hourly forecast precipitation is unchanged — that is real mm data.
+
+#### Rural locations now fully work (#2, #4)
+
+~80 of the selectable locations are MetService *rural* pages, which have a different data shape (no weather station, temps and rain probabilities nested differently, regional + local forecast text). Previously these locations showed `Unknown` for many sensors and, since v1.0.0, missing daily temps. Now:
+
+- Daily forecast: high/low temps, condition, chance of rain, and the regional multi-day text descriptions all populate.
+- Today's / Tomorrow's high & low temperature sensors work (today's falls back to the day-0 forecast — the same value MetService shows — when there is no station).
+- Sensors a location can never provide (wind/temperature/pressure/humidity observations, morning/afternoon/evening/overnight breakdowns) are no longer created as permanently-unknown entities, and stale ones are cleaned from the entity registry on upgrade.
+- Seasonal sensors (UV, fire danger, clothes drying, pollen) are still created everywhere and read `unknown` off-season — that's MetService pausing the product, not a bug.
+
+#### Internals
+
+- Forecast parsing now scans every `forecasts[]` entry plus the day level, covering towns-cities and rural page shapes with one rule.
+- `tomorrow_*` values are derived from the normalised 7-day data instead of a separate injection path.
+- New rural (Kumeu) API fixtures; test suite extended to cover every page-shape heuristic (towns/rural/day-level-only/missing-module cases).
+
+---
+
 ## v1.0.1
 
 > **Note:** v1.0.0 was tagged before Phase 3 code changes were committed; v1.0.1 ensures the release zip matches the documented changes.

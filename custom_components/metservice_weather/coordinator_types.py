@@ -1,4 +1,5 @@
 """Typed data models for the MetService coordinator."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -47,6 +48,25 @@ def _find_module(modules: list, key: str) -> dict:
     return {}
 
 
+def _scan_forecasts(day: Any, key: str) -> Any:
+    """Return the first non-None `key` from forecasts entries, else the day level.
+
+    MetService publishes daily forecasts in several shapes:
+    - towns-cities: one forecasts entry carrying temps, rain probabilities
+      and the statement (temps duplicated at day level)
+    - rural: a regional-text entry (statement only) plus a location entry
+      carrying temps and rain probabilities (statement null); temps and
+      statement also appear at day level
+    Scanning every entry and then the day level covers all of them.
+    """
+    if not isinstance(day, dict):
+        return None
+    for f in day.get("forecasts") or []:
+        if isinstance(f, dict) and f.get(key) is not None:
+            return f[key]
+    return day.get(key)
+
+
 @dataclass
 class HourlyEntry:
     """Single hourly forecast entry."""
@@ -60,15 +80,21 @@ class HourlyEntry:
 
 @dataclass
 class DailyEntry:
-    """Single daily forecast entry."""
+    """Single daily forecast entry.
+
+    rain_prob_1mm / rain_prob_10mm are MetService's rainfall exceedance
+    probabilities (rainFall1 / rainFall10): the % chance of at least
+    1 mm / 10 mm of rain that day. They are probabilities, NOT amounts —
+    the public API does not publish daily rainfall amounts.
+    """
 
     datetime: str | None = None
     condition: str | None = None
     temp_high: float | None = None
     temp_low: float | None = None
     description: str | None = None
-    rainfall_low: float | None = None
-    rainfall_high: float | None = None
+    rain_prob_1mm: float | None = None
+    rain_prob_10mm: float | None = None
 
 
 @dataclass
@@ -119,12 +145,20 @@ class MetServicePublicData:
     # Derived / injected
     weather_warnings: str = "No warnings"
     tomorrow_condition: str | None = None
-    tomorrow_temp_high: str | None = None
-    tomorrow_temp_low: str | None = None
+    tomorrow_temp_high: float | None = None
+    tomorrow_temp_low: float | None = None
     tomorrow_description: str | None = None
     drying_morning: str | None = None
     drying_afternoon: str | None = None
     drying_next_good_day: str | None = None
+
+    # Capability flags — structural presence of optional page sections.
+    # Used to decide which sensor entities to create for a location.
+    # Only sections whose absence is permanent for a location belong here;
+    # seasonal products (UV, fire, drying, pollen) must stay ungated.
+    has_observations: bool = False
+    has_breakdown: bool = False
+    is_rural: bool = False
 
     # Hourly forecast
     hourly_entries: list[HourlyEntry] = field(default_factory=list)
@@ -155,23 +189,27 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     """Build a MetServicePublicData from raw coordinator dicts.
 
     Uses exact-path traversal (_get) and explicit section extraction —
-    no DFS.  All injected fields (weather_warnings, pollen, tomorrow_*,
-    drying_*) are already present at the root of `current` when this is
-    called.
+    no DFS.  All injected fields (weather_warnings, pollen, drying_*)
+    are already present at the root of `current` when this is called;
+    tomorrow_* fields are derived here from the 7-day data.
     """
     # ------------------------------------------------------------------
     # Extract key sections from the nested layout structure
     # ------------------------------------------------------------------
 
     # Observations: layout.primary.slots.left-major.modules → module with "observations"
-    left_major = _get(current, "layout", "primary", "slots", "left-major", "modules") or []
-    obs = _find_module(left_major, "observations").get("observations", {})
+    # Rural locations have no weather station: the currentConditions module
+    # expands to {} (or observations: null), so obs ends up empty.
+    left_major = (
+        _get(current, "layout", "primary", "slots", "left-major", "modules") or []
+    )
+    obs = _find_module(left_major, "observations").get("observations") or {}
 
     # Days / breakdown / fire: layout.primary.slots.main.modules → module with "days"
     main_mods = _get(current, "layout", "primary", "slots", "main", "modules") or []
-    days = _find_module(main_mods, "days").get("days", [])
-    day0 = days[0] if days else {}
-    breakdown0 = day0.get("breakdown", {}) if isinstance(day0, dict) else {}
+    days = _find_module(main_mods, "days").get("days") or []
+    day0 = days[0] if days and isinstance(days[0], dict) else {}
+    breakdown0 = day0.get("breakdown") or {}
 
     # Hourly graph: layout.primary.slots.main.modules → module with "graph"
     graph = _find_module(main_mods, "graph").get("graph", {})
@@ -180,7 +218,9 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     hourly_obs_count = graph_series[1].get("count", 0) if len(graph_series) > 1 else 0
 
     # UV: layout.primary.slots.left-minor.modules → module with "uv"
-    left_minor = _get(current, "layout", "primary", "slots", "left-minor", "modules") or []
+    left_minor = (
+        _get(current, "layout", "primary", "slots", "left-minor", "modules") or []
+    )
     uv = _find_module(left_minor, "uv").get("uv", {})
 
     # Sunrise / moon: layout.secondary.slots.major.modules → module with "riseSet"
@@ -208,20 +248,25 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     # ------------------------------------------------------------------
     # Daily entries (from 7-day JSON)
     # ------------------------------------------------------------------
-    raw_days = _get(daily, "layout", "primary", "slots", "main", "modules", "0", "days") or []
+    raw_days = (
+        _get(daily, "layout", "primary", "slots", "main", "modules", "0", "days") or []
+    )
     daily_entries = [
         DailyEntry(
             datetime=_get(d, "date"),
             condition=_get(d, "condition"),
-            temp_high=_safe_float(_get(d, "forecasts", "0", "highTemp")),
-            temp_low=_safe_float(_get(d, "forecasts", "0", "lowTemp")),
-            description=_get(d, "forecasts", "0", "statement"),
-            rainfall_low=_safe_float(_get(d, "rainFall1")),
-            rainfall_high=_safe_float(_get(d, "rainFall10")),
+            temp_high=_safe_float(_scan_forecasts(d, "highTemp")),
+            temp_low=_safe_float(_scan_forecasts(d, "lowTemp")),
+            description=_scan_forecasts(d, "statement"),
+            rain_prob_1mm=_safe_float(_scan_forecasts(d, "rainFall1")),
+            rain_prob_10mm=_safe_float(_scan_forecasts(d, "rainFall10")),
         )
         for d in raw_days
         if isinstance(d, dict)
     ]
+
+    # Tomorrow's forecast is day index 1 of the 7-day data.
+    tomorrow = daily_entries[1] if len(daily_entries) > 1 else None
 
     # ------------------------------------------------------------------
     # Marine — boating and surf stored nested under their own keys
@@ -230,14 +275,26 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     surf = current.get("surf_data") or {}
 
     # ------------------------------------------------------------------
+    # Today's high/low — the current-conditions widget shows day 0's
+    # forecast temps, so falling back to the forecast when there is no
+    # weather station (rural locations) yields the same quantity.
+    # ------------------------------------------------------------------
+    temp_today_high = _safe_float(_get(obs, "temperature", "0", "high"))
+    if temp_today_high is None:
+        temp_today_high = _safe_float(_scan_forecasts(day0, "highTemp"))
+    temp_today_low = _safe_float(_get(obs, "temperature", "0", "low"))
+    if temp_today_low is None:
+        temp_today_low = _safe_float(_scan_forecasts(day0, "lowTemp"))
+
+    # ------------------------------------------------------------------
     # Assemble dataclass
     # ------------------------------------------------------------------
     return MetServicePublicData(
         # Observations
         temperature=_safe_float(_get(obs, "temperature", "0", "current")),
         feels_like=_safe_float(_get(obs, "temperature", "0", "feelsLike")),
-        temp_today_high=_safe_float(_get(obs, "temperature", "0", "high")),
-        temp_today_low=_safe_float(_get(obs, "temperature", "0", "low")),
+        temp_today_high=temp_today_high,
+        temp_today_low=temp_today_low,
         humidity=_safe_int(_get(obs, "rain", "0", "relativeHumidity")),
         pressure=_safe_float(_get(obs, "pressure", "0", "atSeaLevel")),
         pressure_trend=_get(obs, "pressure", "0", "trend"),
@@ -247,9 +304,9 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         wind_strength=_get(obs, "wind", "0", "strength"),
         rainfall=_safe_float(_get(obs, "rain", "0", "rainfall")),
         # Today's forecast (day 0)
-        condition=day0.get("condition") if isinstance(day0, dict) else None,
-        forecast_text=_get(day0, "forecasts", "0", "statement"),
-        issued_at=day0.get("issuedAt") if isinstance(day0, dict) else None,
+        condition=day0.get("condition"),
+        forecast_text=_scan_forecasts(day0, "statement"),
+        issued_at=day0.get("issuedAt"),
         uv_index=_get(uv, "sunProtection", "uvAlertLevel"),
         location_name=_get(current, "location", "label"),
         # Sub-day breakdown
@@ -265,20 +322,26 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         moon_phase=_get(moon_phases, "0", "phase"),
         moon_phase_date=_get(moon_phases, "0", "dateISO"),
         # Fire weather (from day 0's fireWeatherData)
-        fire_danger=_get(day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"),
+        fire_danger=_get(
+            day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"
+        ),
         fire_season=_get(day0, "fireWeatherData", "fireWeather", "season", "short"),
         # Pollen (injected at root as {"pollenLevels": {...}})
         pollen_level=_get(current, "pollen", "pollenLevels", "level"),
         pollen_type=_get(current, "pollen", "pollenLevels", "type"),
         # Injected derived fields
         weather_warnings=current.get("weather_warnings", "No warnings"),
-        tomorrow_condition=current.get("tomorrow_condition"),
-        tomorrow_temp_high=current.get("tomorrow_temp_high"),
-        tomorrow_temp_low=current.get("tomorrow_temp_low"),
-        tomorrow_description=current.get("tomorrow_description"),
+        tomorrow_condition=tomorrow.condition if tomorrow else None,
+        tomorrow_temp_high=tomorrow.temp_high if tomorrow else None,
+        tomorrow_temp_low=tomorrow.temp_low if tomorrow else None,
+        tomorrow_description=tomorrow.description if tomorrow else None,
         drying_morning=current.get("drying_morning"),
         drying_afternoon=current.get("drying_afternoon"),
         drying_next_good_day=current.get("drying_next_good_day"),
+        # Capability flags
+        has_observations=bool(obs),
+        has_breakdown=bool(breakdown0),
+        is_rural=str(day0.get("isRural", "")).lower() == "true",
         # Hourly
         hourly_entries=hourly_entries,
         hourly_obs=hourly_obs_count,

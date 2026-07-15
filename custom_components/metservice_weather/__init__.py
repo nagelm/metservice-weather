@@ -1,4 +1,5 @@
 """The MetService Weather component."""
+
 from __future__ import annotations
 
 import logging
@@ -54,5 +55,3 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     if config_entry.version > 1:
         return False
     return True
-
-

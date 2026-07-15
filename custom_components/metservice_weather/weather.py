@@ -3,6 +3,7 @@
 For more details about this platform, please refer to the documentation at
 https://github.com/ciejer/metservice-weather.
 """
+
 from __future__ import annotations
 
 from .coordinator import WeatherUpdateCoordinator
@@ -24,6 +25,7 @@ from homeassistant.components.weather import (
     ATTR_FORECAST_NATIVE_TEMP,
     ATTR_FORECAST_NATIVE_TEMP_LOW,
     ATTR_FORECAST_NATIVE_WIND_SPEED,
+    ATTR_FORECAST_PRECIPITATION_PROBABILITY,
     ATTR_FORECAST_TIME,
     ATTR_FORECAST_WIND_BEARING,
     ATTR_FORECAST_CONDITION,
@@ -38,16 +40,17 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import sun as sun_helper
 
+from .helpers import format_timestamp
+
 _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
 
-from .helpers import format_timestamp
-
-
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator], async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: ConfigEntry[WeatherUpdateCoordinator],
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Add weather entity."""
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
@@ -58,9 +61,10 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
     """Implementation of a MetService weather service."""
 
     @property
-    def native_temperature(self) -> float:
+    def native_temperature(self) -> float | None:
         """Return the platform temperature in native units (i.e. not converted)."""
-        return self.coordinator.data.temperature
+        data = self.coordinator.data
+        return data.temperature if data else None
 
     @property
     def native_temperature_unit(self) -> str:
@@ -68,9 +72,10 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
         return self.coordinator.units_of_measurement[TEMPUNIT]
 
     @property
-    def native_pressure(self) -> float:
+    def native_pressure(self) -> float | None:
         """Return the pressure in native units."""
-        return self.coordinator.data.pressure
+        data = self.coordinator.data
+        return data.pressure if data else None
 
     @property
     def native_pressure_unit(self) -> str:
@@ -80,12 +85,14 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
     @property
     def humidity(self) -> int | None:
         """Return the relative humidity in native units."""
-        return self.coordinator.data.humidity
+        data = self.coordinator.data
+        return data.humidity if data else None
 
     @property
-    def native_wind_speed(self) -> float:
+    def native_wind_speed(self) -> float | None:
         """Return the wind speed in native units."""
-        return self.coordinator.data.wind_speed
+        data = self.coordinator.data
+        return data.wind_speed if data else None
 
     @property
     def native_wind_speed_unit(self) -> str:
@@ -93,9 +100,10 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
         return self.coordinator.units_of_measurement[SPEEDUNIT]
 
     @property
-    def wind_bearing(self) -> str:
+    def wind_bearing(self) -> str | None:
         """Return the wind bearing."""
-        return self.coordinator.data.wind_direction
+        data = self.coordinator.data
+        return data.wind_direction if data else None
 
     @property
     def native_precipitation_unit(self) -> str:
@@ -103,9 +111,12 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
         return self.coordinator.units_of_measurement[LENGTHUNIT]
 
     @property
-    def condition(self) -> str:
+    def condition(self) -> str | None:
         """Return the current condition."""
-        raw = self.coordinator.data.condition
+        data = self.coordinator.data
+        if data is None:
+            return None
+        raw = data.condition
         mapped = CONDITION_MAP.get(raw, raw)
         if mapped == "sunny" and not sun_helper.is_up(self.hass):
             return "clear-night"
@@ -115,7 +126,9 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
 class MetServiceForecastPublic(MetServicePublic):
     """Implementation of a MetService weather forecast."""
 
-    _attr_supported_features = WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY
+    _attr_supported_features = (
+        WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY
+    )
 
     def __init__(self, coordinator: WeatherUpdateCoordinator):
         """Initialize the forecast sensor."""
@@ -150,6 +163,8 @@ class MetServiceForecastPublic(MetServicePublic):
 
         forecast = []
         data = self.coordinator.data
+        if data is None:
+            return forecast
         hourly_entries = data.hourly_entries
         hourly_obs = data.hourly_obs
         hourly_skip = data.hourly_skip
@@ -157,7 +172,7 @@ class MetServiceForecastPublic(MetServicePublic):
         if not hourly_entries or hourly_obs is None or hourly_skip is None:
             return forecast
 
-        for entry in hourly_entries[hourly_skip:hourly_obs + hourly_skip]:
+        for entry in hourly_entries[hourly_skip : hourly_obs + hourly_skip]:
             rainfall = entry.rainfall
             wind_speed = entry.wind_speed
             wind_dir = entry.wind_direction
@@ -179,9 +194,7 @@ class MetServiceForecastPublic(MetServicePublic):
                 Forecast(
                     {
                         ATTR_FORECAST_NATIVE_TEMP: entry.temperature,
-                        ATTR_FORECAST_TIME: format_timestamp(
-                            entry.datetime
-                        ),
+                        ATTR_FORECAST_TIME: format_timestamp(entry.datetime),
                         ATTR_FORECAST_NATIVE_PRECIPITATION: rainfall,
                         ATTR_FORECAST_NATIVE_WIND_SPEED: wind_speed,
                         ATTR_FORECAST_WIND_BEARING: wind_dir,
@@ -196,7 +209,10 @@ class MetServiceForecastPublic(MetServicePublic):
         """Return the daily forecast in native units."""
 
         forecast = []
-        for day in self.coordinator.data.daily_entries:
+        data = self.coordinator.data
+        if data is None:
+            return forecast
+        for day in data.daily_entries:
             day_condition = day.condition
             if day_condition in CONDITION_MAP:
                 day_condition = CONDITION_MAP[day_condition]
@@ -204,16 +220,20 @@ class MetServiceForecastPublic(MetServicePublic):
                 forecast_time = format_timestamp(day.datetime) if day.datetime else None
             except (ValueError, AttributeError):
                 forecast_time = day.datetime
-            forecast.append(
-                Forecast(
-                    {
-                        ATTR_FORECAST_NATIVE_TEMP: day.temp_high,
-                        ATTR_FORECAST_NATIVE_TEMP_LOW: day.temp_low,
-                        ATTR_FORECAST_CONDITION: day_condition,
-                        ATTR_FORECAST_TIME: forecast_time,
-                        ATTR_FORECAST_NATIVE_PRECIPITATION: day.rainfall_low,
-                    }
-                )
+            entry = Forecast(
+                {
+                    ATTR_FORECAST_NATIVE_TEMP: day.temp_high,
+                    ATTR_FORECAST_NATIVE_TEMP_LOW: day.temp_low,
+                    ATTR_FORECAST_CONDITION: day_condition,
+                    ATTR_FORECAST_TIME: forecast_time,
+                }
             )
+            # MetService publishes the % chance of ≥1 mm of rain
+            # (an exceedance probability), not a rainfall amount, so it
+            # maps to precipitation_probability — never to precipitation.
+            if day.rain_prob_1mm is not None:
+                entry[ATTR_FORECAST_PRECIPITATION_PROBABILITY] = round(
+                    day.rain_prob_1mm
+                )
+            forecast.append(entry)
         return forecast
-
