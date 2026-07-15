@@ -8,6 +8,19 @@
 
 Every sensor's real-world behaviour was audited against two months of recorded Home Assistant history; this release fixes what that audit surfaced.
 
+#### ⚠️ Breaking: one Pollen sensor replaces Pollen Levels + Pollen Type
+
+MetService's allergen page serves several concurrent status blocks — e.g. mid-July: `Imminent` (wattle, pine — season approaching) alongside `Low` (cypress, hazelnut — currently in the air). The old sensors flattened this to whichever block came first, mixing a *forecast notice* into what looked like an exposure level.
+
+The new `sensor.<device>_pollen`:
+
+- **State** = the current exposure level: `none` / `low` / `moderate` / `high`, keyed to MetService's own severity taxonomy (never `Imminent` — that's an outlook, not a level)
+- **`active`** attribute maps each level to its allergens, e.g. `low: [Wattle, Cypress, Hazelnut, …]`
+- **`imminent_allergens`** attribute lists species whose season is about to start
+- **`level_label`** carries MetService's verbatim wording
+
+`sensor.<device>_pollen_levels` and `sensor.<device>_pollen_type` are removed automatically on upgrade. Templates referencing them need updating; an automation watching `imminent_allergens` is the new way to get a "pollen season starting" alert.
+
 #### ⚠️ Changed: Weather Warnings sensor format
 
 With multiple simultaneous warnings, the old newline-joined state truncated at 255 characters mid-word, silently losing warnings. New format:
