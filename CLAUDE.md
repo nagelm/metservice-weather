@@ -3,7 +3,7 @@
 ## Project
 HACS custom integration for NZ weather data from MetService. Fork of `ciejer/metservice-weather`.
 - **Domain:** `metservice_weather`
-- **Version:** `1.0.1` (see `custom_components/metservice_weather/manifest.json`)
+- **Version:** `2026.7.0` (see `custom_components/metservice_weather/manifest.json`)
 - **Repo:** `https://github.com/nagelm/metservice-weather`
 - **HA min version:** 2024.2.0
 
@@ -156,13 +156,18 @@ scripts/
 
 ## Versioning convention
 
-Three-level semantic versioning: `MAJOR.MINOR.PATCH`
+Home Assistant–style calendar versioning: `YYYY.M.P` (year.month.patch, month
+**not** zero-padded — same format as HA core, e.g. `2026.7.0`).
 
-- **PATCH** (`1.0.x`) — bug fixes, no new features, no breaking changes. Bump freely.
-- **MINOR** (`1.x.0`) — new features, backwards-compatible. Bump when adding sensors, config options, or other additive changes.
-- **MAJOR** (`x.0.0`) — breaking changes or milestone releases (e.g. Core inclusion). **Only bump with explicit user agreement.**
-
-Do not bump MAJOR automatically. If a change feels like it warrants a major version bump, propose it and wait for confirmation.
+- First release in a calendar month: `YYYY.M.0`.
+- Further releases in the same month bump the patch: `2026.7.1`, `2026.7.2`, …
+- Year/month reflect the **release date**, not feature scope. There is no
+  semantic major/minor signal — call out breaking changes prominently in
+  `release_notes.md` instead.
+- Tags stay `v`-prefixed: `v2026.7.0`.
+- History: releases up to `v1.0.1` used SemVer. CalVer sorts above them
+  (2026 > 1) so HACS upgrade paths are unaffected. `1.1.0` was never released;
+  its changes ship as `2026.7.0`.
 
 ## Release workflow (CRITICAL)
 
