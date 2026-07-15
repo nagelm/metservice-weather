@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from custom_components.metservice_weather.coordinator_types import (
     HourlyEntry,
     MetServicePublicData,
     _get,
+    _round_iso_to_minutes,
     _safe_float,
     _safe_int,
     _scan_forecasts,
@@ -279,6 +281,21 @@ def test_empty_dicts_returns_defaults():
     assert result.daily_entries == []
     assert result.hourly_entries == []
     assert result.weather_warnings == "No warnings"
+    assert result.warnings_list == []
+
+
+def test_warnings_list_passes_through_when_injected():
+    """warnings_list is extracted from the injected 'warnings_list' key on current."""
+    structured = [
+        {
+            "name": "Strong Wind Watch",
+            "text": "Keep an eye out",
+            "threat_period": "Today",
+        }
+    ]
+    current = {"weather_warnings": "Strong Wind Watch", "warnings_list": structured}
+    result = normalize_public_data(current, {})
+    assert result.warnings_list == structured
 
 
 # ---------------------------------------------------------------------------
@@ -690,3 +707,102 @@ def test_napier_daily_entries_have_temp_high_and_description(napier):
 def test_napier_daily_entries_have_some_rain_probability(napier):
     """Towns pages publish rain probabilities from day ~2 onward, not day 0."""
     assert any(d.rain_prob_1mm is not None for d in napier.daily_entries)
+
+
+# ---------------------------------------------------------------------------
+# Debug logging for transient observation nulls
+# ---------------------------------------------------------------------------
+
+_TYPES_LOGGER = "custom_components.metservice_weather.coordinator_types"
+
+
+def test_debug_log_fires_when_observations_present_but_field_parses_none(caplog):
+    """A debug record lists fields that stayed None despite a present observations block."""
+    obs = {"temperature": [{"current": None}], "wind": [{"averageSpeed": 12}]}
+    with caplog.at_level(logging.DEBUG, logger=_TYPES_LOGGER):
+        normalize_public_data(_current_payload(obs=obs), {})
+    matches = [r for r in caplog.records if "parsed to None" in r.getMessage()]
+    assert len(matches) == 1
+    assert "temperature" in matches[0].getMessage()
+
+
+def test_debug_log_absent_when_observations_fully_populated(caplog):
+    """No debug record fires when every tracked observation field parses successfully."""
+    obs = {
+        "temperature": [{"current": 18.0, "feelsLike": 17.0}],
+        "rain": [{"relativeHumidity": 55, "rainfall": 0.0}],
+        "pressure": [{"atSeaLevel": 1013.0}],
+        "wind": [{"averageSpeed": 10.0, "gustSpeed": 15.0, "direction": "NW"}],
+    }
+    with caplog.at_level(logging.DEBUG, logger=_TYPES_LOGGER):
+        normalize_public_data(_current_payload(obs=obs), {})
+    matches = [r for r in caplog.records if "parsed to None" in r.getMessage()]
+    assert matches == []
+
+
+def test_debug_log_fires_when_observations_empty_on_non_rural_location(caplog):
+    """A debug record fires when the observations module is empty on a non-rural page."""
+    with caplog.at_level(logging.DEBUG, logger=_TYPES_LOGGER):
+        normalize_public_data(_current_payload(days=[{}]), {})
+    matches = [r for r in caplog.records if "empty/absent" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_debug_log_absent_for_kumeu_rural_fixture(caplog):
+    """No 'empty/absent' debug record fires for a rural location — absence is structural there."""
+    current = json.loads((FIXTURES / "kumeu_public_current.json").read_text())
+    daily = json.loads((FIXTURES / "kumeu_public_daily.json").read_text())
+    with caplog.at_level(logging.DEBUG, logger=_TYPES_LOGGER):
+        normalize_public_data(current, daily)
+    matches = [r for r in caplog.records if "empty/absent" in r.getMessage()]
+    assert matches == []
+
+
+# ---------------------------------------------------------------------------
+# _round_iso_to_minutes — moon-phase timestamp jitter suppression
+# ---------------------------------------------------------------------------
+
+
+def test_round_iso_collapses_second_level_jitter():
+    """Two prod-observed jittered timestamps of one event round to the same value."""
+    a = _round_iso_to_minutes("2026-07-07T19:15:27+00:00")
+    b = _round_iso_to_minutes("2026-07-07T19:15:46+00:00")
+    assert a == b == "2026-07-07T19:15:00+00:00"
+
+
+def test_round_iso_collapses_minute_boundary_jitter():
+    """Jitter that crosses a minute boundary (prod-observed) still collapses."""
+    a = _round_iso_to_minutes("2026-07-14T10:00:19+00:00")
+    b = _round_iso_to_minutes("2026-07-14T10:01:14+00:00")
+    assert a == b == "2026-07-14T10:00:00+00:00"
+
+
+def test_round_iso_rounds_up_to_nearest_step():
+    """A timestamp past the midpoint rounds up to the next 5-minute mark."""
+    assert _round_iso_to_minutes("2026-07-07T19:13:40+00:00") == (
+        "2026-07-07T19:15:00+00:00"
+    )
+
+
+def test_round_iso_preserves_timezone_offset():
+    """NZ-offset timestamps keep their offset after rounding."""
+    assert _round_iso_to_minutes("2026-07-21T22:55:48+12:00") == (
+        "2026-07-21T22:55:00+12:00"
+    )
+
+
+def test_round_iso_passthrough_on_garbage():
+    """Non-ISO strings and non-strings pass through unchanged."""
+    assert _round_iso_to_minutes("not-a-date") == "not-a-date"
+    assert _round_iso_to_minutes(None) is None
+    assert _round_iso_to_minutes(42) == 42
+
+
+def test_moon_phase_date_rounded_in_normalize(napier):
+    """The napier fixture's moon phase date normalizes to a 5-minute boundary."""
+    from datetime import datetime as _dt
+
+    assert napier.moon_phase_date is not None
+    parsed = _dt.fromisoformat(napier.moon_phase_date)
+    assert parsed.second == 0 and parsed.microsecond == 0
+    assert parsed.minute % 5 == 0

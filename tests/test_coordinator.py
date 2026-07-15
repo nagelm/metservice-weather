@@ -232,6 +232,13 @@ async def test_get_public_weather_returns_data(hass):
     result = await coord.get_public_weather()
     assert isinstance(result, MetServicePublicData)
     assert "Strong Wind" in result.weather_warnings
+    assert result.warnings_list == [
+        {
+            "name": "Strong Wind",
+            "text": "Gale force winds",
+            "threat_period": "Tonight",
+        }
+    ]
 
 
 async def test_get_public_weather_no_warnings(hass):
@@ -254,6 +261,35 @@ async def test_get_public_weather_no_warnings(hass):
 
     result = await coord.get_public_weather()
     assert result.weather_warnings == "No warnings"
+    assert result.warnings_list == []
+
+
+async def test_get_public_weather_warning_missing_text_key_does_not_raise(hass):
+    """A warning dict missing the 'text' key no longer KeyErrors the whole update."""
+    coord = _make_coordinator(hass)
+
+    warnings_data = {
+        "warnings": [
+            {"name": "Strong Wind", "threatPeriod": "Tonight"}  # no "text" key
+        ]
+    }
+    pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
+
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response(warnings_data),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_data),
+        ]
+    )
+    coord._session = mock_session
+
+    result = await coord.get_public_weather()
+    assert result.warnings_list == [
+        {"name": "Strong Wind", "text": "", "threat_period": "Tonight"}
+    ]
 
 
 async def test_get_public_weather_timeout_raises_update_failed(hass):

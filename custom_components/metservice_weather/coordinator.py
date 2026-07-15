@@ -147,9 +147,16 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     raise ValueError("No warnings data received.")
                 self._check_errors(url, result_warnings)
             await self.expand_data_urls(result_warnings)
-            warnings_list = [
-                f"{warning['name']}, {warning['text']}, {warning['threatPeriod']}"
+            structured = [
+                {
+                    "name": warning.get("name") or "Warning",
+                    "text": warning.get("text") or "",
+                    "threat_period": warning.get("threatPeriod") or "",
+                }
                 for warning in result_warnings.get("warnings", [])
+            ]
+            warnings_list = [
+                f"{w['name']}, {w['text']}, {w['threat_period']}" for w in structured
             ]
             warnings_text = "\n".join(warnings_list) if warnings_list else "No warnings"
             async with asyncio.timeout(10):
@@ -161,6 +168,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 self._check_errors(url, result_daily)
             await self.expand_data_urls(result_daily)
             result_current["weather_warnings"] = warnings_text
+            result_current["warnings_list"] = structured
             result_current["pollen"] = await self.get_pollen_data()
             # tomorrow_* fields are derived inside normalize_public_data
             # from the 7-day data — no injection needed here.

@@ -46,6 +46,34 @@ _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
+_UNMAPPED_LOGGED: set[str] = set()
+
+
+def _map_condition(raw: str | None) -> str | None:
+    """Map a MetService condition token to an HA condition, or None if unknown.
+
+    Night variants fall back to their day token ("showers-night" → "showers");
+    a night variant of a sunny condition maps to clear-night. Unknown tokens
+    are logged once per runtime and reported as None rather than passed
+    through as an invalid HA condition.
+    """
+    if raw is None:
+        return None
+    if raw in CONDITION_MAP:
+        return CONDITION_MAP[raw]
+    base = raw.removesuffix("-night")
+    if base != raw and base in CONDITION_MAP:
+        mapped = CONDITION_MAP[base]
+        return "clear-night" if mapped == "sunny" else mapped
+    if raw not in _UNMAPPED_LOGGED:
+        _UNMAPPED_LOGGED.add(raw)
+        _LOGGER.warning(
+            "Unknown MetService condition %r — please report at "
+            "https://github.com/nagelm/metservice-weather/issues",
+            raw,
+        )
+    return None
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -117,7 +145,9 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
         if data is None:
             return None
         raw = data.condition
-        mapped = CONDITION_MAP.get(raw, raw)
+        mapped = _map_condition(raw)
+        if mapped is None:
+            return None
         if mapped == "sunny" and not sun_helper.is_up(self.hass):
             return "clear-night"
         return mapped
@@ -213,9 +243,7 @@ class MetServiceForecastPublic(MetServicePublic):
         if data is None:
             return forecast
         for day in data.daily_entries:
-            day_condition = day.condition
-            if day_condition in CONDITION_MAP:
-                day_condition = CONDITION_MAP[day_condition]
+            day_condition = _map_condition(day.condition)
             try:
                 forecast_time = format_timestamp(day.datetime) if day.datetime else None
             except (ValueError, AttributeError):

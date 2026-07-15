@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import patch, AsyncMock
 
 
@@ -20,6 +21,7 @@ from custom_components.metservice_weather.coordinator_types import (
 )
 from custom_components.metservice_weather.weather import (
     MetServiceForecastPublic,
+    _UNMAPPED_LOGGED,
 )
 
 
@@ -195,8 +197,9 @@ async def test_public_entity_condition_clear_night(hass):
     assert cond == "clear-night"
 
 
-async def test_public_entity_condition_unknown_passthrough(hass):
-    """Unmapped condition is passed through as-is."""
+async def test_public_entity_condition_unknown_returns_none(hass):
+    """An unmapped condition is reported as None rather than passed through."""
+    _UNMAPPED_LOGGED.discard("unknown-condition")
     coord = _make_coordinator(hass)
     coord.data = MetServicePublicData(condition="unknown-condition")
     entity = MetServiceForecastPublic(coord)
@@ -206,7 +209,69 @@ async def test_public_entity_condition_unknown_passthrough(hass):
         return_value=True,
     ):
         cond = entity.condition
-    assert cond == "unknown-condition"
+    assert cond is None
+
+
+async def test_public_entity_condition_none_returns_none(hass):
+    """A None raw condition returns None without invoking the sun helper."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(condition=None)
+    entity = MetServiceForecastPublic(coord)
+    entity.hass = hass
+    with patch(
+        "custom_components.metservice_weather.weather.sun_helper.is_up",
+        return_value=True,
+    ):
+        cond = entity.condition
+    assert cond is None
+
+
+async def test_public_entity_condition_night_variant_falls_back_to_day_token(hass):
+    """'showers-night' falls back to the 'showers' mapping ('rainy')."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(condition="showers-night")
+    entity = MetServiceForecastPublic(coord)
+    entity.hass = hass
+    with patch(
+        "custom_components.metservice_weather.weather.sun_helper.is_up",
+        return_value=True,
+    ):
+        cond = entity.condition
+    assert cond == "rainy"
+
+
+async def test_public_entity_condition_night_variant_of_sunny_is_clear_night(hass):
+    """'fine-night' maps to 'clear-night' regardless of the sun helper's state."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(condition="fine-night")
+    entity = MetServiceForecastPublic(coord)
+    entity.hass = hass
+    with patch(
+        "custom_components.metservice_weather.weather.sun_helper.is_up",
+        return_value=True,
+    ):
+        cond = entity.condition
+    assert cond == "clear-night"
+
+
+async def test_public_entity_condition_unknown_logged_once(hass, caplog):
+    """An unmapped condition token is only logged as a warning once per runtime."""
+    _UNMAPPED_LOGGED.discard("never-seen-before")
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(condition="never-seen-before")
+    entity = MetServiceForecastPublic(coord)
+    entity.hass = hass
+    with (
+        caplog.at_level(logging.WARNING),
+        patch(
+            "custom_components.metservice_weather.weather.sun_helper.is_up",
+            return_value=True,
+        ),
+    ):
+        entity.condition
+        entity.condition
+    matches = [r for r in caplog.records if "never-seen-before" in r.getMessage()]
+    assert len(matches) == 1
 
 
 async def test_public_entity_temperature_units(hass):
@@ -468,6 +533,24 @@ async def test_public_forecast_daily_precipitation_probability_rounds_to_int(has
     result = entity.forecast_daily
     assert result[0]["precipitation_probability"] == 33
     assert isinstance(result[0]["precipitation_probability"], int)
+
+
+async def test_public_forecast_daily_unknown_condition_is_none(hass):
+    """forecast_daily reports None for an unmapped condition instead of a raw token."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        daily_entries=[
+            DailyEntry(
+                condition="never-seen-before",
+                temp_high=20.0,
+                temp_low=10.0,
+                datetime="2024-06-15",
+            )
+        ]
+    )
+    entity = MetServiceForecastPublic(coord)
+    result = entity.forecast_daily
+    assert result[0]["condition"] is None
 
 
 async def test_public_forecast_daily_rural_style_entries_have_temps(hass):

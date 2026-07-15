@@ -54,6 +54,31 @@ def _next_tide_time(data: list | None, tide_type: str) -> datetime.datetime | No
     return None
 
 
+def _warning_severity(name: str) -> int:
+    """Rank a MetService warning name: Red > Orange > other Warning > Watch."""
+    lowered = name.lower()
+    if "red" in lowered:
+        return 3
+    if "orange" in lowered:
+        return 2
+    if "warning" in lowered:
+        return 1
+    return 0
+
+
+def _warnings_state(data: Any) -> str:
+    """Most severe warning name, with a (+N more) suffix when several are active."""
+    warnings = data.warnings_list
+    if not warnings:
+        return "No warnings"
+    top = max(warnings, key=lambda w: _warning_severity(w.get("name", "")))
+    extra = len(warnings) - 1
+    state = top.get("name") or "Warning"
+    if extra:
+        state = f"{state} (+{extra} more)"
+    return state[:255]
+
+
 def _has_observations(coordinator: Any) -> bool:
     """Location has a weather station (rural pages have none)."""
     return coordinator.data is not None and coordinator.data.has_observations
@@ -256,12 +281,11 @@ current_condition_sensor_descriptions_public = [
         key="weather_warnings",
         translation_key="weather_warnings",
         name="MetService Weather Warnings",
-        value_fn=lambda data, _: (
-            (data.weather_warnings[:252] + "...")
-            if len(data.weather_warnings) > 255
-            else data.weather_warnings
-        ),
-        attr_fn=lambda data: {"warnings": data.weather_warnings},
+        value_fn=lambda data, _: _warnings_state(data),
+        attr_fn=lambda data: {
+            "count": len(data.warnings_list),
+            "warnings": data.warnings_list,
+        },
     ),
     WeatherSensorEntityDescription(
         key="fire_season",

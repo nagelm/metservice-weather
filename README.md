@@ -110,6 +110,30 @@ Earlier versions of this integration included an option to use the MetService mo
 | Surf Wind Speed / Gust | Surf location configured |
 | Surf Period | Surf location configured |
 
+### Seasonal sensors — `unknown` off-season is normal
+
+Some MetService products pause for part of the year. The API keeps the data
+structures in place but empties the payload server-side, so the matching sensors
+correctly read `unknown` until the product resumes — that's MetService pausing,
+not a bug:
+
+| Sensor | Behaviour |
+|---|---|
+| UV Index | Suspended over winter — the API replaces the sun-protection data with an explicit end-of-season stub |
+| Fire Danger / Fire Season | Published only while a fire season is declared (varies by district); off-season the API sends no fire data |
+
+Two related products that do **not** go unknown, but change character with the
+seasons:
+
+| Sensor | Behaviour |
+|---|---|
+| Pollen Levels / Pollen Type | Runs year-round. Pre-season it reads `Imminent` with the upcoming allergens (e.g. wattle, pinus radiata); in season, levels like `Low` |
+| Clothes Drying | Year-round for towns/cities; rural locations may not carry it |
+
+Sensors a **location can never provide** (e.g. wind/temperature observations for
+rural locations without a weather station) are not created at all, rather than
+sitting permanently unknown.
+
 ### Weather entity
 
 A full Home Assistant weather entity with:

@@ -2,6 +2,33 @@
 
 ---
 
+## v2026.7.1
+
+### Hardening from a two-month production data audit
+
+Every sensor's real-world behaviour was audited against two months of recorded Home Assistant history; this release fixes what that audit surfaced.
+
+#### ⚠️ Changed: Weather Warnings sensor format
+
+With multiple simultaneous warnings, the old newline-joined state truncated at 255 characters mid-word, silently losing warnings. New format:
+
+- **State** is now the most severe active warning's name, e.g. `Strong Wind Warning - Orange (+1 more)` (Red > Orange > Warning > Watch), or `No warnings`.
+- **Attributes** now carry `count` and a structured `warnings` list (`name`, `text`, `threat_period` per warning) with no truncation.
+- If you templated against the old concatenated state or the old `warnings` attribute string, switch to the structured list. Automations checking `state != "No warnings"` are unaffected.
+
+#### Fixed / hardened
+
+- **Unknown condition tokens can no longer break the weather card**: unmapped MetService condition tokens (e.g. unseen night variants) now fall back to their day equivalent, or report as unknown with a logged warning — previously they passed through as invalid Home Assistant conditions.
+- **Moon phase date no longer flip-flops**: MetService recomputes the phase time per request with second-level jitter (observed: the same event served 19 s apart), causing spurious state changes. Timestamps are now rounded to 5 minutes, so the sensor changes only when the actual phase event advances.
+- **Diagnostic logging for observation dropouts**: when a station value (temperature, wind, …) goes missing for a polling cycle, debug logging now records the raw upstream payload — distinguishing MetService outages from ingestion problems. Enable with `logger: logs: custom_components.metservice_weather: debug`.
+- A warning payload missing a field no longer aborts the whole data update.
+
+#### Documentation
+
+- README now explains seasonal products: UV and fire danger are stripped server-side off-season (`unknown` in winter is expected); pollen runs year-round and reads `Imminent` pre-season with the upcoming allergens.
+
+---
+
 ## v2026.7.0
 
 ### Rural locations fixed, correct rain probabilities — and a new version scheme

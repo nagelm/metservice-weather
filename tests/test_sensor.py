@@ -16,6 +16,8 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     _safe_float,
     _safe_int,
     _next_tide_time,
+    _warning_severity,
+    _warnings_state,
     current_condition_sensor_descriptions_public,
 )
 from custom_components.metservice_weather.coordinator_types import MetServicePublicData
@@ -133,6 +135,105 @@ def test_next_tide_time_wrong_type_returns_none():
     tides = [{"type": "LOW", "time": future}]
     result = _next_tide_time(tides, "HIGH")
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Test: _warning_severity / _warnings_state
+# ---------------------------------------------------------------------------
+
+
+def test_warning_severity_red_beats_orange():
+    """A 'Red Warning' outranks an 'Orange Warning'."""
+    assert _warning_severity("Severe Weather Warning - Red") > _warning_severity(
+        "Severe Weather Warning - Orange"
+    )
+
+
+def test_warning_severity_orange_beats_plain_warning():
+    """An 'Orange Warning' outranks a plain 'Warning'."""
+    assert _warning_severity("Strong Wind Warning - Orange") > _warning_severity(
+        "Strong Wind Warning"
+    )
+
+
+def test_warning_severity_warning_beats_watch():
+    """A plain 'Warning' outranks a 'Watch'."""
+    assert _warning_severity("Strong Wind Warning") > _warning_severity(
+        "Strong Wind Watch"
+    )
+
+
+def test_warning_severity_case_insensitive():
+    """Severity ranking is case-insensitive."""
+    assert _warning_severity("severe weather warning - red") == _warning_severity(
+        "SEVERE WEATHER WARNING - RED"
+    )
+
+
+def test_warnings_state_no_warnings():
+    """_warnings_state returns 'No warnings' when the list is empty."""
+    data = MetServicePublicData(warnings_list=[])
+    assert _warnings_state(data) == "No warnings"
+
+
+def test_warnings_state_single_warning():
+    """_warnings_state returns the sole warning's name."""
+    data = MetServicePublicData(
+        warnings_list=[
+            {"name": "Strong Wind Watch", "text": "Watch out", "threat_period": "Today"}
+        ]
+    )
+    assert _warnings_state(data) == "Strong Wind Watch"
+
+
+def test_warnings_state_two_warnings_severity_beats_list_order():
+    """The most severe warning wins the state even when listed second."""
+    data = MetServicePublicData(
+        warnings_list=[
+            {
+                "name": "Strong Wind Watch",
+                "text": "Keep an eye out",
+                "threat_period": "Today",
+            },
+            {
+                "name": "Strong Wind Warning - Orange",
+                "text": "Damaging winds expected",
+                "threat_period": "Tonight",
+            },
+        ]
+    )
+    assert _warnings_state(data) == "Strong Wind Warning - Orange (+1 more)"
+
+
+def test_warnings_state_embedded_newline_survives_in_attribute():
+    """Embedded newlines in a warning's text are preserved (only the state string is truncated/derived)."""
+    data = MetServicePublicData(
+        warnings_list=[
+            {
+                "name": "Heavy Rain Warning",
+                "text": "Line one\nLine two\nLine three",
+                "threat_period": "Today",
+            }
+        ]
+    )
+    assert data.warnings_list[0]["text"] == "Line one\nLine two\nLine three"
+
+
+def test_warnings_state_attr_count_matches_list_length():
+    """The attribute count matches the number of active warnings."""
+    warnings = [
+        {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
+        {"name": "Heavy Rain Warning", "text": "b", "threat_period": "Tonight"},
+    ]
+    data = MetServicePublicData(warnings_list=warnings)
+    desc = next(
+        d
+        for d in current_condition_sensor_descriptions_public
+        if d.key == "weather_warnings"
+    )
+    attrs = desc.attr_fn(data)
+    assert attrs["count"] == 2
+    assert attrs["warnings"] == warnings
 
 
 # ---------------------------------------------------------------------------

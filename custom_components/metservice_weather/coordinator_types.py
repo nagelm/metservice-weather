@@ -2,8 +2,34 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Any
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _round_iso_to_minutes(iso: Any, resolution_minutes: int = 5) -> Any:
+    """Round an ISO timestamp string to the nearest N minutes.
+
+    MetService recomputes astronomical times per request with second-level
+    jitter (observed: the same moon phase served as 19:15:27, then 19:15:46).
+    Rounding at normalize time keeps the snapshot stable across polls so
+    state only changes when the underlying event actually does. Values that
+    aren't parseable ISO strings pass through unchanged.
+    """
+    if not isinstance(iso, str):
+        return iso
+    try:
+        dt = datetime.fromisoformat(iso)
+    except ValueError:
+        return iso
+    step = timedelta(minutes=resolution_minutes)
+    anchor = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    rounded = round((dt - anchor) / step) * step
+    return (anchor + rounded).isoformat()
 
 
 def _get(data: Any, *path: str) -> Any:
@@ -144,6 +170,7 @@ class MetServicePublicData:
 
     # Derived / injected
     weather_warnings: str = "No warnings"
+    warnings_list: list[dict[str, str]] = field(default_factory=list)
     tomorrow_condition: str | None = None
     tomorrow_temp_high: float | None = None
     tomorrow_temp_low: float | None = None
@@ -286,10 +313,12 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     if temp_today_low is None:
         temp_today_low = _safe_float(_scan_forecasts(day0, "lowTemp"))
 
+    is_rural = str(day0.get("isRural", "")).lower() == "true"
+
     # ------------------------------------------------------------------
     # Assemble dataclass
     # ------------------------------------------------------------------
-    return MetServicePublicData(
+    data = MetServicePublicData(
         # Observations
         temperature=_safe_float(_get(obs, "temperature", "0", "current")),
         feels_like=_safe_float(_get(obs, "temperature", "0", "feelsLike")),
@@ -320,7 +349,7 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         moonrise=rise_set.get("moonRise"),
         moonset=rise_set.get("moonSet"),
         moon_phase=_get(moon_phases, "0", "phase"),
-        moon_phase_date=_get(moon_phases, "0", "dateISO"),
+        moon_phase_date=_round_iso_to_minutes(_get(moon_phases, "0", "dateISO")),
         # Fire weather (from day 0's fireWeatherData)
         fire_danger=_get(
             day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"
@@ -331,6 +360,7 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         pollen_type=_get(current, "pollen", "pollenLevels", "type"),
         # Injected derived fields
         weather_warnings=current.get("weather_warnings", "No warnings"),
+        warnings_list=current.get("warnings_list") or [],
         tomorrow_condition=tomorrow.condition if tomorrow else None,
         tomorrow_temp_high=tomorrow.temp_high if tomorrow else None,
         tomorrow_temp_low=tomorrow.temp_low if tomorrow else None,
@@ -341,7 +371,7 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         # Capability flags
         has_observations=bool(obs),
         has_breakdown=bool(breakdown0),
-        is_rural=str(day0.get("isRural", "")).lower() == "true",
+        is_rural=is_rural,
         # Hourly
         hourly_entries=hourly_entries,
         hourly_obs=hourly_obs_count,
@@ -366,3 +396,31 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         surf_wind_gust=surf.get("surf_wind_gust"),
         surf_period=surf.get("surf_period"),
     )
+    if obs:
+        missing = [
+            f
+            for f in (
+                "temperature",
+                "feels_like",
+                "humidity",
+                "pressure",
+                "wind_speed",
+                "wind_gust",
+                "wind_direction",
+                "rainfall",
+            )
+            if getattr(data, f) is None
+        ]
+        if missing:
+            _LOGGER.debug(
+                "Observations block present but %s parsed to None — raw block: %.800s",
+                missing,
+                json.dumps(obs, default=str),
+            )
+    elif not is_rural:
+        _LOGGER.debug(
+            "Observations block empty/absent this cycle on a non-rural location; "
+            "left-major module keys: %s",
+            [sorted(m) if isinstance(m, dict) else str(type(m)) for m in left_major],
+        )
+    return data
