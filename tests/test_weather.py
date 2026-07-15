@@ -125,6 +125,25 @@ async def test_public_entity_humidity(hass):
     assert entity.humidity == 75
 
 
+async def test_public_entity_properties_safe_when_data_is_none(hass):
+    """Every property returns None/[] when the coordinator has no data yet.
+
+    Regression test: with a mocked first refresh the coordinator data is None
+    during entity addition, which previously raised AttributeError in CI.
+    """
+    coord = _make_coordinator(hass)
+    coord.data = None
+    entity = MetServiceForecastPublic(coord)
+    assert entity.native_temperature is None
+    assert entity.native_pressure is None
+    assert entity.humidity is None
+    assert entity.native_wind_speed is None
+    assert entity.wind_bearing is None
+    assert entity.condition is None
+    assert entity.forecast_hourly == []
+    assert entity.forecast_daily == []
+
+
 async def test_public_entity_humidity_none(hass):
     """Humidity is None when coordinator.data.humidity is unset."""
     coord = _make_coordinator(hass)

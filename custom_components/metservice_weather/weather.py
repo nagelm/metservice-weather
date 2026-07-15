@@ -61,9 +61,10 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
     """Implementation of a MetService weather service."""
 
     @property
-    def native_temperature(self) -> float:
+    def native_temperature(self) -> float | None:
         """Return the platform temperature in native units (i.e. not converted)."""
-        return self.coordinator.data.temperature
+        data = self.coordinator.data
+        return data.temperature if data else None
 
     @property
     def native_temperature_unit(self) -> str:
@@ -71,9 +72,10 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
         return self.coordinator.units_of_measurement[TEMPUNIT]
 
     @property
-    def native_pressure(self) -> float:
+    def native_pressure(self) -> float | None:
         """Return the pressure in native units."""
-        return self.coordinator.data.pressure
+        data = self.coordinator.data
+        return data.pressure if data else None
 
     @property
     def native_pressure_unit(self) -> str:
@@ -83,12 +85,14 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
     @property
     def humidity(self) -> int | None:
         """Return the relative humidity in native units."""
-        return self.coordinator.data.humidity
+        data = self.coordinator.data
+        return data.humidity if data else None
 
     @property
-    def native_wind_speed(self) -> float:
+    def native_wind_speed(self) -> float | None:
         """Return the wind speed in native units."""
-        return self.coordinator.data.wind_speed
+        data = self.coordinator.data
+        return data.wind_speed if data else None
 
     @property
     def native_wind_speed_unit(self) -> str:
@@ -96,9 +100,10 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
         return self.coordinator.units_of_measurement[SPEEDUNIT]
 
     @property
-    def wind_bearing(self) -> str:
+    def wind_bearing(self) -> str | None:
         """Return the wind bearing."""
-        return self.coordinator.data.wind_direction
+        data = self.coordinator.data
+        return data.wind_direction if data else None
 
     @property
     def native_precipitation_unit(self) -> str:
@@ -106,9 +111,12 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
         return self.coordinator.units_of_measurement[LENGTHUNIT]
 
     @property
-    def condition(self) -> str:
+    def condition(self) -> str | None:
         """Return the current condition."""
-        raw = self.coordinator.data.condition
+        data = self.coordinator.data
+        if data is None:
+            return None
+        raw = data.condition
         mapped = CONDITION_MAP.get(raw, raw)
         if mapped == "sunny" and not sun_helper.is_up(self.hass):
             return "clear-night"
@@ -155,6 +163,8 @@ class MetServiceForecastPublic(MetServicePublic):
 
         forecast = []
         data = self.coordinator.data
+        if data is None:
+            return forecast
         hourly_entries = data.hourly_entries
         hourly_obs = data.hourly_obs
         hourly_skip = data.hourly_skip
@@ -199,7 +209,10 @@ class MetServiceForecastPublic(MetServicePublic):
         """Return the daily forecast in native units."""
 
         forecast = []
-        for day in self.coordinator.data.daily_entries:
+        data = self.coordinator.data
+        if data is None:
+            return forecast
+        for day in data.daily_entries:
             day_condition = day.condition
             if day_condition in CONDITION_MAP:
                 day_condition = CONDITION_MAP[day_condition]
