@@ -2,9 +2,11 @@
 
 ---
 
-## v1.1.0
+## v2026.7.0
 
-### Rural locations fixed, correct rain probabilities
+### Rural locations fixed, correct rain probabilities — and a new version scheme
+
+> **Versioning change:** this integration now uses Home Assistant–style calendar versioning (`YYYY.M.patch`), so v1.0.1 is followed by v2026.7.0. Upgrades through HACS are unaffected.
 
 Fixes [#2](https://github.com/nagelm/metservice-weather/issues/2) and [#3](https://github.com/nagelm/metservice-weather/issues/3); delivers the rural-town half of [#4](https://github.com/nagelm/metservice-weather/issues/4).
 
