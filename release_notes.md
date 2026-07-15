@@ -31,7 +31,8 @@ MetService's daily `rainFall1`/`rainFall10` fields are **exceedance probabilitie
 
 - Forecast parsing now scans every `forecasts[]` entry plus the day level, covering towns-cities and rural page shapes with one rule.
 - `tomorrow_*` values are derived from the normalised 7-day data instead of a separate injection path.
-- New rural (Kumeu) API fixtures; test suite extended to cover every page-shape heuristic (towns/rural/day-level-only/missing-module cases).
+- Weather entity no longer errors during startup if the first data refresh hasn't completed (all properties now handle missing coordinator data).
+- New rural (Kumeu) API fixtures; test suite extended to cover every page-shape heuristic (towns/rural/day-level-only/missing-module cases). 259 tests, 95% coverage, now enforced in CI alongside lint, formatting, hassfest and HACS validation.
 
 ---
 
