@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 import logging
 import re
 import asyncio
 
 import aiohttp
-from homeassistant.util import dt as dt_util
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -163,28 +162,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             await self.expand_data_urls(result_daily)
             result_current['weather_warnings'] = warnings_text
             result_current['pollen'] = await self.get_pollen_data()
-            # Inject tomorrow's forecast from the 7-day data (day index 1).
-            # get_from_dict always returns the first match, so tomorrow's data
-            # must be explicitly extracted and injected at the root level.
-            try:
-                all_days = (
-                    result_daily.get("layout", {})
-                    .get("primary", {})
-                    .get("slots", {})
-                    .get("main", {})
-                    .get("modules", [{}])[0]
-                    .get("days", [])
-                )
-                if len(all_days) > 1:
-                    tmrw = all_days[1]
-                    tmrw_forecasts = tmrw.get("forecasts", [{}])
-                    tf = tmrw_forecasts[0] if tmrw_forecasts else {}
-                    result_current["tomorrow_condition"] = tmrw.get("condition")
-                    result_current["tomorrow_temp_high"] = tf.get("highTemp")
-                    result_current["tomorrow_temp_low"] = tf.get("lowTemp")
-                    result_current["tomorrow_description"] = tf.get("statement")
-            except Exception as _e:
-                _LOGGER.debug("Could not extract tomorrow forecast: %s", _e)
+            # tomorrow_* fields are derived inside normalize_public_data
+            # from the 7-day data — no injection needed here.
             # Inject drying index fields by text prefix, then normalise so
             # that all three sensors always carry a useful value:
             #

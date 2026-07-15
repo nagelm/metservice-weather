@@ -54,6 +54,28 @@ def _next_tide_time(data: list | None, tide_type: str) -> datetime.datetime | No
                 return t
     return None
 
+def _has_observations(coordinator: Any) -> bool:
+    """Location has a weather station (rural pages have none)."""
+    return coordinator.data is not None and coordinator.data.has_observations
+
+
+def _has_breakdown(coordinator: Any) -> bool:
+    """Location's forecast carries morning/afternoon/evening/overnight conditions."""
+    return coordinator.data is not None and coordinator.data.has_breakdown
+
+
+def _tides_enabled(coordinator: Any) -> bool:
+    return coordinator.enable_tides
+
+
+def _boating_enabled(coordinator: Any) -> bool:
+    return coordinator.enable_boating
+
+
+def _surf_enabled(coordinator: Any) -> bool:
+    return coordinator.enable_surf
+
+
 @dataclass(frozen=True, kw_only=True)
 class WeatherRequiredKeysMixin:
     """Mixin for required keys."""
@@ -67,6 +89,9 @@ class WeatherSensorEntityDescription(SensorEntityDescription, WeatherRequiredKey
 
     attr_fn: Callable[[dict[str, Any]], dict[str, StateType]] = field(default=lambda _: {})
     unit_fn: Callable[[bool], str | None] = field(default=lambda _: None)
+    # Receives the WeatherUpdateCoordinator; return False to skip creating
+    # this entity for the configured location.
+    exists_fn: Callable[[Any], bool] = field(default=lambda _: True)
 
 
 current_condition_sensor_descriptions_public = [
@@ -96,6 +121,7 @@ current_condition_sensor_descriptions_public = [
         key=FIELD_HUMIDITY,
         translation_key="relative_humidity",
         name="Relative Humidity",
+        exists_fn=_has_observations,
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -114,12 +140,14 @@ current_condition_sensor_descriptions_public = [
         key=FIELD_WINDDIR,
         translation_key="wind_direction",
         name="Wind Direction",
+        exists_fn=_has_observations,
         value_fn=lambda data, _: cast(str, data.wind_direction),
     ),
     WeatherSensorEntityDescription(
         key="temperatureFeelsLike",
         translation_key="temperature_feels_like",
         name="Temperature - Feels Like",
+        exists_fn=_has_observations,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.TEMPERATURE,
         suggested_display_precision=1,
@@ -132,6 +160,7 @@ current_condition_sensor_descriptions_public = [
         key=FIELD_TEMP,
         translation_key="temperature",
         name="Temperature",
+        exists_fn=_has_observations,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.TEMPERATURE,
         suggested_display_precision=1,
@@ -144,6 +173,7 @@ current_condition_sensor_descriptions_public = [
         key=FIELD_PRESSURE,
         translation_key="pressure",
         name="Pressure",
+        exists_fn=_has_observations,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.PRESSURE,
         suggested_display_precision=1,
@@ -154,6 +184,7 @@ current_condition_sensor_descriptions_public = [
         key=FIELD_WINDGUST,
         translation_key="wind_gust",
         name="Wind Gust",
+        exists_fn=_has_observations,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.WIND_SPEED,
         suggested_display_precision=1,
@@ -166,6 +197,7 @@ current_condition_sensor_descriptions_public = [
         key=FIELD_WINDSPEED,
         translation_key="wind_speed",
         name="Wind Speed",
+        exists_fn=_has_observations,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.WIND_SPEED,
         suggested_display_precision=1,
@@ -178,6 +210,7 @@ current_condition_sensor_descriptions_public = [
         key="rainfall",
         translation_key="rainfall",
         name="Rainfall",
+        exists_fn=_has_observations,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.PRECIPITATION,
         suggested_display_precision=1,
@@ -188,6 +221,7 @@ current_condition_sensor_descriptions_public = [
         key="pressureTendencyTrend",
         translation_key="pressure_tendency_trend",
         name="Pressure Tendency Trend",
+        exists_fn=_has_observations,
         value_fn=lambda data, _: cast(str, data.pressure_trend),
     ),
     WeatherSensorEntityDescription(
@@ -255,6 +289,7 @@ current_condition_sensor_descriptions_public = [
         key="tides_high",
         translation_key="tides_high",
         name="Next High Tide",
+        exists_fn=_tides_enabled,
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: _next_tide_time(data.tides, "HIGH"),
     ),
@@ -262,6 +297,7 @@ current_condition_sensor_descriptions_public = [
         key="tides_low",
         translation_key="tides_low",
         name="Next Low Tide",
+        exists_fn=_tides_enabled,
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: _next_tide_time(data.tides, "LOW"),
     ),
@@ -269,12 +305,14 @@ current_condition_sensor_descriptions_public = [
         key="boating_status",
         translation_key="boating_status",
         name="Boating Conditions",
+        exists_fn=_boating_enabled,
         value_fn=lambda data, _: cast(str, data.boating_status) if data.boating_status else None,
     ),
     WeatherSensorEntityDescription(
         key="boating_forecast",
         translation_key="boating_forecast",
         name="Boating Forecast",
+        exists_fn=_boating_enabled,
         value_fn=lambda data, _: (
             f"{data.boating_forecast[:252]}..."
             if isinstance(data.boating_forecast, str) and len(data.boating_forecast) > 255
@@ -286,12 +324,14 @@ current_condition_sensor_descriptions_public = [
         key="surf_conditions",
         translation_key="surf_conditions",
         name="Surf Conditions",
+        exists_fn=_surf_enabled,
         value_fn=lambda data, _: cast(str, data.surf_conditions) if data.surf_conditions else None,
     ),
     WeatherSensorEntityDescription(
         key="surf_rating",
         translation_key="surf_rating",
         name="Surf Rating",
+        exists_fn=_surf_enabled,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
         value_fn=lambda data, _: _safe_int(data.surf_rating),
@@ -300,6 +340,7 @@ current_condition_sensor_descriptions_public = [
         key="surf_wave_height",
         translation_key="surf_wave_height",
         name="Surf Wave Height",
+        exists_fn=_surf_enabled,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.DISTANCE,
         suggested_display_precision=1,
@@ -310,6 +351,7 @@ current_condition_sensor_descriptions_public = [
         key="surf_set_face",
         translation_key="surf_set_face",
         name="Surf Set Face",
+        exists_fn=_surf_enabled,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.DISTANCE,
         suggested_display_precision=1,
@@ -320,12 +362,14 @@ current_condition_sensor_descriptions_public = [
         key="surf_swell_direction",
         translation_key="surf_swell_direction",
         name="Surf Swell Direction",
+        exists_fn=_surf_enabled,
         value_fn=lambda data, _: cast(str, data.surf_swell_direction) if data.surf_swell_direction else None,
     ),
     WeatherSensorEntityDescription(
         key="surf_swell_height",
         translation_key="surf_swell_height",
         name="Surf Swell Height",
+        exists_fn=_surf_enabled,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.DISTANCE,
         suggested_display_precision=1,
@@ -336,12 +380,14 @@ current_condition_sensor_descriptions_public = [
         key="surf_wind_direction",
         translation_key="surf_wind_direction",
         name="Surf Wind Direction",
+        exists_fn=_surf_enabled,
         value_fn=lambda data, _: cast(str, data.surf_wind_direction) if data.surf_wind_direction else None,
     ),
     WeatherSensorEntityDescription(
         key="surf_wind_speed",
         translation_key="surf_wind_speed",
         name="Surf Wind Speed",
+        exists_fn=_surf_enabled,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.WIND_SPEED,
         suggested_display_precision=0,
@@ -352,6 +398,7 @@ current_condition_sensor_descriptions_public = [
         key="surf_wind_gust",
         translation_key="surf_wind_gust",
         name="Surf Wind Gust",
+        exists_fn=_surf_enabled,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.WIND_SPEED,
         suggested_display_precision=0,
@@ -362,6 +409,7 @@ current_condition_sensor_descriptions_public = [
         key="surf_period",
         translation_key="surf_period",
         name="Surf Period",
+        exists_fn=_surf_enabled,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
         unit_fn=lambda _: "s",
@@ -372,6 +420,7 @@ current_condition_sensor_descriptions_public = [
         key="wind_strength",
         translation_key="wind_strength",
         name="Wind Strength",
+        exists_fn=_has_observations,
         value_fn=lambda data, _: cast(str, data.wind_strength) if data.wind_strength else None,
     ),
     WeatherSensorEntityDescription(
@@ -436,24 +485,28 @@ current_condition_sensor_descriptions_public = [
         key="breakdown_morning",
         translation_key="breakdown_morning",
         name="Today — Morning Condition",
+        exists_fn=_has_breakdown,
         value_fn=lambda data, _: cast(str, data.breakdown_morning) if data.breakdown_morning else None,
     ),
     WeatherSensorEntityDescription(
         key="breakdown_afternoon",
         translation_key="breakdown_afternoon",
         name="Today — Afternoon Condition",
+        exists_fn=_has_breakdown,
         value_fn=lambda data, _: cast(str, data.breakdown_afternoon) if data.breakdown_afternoon else None,
     ),
     WeatherSensorEntityDescription(
         key="breakdown_evening",
         translation_key="breakdown_evening",
         name="Today — Evening Condition",
+        exists_fn=_has_breakdown,
         value_fn=lambda data, _: cast(str, data.breakdown_evening) if data.breakdown_evening else None,
     ),
     WeatherSensorEntityDescription(
         key="breakdown_overnight",
         translation_key="breakdown_overnight",
         name="Today — Overnight Condition",
+        exists_fn=_has_breakdown,
         value_fn=lambda data, _: cast(str, data.breakdown_overnight) if data.breakdown_overnight else None,
     ),
     # --- Sun and moon (from sunAndMoon module) ---

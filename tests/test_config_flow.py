@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.metservice_weather.const import DOMAIN, DEFAULT_LOCATION
+from custom_components.metservice_weather.const import DOMAIN
 from custom_components.metservice_weather.config_flow import (
     CONF_MARINE_REGION,
     WeatherFlowHandler,

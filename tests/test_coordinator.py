@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
-from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.metservice_weather.coordinator import (
@@ -684,7 +683,10 @@ async def test_get_public_weather_unexpected_exception_raises_update_failed(hass
 
 
 async def test_get_public_weather_tomorrow_injection(hass):
-    """Tomorrow's forecast is injected from 7-day data when 2+ days present."""
+    """Tomorrow's forecast is derived by normalize_public_data from the 7-day
+    data (daily_entries[1]) when 2+ days are present — the coordinator no
+    longer injects it directly.
+    """
     warnings_data = {"warnings": []}
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
     daily_with_tomorrow = {
@@ -711,7 +713,7 @@ async def test_get_public_weather_tomorrow_injection(hass):
 
     result = await coord.get_public_weather()
     assert result.tomorrow_condition == "cloudy"
-    assert result.tomorrow_temp_high == 17
+    assert result.tomorrow_temp_high == 17.0
     assert result.tomorrow_temp_low == 10
     assert result.tomorrow_description == "Tomorrow cloudy"
 
@@ -854,11 +856,16 @@ async def test_expand_data_urls_exception_sets_none(hass):
 
 
 async def test_get_public_weather_tomorrow_extraction_exception_silenced(hass):
-    """If tomorrow extraction raises (e.g. empty modules list → IndexError), it is silenced (lines 265-266)."""
+    """Tomorrow_* is derived by normalize_public_data, whose exact-path
+    traversal (_get) tolerates a short/empty 7-day payload without raising —
+    when the 7-day data has no days (e.g. empty modules list), tomorrow_*
+    fields simply stay None and get_public_weather still succeeds.
+    """
     import copy
     warnings_data = {"warnings": []}
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
-    # modules is explicitly [] — [0] raises IndexError, caught at line 265.
+    # modules is explicitly [] — normalize_public_data's _get returns None
+    # for the out-of-range "0" index instead of raising IndexError.
     # Use a fresh current dict to avoid cross-test mutation of _PUBLIC_CURRENT.
     current_copy = copy.deepcopy(_PUBLIC_CURRENT)
     # Remove any pre-existing tomorrow key so the assertion is meaningful.

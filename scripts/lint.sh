@@ -3,6 +3,7 @@
 # Usage: wsl bash scripts/lint.sh [--fix]
 set -e
 source /home/user/.venv/metservice-weather/bin/activate
-cd /mnt/c/Users/user/projects/metservice-weather
+# Run from the repo/worktree this script lives in, not a hardcoded path.
+cd "$(dirname "$(readlink -f "$0")")/.."
 ruff check --fix .
 ruff format .

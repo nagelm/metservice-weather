@@ -24,6 +24,7 @@ from homeassistant.components.weather import (
     ATTR_FORECAST_NATIVE_TEMP,
     ATTR_FORECAST_NATIVE_TEMP_LOW,
     ATTR_FORECAST_NATIVE_WIND_SPEED,
+    ATTR_FORECAST_PRECIPITATION_PROBABILITY,
     ATTR_FORECAST_TIME,
     ATTR_FORECAST_WIND_BEARING,
     ATTR_FORECAST_CONDITION,
@@ -38,12 +39,11 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import sun as sun_helper
 
+from .helpers import format_timestamp
+
 _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
-
-
-from .helpers import format_timestamp
 
 
 async def async_setup_entry(
@@ -204,16 +204,19 @@ class MetServiceForecastPublic(MetServicePublic):
                 forecast_time = format_timestamp(day.datetime) if day.datetime else None
             except (ValueError, AttributeError):
                 forecast_time = day.datetime
-            forecast.append(
-                Forecast(
-                    {
-                        ATTR_FORECAST_NATIVE_TEMP: day.temp_high,
-                        ATTR_FORECAST_NATIVE_TEMP_LOW: day.temp_low,
-                        ATTR_FORECAST_CONDITION: day_condition,
-                        ATTR_FORECAST_TIME: forecast_time,
-                        ATTR_FORECAST_NATIVE_PRECIPITATION: day.rainfall_low,
-                    }
-                )
+            entry = Forecast(
+                {
+                    ATTR_FORECAST_NATIVE_TEMP: day.temp_high,
+                    ATTR_FORECAST_NATIVE_TEMP_LOW: day.temp_low,
+                    ATTR_FORECAST_CONDITION: day_condition,
+                    ATTR_FORECAST_TIME: forecast_time,
+                }
             )
+            # MetService publishes the % chance of ≥1 mm of rain
+            # (an exceedance probability), not a rainfall amount, so it
+            # maps to precipitation_probability — never to precipitation.
+            if day.rain_prob_1mm is not None:
+                entry[ATTR_FORECAST_PRECIPITATION_PROBABILITY] = round(day.rain_prob_1mm)
+            forecast.append(entry)
         return forecast
 
