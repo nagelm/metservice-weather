@@ -1,4 +1,5 @@
 """Typed data models for the MetService coordinator."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -199,7 +200,9 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     # Observations: layout.primary.slots.left-major.modules → module with "observations"
     # Rural locations have no weather station: the currentConditions module
     # expands to {} (or observations: null), so obs ends up empty.
-    left_major = _get(current, "layout", "primary", "slots", "left-major", "modules") or []
+    left_major = (
+        _get(current, "layout", "primary", "slots", "left-major", "modules") or []
+    )
     obs = _find_module(left_major, "observations").get("observations") or {}
 
     # Days / breakdown / fire: layout.primary.slots.main.modules → module with "days"
@@ -215,7 +218,9 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     hourly_obs_count = graph_series[1].get("count", 0) if len(graph_series) > 1 else 0
 
     # UV: layout.primary.slots.left-minor.modules → module with "uv"
-    left_minor = _get(current, "layout", "primary", "slots", "left-minor", "modules") or []
+    left_minor = (
+        _get(current, "layout", "primary", "slots", "left-minor", "modules") or []
+    )
     uv = _find_module(left_minor, "uv").get("uv", {})
 
     # Sunrise / moon: layout.secondary.slots.major.modules → module with "riseSet"
@@ -243,7 +248,9 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     # ------------------------------------------------------------------
     # Daily entries (from 7-day JSON)
     # ------------------------------------------------------------------
-    raw_days = _get(daily, "layout", "primary", "slots", "main", "modules", "0", "days") or []
+    raw_days = (
+        _get(daily, "layout", "primary", "slots", "main", "modules", "0", "days") or []
+    )
     daily_entries = [
         DailyEntry(
             datetime=_get(d, "date"),
@@ -315,7 +322,9 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         moon_phase=_get(moon_phases, "0", "phase"),
         moon_phase_date=_get(moon_phases, "0", "dateISO"),
         # Fire weather (from day 0's fireWeatherData)
-        fire_danger=_get(day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"),
+        fire_danger=_get(
+            day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"
+        ),
         fire_season=_get(day0, "fireWeatherData", "fireWeather", "season", "short"),
         # Pollen (injected at root as {"pollenLevels": {...}})
         pollen_level=_get(current, "pollen", "pollenLevels", "level"),

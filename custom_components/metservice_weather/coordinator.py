@@ -65,7 +65,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self._boating_url = config.boating_url
         self._surf_url = config.surf_url
         self._unit_system_api = config.unit_system_api
-        self._base_url = 'https://www.metservice.com'
+        self._base_url = "https://www.metservice.com"
         self.unit_system = config.unit_system
         self._session = async_get_clientsession(hass)
         self.units_of_measurement = {
@@ -149,9 +149,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             await self.expand_data_urls(result_warnings)
             warnings_list = [
                 f"{warning['name']}, {warning['text']}, {warning['threatPeriod']}"
-                for warning in result_warnings.get('warnings', [])
+                for warning in result_warnings.get("warnings", [])
             ]
-            warnings_text = '\n'.join(warnings_list) if warnings_list else "No warnings"
+            warnings_text = "\n".join(warnings_list) if warnings_list else "No warnings"
             async with asyncio.timeout(10):
                 url = f"{self._api_url}{self.location}/7-days"
                 response = await self._session.get(url, headers=headers)
@@ -160,8 +160,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     raise ValueError("No daily forecast data received.")
                 self._check_errors(url, result_daily)
             await self.expand_data_urls(result_daily)
-            result_current['weather_warnings'] = warnings_text
-            result_current['pollen'] = await self.get_pollen_data()
+            result_current["weather_warnings"] = warnings_text
+            result_current["pollen"] = await self.get_pollen_data()
             # tomorrow_* fields are derived inside normalize_public_data
             # from the 7-day data — no injection needed here.
             # Inject drying index fields by text prefix, then normalise so
@@ -179,7 +179,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             #   drying_next_good_day — "Today" when either period is usable,
             #                          day name ("Thursday") on a complete washout
             try:
-                drying_states = self.get_from_dict(result_current, ["dryingIndex", "dryingState"])
+                drying_states = self.get_from_dict(
+                    result_current, ["dryingIndex", "dryingState"]
+                )
                 if isinstance(drying_states, list):
                     drying_morning = None
                     drying_afternoon = None
@@ -191,7 +193,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         elif text.startswith("Afternoon:"):
                             drying_afternoon = text.removeprefix("Afternoon:").strip()
                         elif text.lower().startswith("next good day"):
-                            drying_next_good_day = text.split(":", 1)[-1].strip() if ":" in text else text
+                            drying_next_good_day = (
+                                text.split(":", 1)[-1].strip() if ":" in text else text
+                            )
                         elif text:
                             # No recognised prefix — MetService uses bare "Wet all day"
                             # for the morning slot on a complete washout.
@@ -210,11 +214,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             except Exception as _e:
                 _LOGGER.debug("Could not extract drying index states: %s", _e)
             if self._tide_url:
-                result_current['tideImport'] = await self.get_tides()
+                result_current["tideImport"] = await self.get_tides()
             if self._boating_url:
-                result_current['boating_data'] = await self.get_boating_data()
+                result_current["boating_data"] = await self.get_boating_data()
             if self._surf_url:
-                result_current['surf_data'] = await self.get_surf_data()
+                result_current["surf_data"] = await self.get_surf_data()
             return normalize_public_data(result_current, result_daily)
 
         except ValueError as err:
@@ -232,7 +236,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 _LOGGER.info("Fetching tides data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
-                    _LOGGER.warning("Tides endpoint returned HTTP %s — tides data will be unavailable", response.status)
+                    _LOGGER.warning(
+                        "Tides endpoint returned HTTP %s — tides data will be unavailable",
+                        response.status,
+                    )
                     return None
                 result_tides = await response.json(content_type=None)
                 if result_tides is None:
@@ -254,14 +261,21 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                             return module["tideData"]
                 except (KeyError, TypeError):
                     continue
-            _LOGGER.warning("Could not locate tideData in response — tides data will be unavailable")
+            _LOGGER.warning(
+                "Could not locate tideData in response — tides data will be unavailable"
+            )
             return None
 
         except (TimeoutError, aiohttp.ClientError) as err:
-            _LOGGER.warning("Error fetching tides data: %s — tides will be unavailable", repr(err))
+            _LOGGER.warning(
+                "Error fetching tides data: %s — tides will be unavailable", repr(err)
+            )
             return None
         except Exception as err:
-            _LOGGER.warning("Unexpected error fetching tides data: %s — tides will be unavailable", repr(err))
+            _LOGGER.warning(
+                "Unexpected error fetching tides data: %s — tides will be unavailable",
+                repr(err),
+            )
             return None
 
     async def get_boating_data(self) -> dict:
@@ -272,7 +286,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 _LOGGER.info("Fetching boating data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
-                    _LOGGER.warning("Boating endpoint returned HTTP %s — boating data unavailable", response.status)
+                    _LOGGER.warning(
+                        "Boating endpoint returned HTTP %s — boating data unavailable",
+                        response.status,
+                    )
                     return {}
                 data = await response.json(content_type=None)
             modules = (
@@ -296,10 +313,16 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 "boating_table": today.get("table", {}).get("columns", []),
             }
         except (TimeoutError, aiohttp.ClientError) as err:
-            _LOGGER.warning("Error fetching boating data: %s — boating will be unavailable", repr(err))
+            _LOGGER.warning(
+                "Error fetching boating data: %s — boating will be unavailable",
+                repr(err),
+            )
             return {}
         except Exception as err:
-            _LOGGER.warning("Unexpected error fetching boating data: %s — boating will be unavailable", repr(err))
+            _LOGGER.warning(
+                "Unexpected error fetching boating data: %s — boating will be unavailable",
+                repr(err),
+            )
             return {}
 
     async def get_surf_data(self) -> dict:
@@ -314,14 +337,19 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         """
         try:
             # Derive regional surf URL from the stored location URL.
-            regional_url = re.sub(r'/locations/[^/]+$', '', self._surf_url.rstrip('/'))
+            regional_url = re.sub(r"/locations/[^/]+$", "", self._surf_url.rstrip("/"))
             location_path = self._surf_url.split("publicData/webdata")[-1]
 
             _LOGGER.info("Fetching surf data from %s", regional_url)
             async with asyncio.timeout(10):
-                response = await self._session.get(regional_url, headers=self._PUBLIC_HEADERS)
+                response = await self._session.get(
+                    regional_url, headers=self._PUBLIC_HEADERS
+                )
                 if response.status != 200:
-                    _LOGGER.warning("Surf endpoint returned HTTP %s — surf data unavailable", response.status)
+                    _LOGGER.warning(
+                        "Surf endpoint returned HTTP %s — surf data unavailable",
+                        response.status,
+                    )
                     return {}
                 data = await response.json(content_type=None)
 
@@ -342,7 +370,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     continue
 
             if not marker:
-                _LOGGER.warning("Could not find surf marker for %s — surf data unavailable", location_path)
+                _LOGGER.warning(
+                    "Could not find surf marker for %s — surf data unavailable",
+                    location_path,
+                )
                 return {}
 
             value = marker.get("action", {}).get("modules", [{}])[0].get("value", {})
@@ -364,10 +395,15 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             }
 
         except (TimeoutError, aiohttp.ClientError) as err:
-            _LOGGER.warning("Error fetching surf data: %s — surf will be unavailable", repr(err))
+            _LOGGER.warning(
+                "Error fetching surf data: %s — surf will be unavailable", repr(err)
+            )
             return {}
         except Exception as err:
-            _LOGGER.warning("Unexpected error fetching surf data: %s — surf will be unavailable", repr(err))
+            _LOGGER.warning(
+                "Unexpected error fetching surf data: %s — surf will be unavailable",
+                repr(err),
+            )
             return {}
 
     @staticmethod
@@ -376,11 +412,15 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         level = None
         plants = None
         # Match <span class="status-...">Level</span>
-        level_match = re.search(r'<span[^>]*class="status-[^"]*"[^>]*>([^<]+)</span>', html)
+        level_match = re.search(
+            r'<span[^>]*class="status-[^"]*"[^>]*>([^<]+)</span>', html
+        )
         if level_match:
             level = level_match.group(1).strip()
         # Plant types appear after the closing </span> tag
-        plants_match = re.search(r'</span>(?:<br\s*/?>|</br>)(.*?)(?:<br\s*/?>|</br>|$)', html, re.IGNORECASE)
+        plants_match = re.search(
+            r"</span>(?:<br\s*/?>|</br>)(.*?)(?:<br\s*/?>|</br>|$)", html, re.IGNORECASE
+        )
         if plants_match:
             plants = plants_match.group(1).strip()
         return {"level": level, "type": plants}
@@ -394,7 +434,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 _LOGGER.debug("Fetching pollen data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
-                    _LOGGER.debug("Pollen endpoint returned HTTP %s — pollen data unavailable", response.status)
+                    _LOGGER.debug(
+                        "Pollen endpoint returned HTTP %s — pollen data unavailable",
+                        response.status,
+                    )
                     return empty
                 result = await response.json(content_type=None)
             # Search all modules for the pollen iconWithText content block
@@ -453,7 +496,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         """Format timestamp to ISO format in UTC."""
         return format_timestamp(timestamp_val)
 
-
     async def expand_data_urls(self, data, parent=None, key=None, _depth=0):
         """Recursively expand dataUrl entries in the data, replacing the entire object.
 
@@ -465,14 +507,18 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             _LOGGER.warning("expand_data_urls: max recursion depth reached, stopping")
             return
         if isinstance(data, dict):
-            if 'dataUrl' in data:
-                url = data['dataUrl']
-                full_url = f"{self._base_url}{url}" if url.startswith('/') else url
+            if "dataUrl" in data:
+                url = data["dataUrl"]
+                full_url = f"{self._base_url}{url}" if url.startswith("/") else url
                 try:
                     async with asyncio.timeout(10):
-                        response = await self._session.get(full_url, headers=self._PUBLIC_HEADERS)
+                        response = await self._session.get(
+                            full_url, headers=self._PUBLIC_HEADERS
+                        )
                         if response.status != 200:
-                            _LOGGER.warning("Error fetching %s: HTTP %s", full_url, response.status)
+                            _LOGGER.warning(
+                                "Error fetching %s: HTTP %s", full_url, response.status
+                            )
                             if parent is not None and key is not None:
                                 parent[key] = None
                             return
@@ -481,7 +527,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         parent[key] = result
                     # Increment depth only when following a dataUrl hop, not during
                     # structural traversal, so the guard catches URL expansion cycles.
-                    await self.expand_data_urls(result, parent=parent, key=key, _depth=_depth + 1)
+                    await self.expand_data_urls(
+                        result, parent=parent, key=key, _depth=_depth + 1
+                    )
                 except Exception as e:
                     _LOGGER.warning("Error fetching dataUrl %s: %s", full_url, e)
                     if parent is not None and key is not None:
@@ -489,9 +537,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             else:
                 for k in list(data.keys()):
                     # Pass _depth unchanged — traversing dict keys is not a URL hop.
-                    await self.expand_data_urls(data[k], parent=data, key=k, _depth=_depth)
+                    await self.expand_data_urls(
+                        data[k], parent=data, key=k, _depth=_depth
+                    )
         elif isinstance(data, list):
             for idx, item in enumerate(data):
                 # Pass _depth unchanged — traversing list items is not a URL hop.
                 await self.expand_data_urls(item, parent=data, key=idx, _depth=_depth)
-

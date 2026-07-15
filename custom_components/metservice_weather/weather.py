@@ -3,6 +3,7 @@
 For more details about this platform, please refer to the documentation at
 https://github.com/ciejer/metservice-weather.
 """
+
 from __future__ import annotations
 
 from .coordinator import WeatherUpdateCoordinator
@@ -47,7 +48,9 @@ PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator], async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: ConfigEntry[WeatherUpdateCoordinator],
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Add weather entity."""
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
@@ -115,7 +118,9 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
 class MetServiceForecastPublic(MetServicePublic):
     """Implementation of a MetService weather forecast."""
 
-    _attr_supported_features = WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY
+    _attr_supported_features = (
+        WeatherEntityFeature.FORECAST_HOURLY | WeatherEntityFeature.FORECAST_DAILY
+    )
 
     def __init__(self, coordinator: WeatherUpdateCoordinator):
         """Initialize the forecast sensor."""
@@ -157,7 +162,7 @@ class MetServiceForecastPublic(MetServicePublic):
         if not hourly_entries or hourly_obs is None or hourly_skip is None:
             return forecast
 
-        for entry in hourly_entries[hourly_skip:hourly_obs + hourly_skip]:
+        for entry in hourly_entries[hourly_skip : hourly_obs + hourly_skip]:
             rainfall = entry.rainfall
             wind_speed = entry.wind_speed
             wind_dir = entry.wind_direction
@@ -179,9 +184,7 @@ class MetServiceForecastPublic(MetServicePublic):
                 Forecast(
                     {
                         ATTR_FORECAST_NATIVE_TEMP: entry.temperature,
-                        ATTR_FORECAST_TIME: format_timestamp(
-                            entry.datetime
-                        ),
+                        ATTR_FORECAST_TIME: format_timestamp(entry.datetime),
                         ATTR_FORECAST_NATIVE_PRECIPITATION: rainfall,
                         ATTR_FORECAST_NATIVE_WIND_SPEED: wind_speed,
                         ATTR_FORECAST_WIND_BEARING: wind_dir,
@@ -216,7 +219,8 @@ class MetServiceForecastPublic(MetServicePublic):
             # (an exceedance probability), not a rainfall amount, so it
             # maps to precipitation_probability — never to precipitation.
             if day.rain_prob_1mm is not None:
-                entry[ATTR_FORECAST_PRECIPITATION_PROBABILITY] = round(day.rain_prob_1mm)
+                entry[ATTR_FORECAST_PRECIPITATION_PROBABILITY] = round(
+                    day.rain_prob_1mm
+                )
             forecast.append(entry)
         return forecast
-

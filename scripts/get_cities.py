@@ -1,5 +1,5 @@
-# get_cities.py
-# this is a helper function to print out the list of cities for inclusion in const.py
+"""Dev helper: print the public API location list for inclusion in const.py."""
+
 import requests
 
 headers = {

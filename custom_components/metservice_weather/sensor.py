@@ -3,6 +3,7 @@
 For more details about this platform, please refer to the documentation at
 https://github.com/ciejer/metservice-weather.
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,13 +31,15 @@ _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
-SENSOR_DESCRIPTIONS: tuple[
-    WeatherSensorEntityDescription, ...
-] = current_condition_sensor_descriptions_public
+SENSOR_DESCRIPTIONS: tuple[WeatherSensorEntityDescription, ...] = (
+    current_condition_sensor_descriptions_public
+)
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry[WeatherUpdateCoordinator], async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: ConfigEntry[WeatherUpdateCoordinator],
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Add MetService entities from a config_entry.
 
@@ -56,7 +59,10 @@ async def async_setup_entry(
     ent_reg = er.async_get(hass)
     expected_unique_ids = {sensor.unique_id for sensor in sensors}
     for reg_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
-        if reg_entry.domain == SENSOR_DOMAIN and reg_entry.unique_id not in expected_unique_ids:
+        if (
+            reg_entry.domain == SENSOR_DOMAIN
+            and reg_entry.unique_id not in expected_unique_ids
+        ):
             ent_reg.async_remove(reg_entry.entity_id)
 
     async_add_entities(sensors)
@@ -77,9 +83,7 @@ class WeatherSensor(MetServiceEntity, SensorEntity):
         super().__init__(coordinator)
         self.entity_description = description
 
-        self._attr_unique_id = (
-            f"{self.coordinator.location}_{description.key}".lower()
-        )
+        self._attr_unique_id = f"{self.coordinator.location}_{description.key}".lower()
         self._unit_system = coordinator.unit_system
         self._sensor_data = coordinator.data
         self._attr_native_unit_of_measurement = self.entity_description.unit_fn(
@@ -93,7 +97,9 @@ class WeatherSensor(MetServiceEntity, SensorEntity):
             _LOGGER.debug("Sensor '%s' has no data.", self.name)
             return None
         try:
-            return self.entity_description.value_fn(self._sensor_data, self._unit_system)
+            return self.entity_description.value_fn(
+                self._sensor_data, self._unit_system
+            )
         except Exception as e:
             _LOGGER.error("Error processing state for sensor '%s': %s", self.name, e)
             return None
@@ -106,9 +112,10 @@ class WeatherSensor(MetServiceEntity, SensorEntity):
         try:
             return self.entity_description.attr_fn(self._sensor_data)
         except Exception as e:
-            _LOGGER.error("Error processing attributes for sensor '%s': %s", self.name, e)
+            _LOGGER.error(
+                "Error processing attributes for sensor '%s': %s", self.name, e
+            )
             return {}
-
 
     @callback
     def _handle_coordinator_update(self) -> None:

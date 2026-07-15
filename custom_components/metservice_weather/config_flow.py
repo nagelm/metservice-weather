@@ -1,4 +1,5 @@
 """Config Flow to configure MetService NZ Integration."""
+
 from __future__ import annotations
 import asyncio
 import logging
@@ -54,7 +55,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self._reconfig_entry,
                 data=self.user_info,
             )
-        return self.async_create_entry(title=self.user_info[CONF_NAME], data=self.user_info)
+        return self.async_create_entry(
+            title=self.user_info[CONF_NAME], data=self.user_info
+        )
 
     # ------------------------------------------------------------------ #
     # Entry points                                                         #
@@ -87,7 +90,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 data = await response.json(content_type=None)
                 self.regions = data["layout"]["search"]["searchLocations"][0]["items"]
             except Exception:
-                _LOGGER.exception("Failed to fetch marine regions — marine options unavailable")
+                _LOGGER.exception(
+                    "Failed to fetch marine regions — marine options unavailable"
+                )
                 self.regions = []
 
             return self.async_show_form(
@@ -143,7 +148,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 # Fall back to either legacy key so old entries pre-fill.
                 current_region = self.user_info.get(
                     _LEGACY_TIDE_REGION_URL,
-                    self.user_info.get(_LEGACY_BOATING_REGION, "")
+                    self.user_info.get(_LEGACY_BOATING_REGION, ""),
                 )
             for r in self.regions:
                 if r["heading"]["url"].lstrip("/") == current_region:
@@ -221,8 +226,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if tide_label == _SKIP:
             self.user_info[CONF_TIDE_URL] = ""
         elif self._tide_map:
-            url = self._resolve_url(tide_label, self._tide_map, self._tide_locations,
-                                    marine_region, "tides")
+            url = self._resolve_url(
+                tide_label, self._tide_map, self._tide_locations, marine_region, "tides"
+            )
             if not url:
                 errors[CONF_TIDE_URL] = "tide_location_not_found"
             else:
@@ -233,8 +239,13 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if boating_label == _SKIP:
             self.user_info[CONF_BOATING_URL] = ""
         elif self._boating_map:
-            url = self._resolve_url(boating_label, self._boating_map, self._boating_locations,
-                                    marine_region, "boating")
+            url = self._resolve_url(
+                boating_label,
+                self._boating_map,
+                self._boating_locations,
+                marine_region,
+                "boating",
+            )
             if not url:
                 errors[CONF_BOATING_URL] = "boating_location_not_found"
             else:
@@ -245,8 +256,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if surf_label == _SKIP:
             self.user_info[CONF_SURF_URL] = ""
         elif self._surf_map:
-            url = self._resolve_url(surf_label, self._surf_map, self._surf_locations,
-                                    marine_region, "surf")
+            url = self._resolve_url(
+                surf_label, self._surf_map, self._surf_locations, marine_region, "surf"
+            )
             if not url:
                 errors[CONF_SURF_URL] = "surf_location_not_found"
             else:
@@ -275,8 +287,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         def _opts(label_map: dict) -> list:
             return skip_opt + [
-                {"value": label, "label": label}
-                for label in label_map.values()
+                {"value": label, "label": label} for label in label_map.values()
             ]
 
         def _default(conf_key: str, label_map: dict) -> str:
@@ -291,17 +302,24 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = {}
         if self._tide_map:
-            schema[vol.Required(CONF_TIDE_URL, default=_default(CONF_TIDE_URL, self._tide_map))] = (
-                SelectSelector(SelectSelectorConfig(options=_opts(self._tide_map)))
-            )
+            schema[
+                vol.Required(
+                    CONF_TIDE_URL, default=_default(CONF_TIDE_URL, self._tide_map)
+                )
+            ] = SelectSelector(SelectSelectorConfig(options=_opts(self._tide_map)))
         if self._boating_map:
-            schema[vol.Required(CONF_BOATING_URL, default=_default(CONF_BOATING_URL, self._boating_map))] = (
-                SelectSelector(SelectSelectorConfig(options=_opts(self._boating_map)))
-            )
+            schema[
+                vol.Required(
+                    CONF_BOATING_URL,
+                    default=_default(CONF_BOATING_URL, self._boating_map),
+                )
+            ] = SelectSelector(SelectSelectorConfig(options=_opts(self._boating_map)))
         if self._surf_map:
-            schema[vol.Required(CONF_SURF_URL, default=_default(CONF_SURF_URL, self._surf_map))] = (
-                SelectSelector(SelectSelectorConfig(options=_opts(self._surf_map)))
-            )
+            schema[
+                vol.Required(
+                    CONF_SURF_URL, default=_default(CONF_SURF_URL, self._surf_map)
+                )
+            ] = SelectSelector(SelectSelectorConfig(options=_opts(self._surf_map)))
         return schema
 
     # ------------------------------------------------------------------ #
@@ -314,10 +332,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             response = await session.get(url)
         data = await response.json(content_type=None)
         for module in (
-            data.get("layout", {})
-            .get("primary", {})
-            .get("map", {})
-            .get("modules", [])
+            data.get("layout", {}).get("primary", {}).get("map", {}).get("modules", [])
         ):
             if "markers" in module:
                 return module["markers"]
@@ -334,10 +349,15 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
         prefix = f"/marine/regions/{region_slug}/boating/locations/"
         resolved = [m for m in all_markers if self._marker_url(m).startswith(prefix)]
-        return resolved if resolved else [
-            m for m in all_markers
-            if isinstance(m.get("label"), dict) and m["label"].get("text")
-        ]
+        return (
+            resolved
+            if resolved
+            else [
+                m
+                for m in all_markers
+                if isinstance(m.get("label"), dict) and m["label"].get("text")
+            ]
+        )
 
     async def _fetch_surf_locations(self, session, marine_region: str) -> list:
         region_slug = marine_region.split("/")[-1]
@@ -350,10 +370,15 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
         prefix = f"/marine/regions/{region_slug}/surf/locations/"
         resolved = [m for m in all_markers if self._marker_url(m).startswith(prefix)]
-        return resolved if resolved else [
-            m for m in all_markers
-            if isinstance(m.get("label"), dict) and m["label"].get("text")
-        ]
+        return (
+            resolved
+            if resolved
+            else [
+                m
+                for m in all_markers
+                if isinstance(m.get("label"), dict) and m["label"].get("text")
+            ]
+        )
 
     # ------------------------------------------------------------------ #
     # URL resolution helpers                                               #
