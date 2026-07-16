@@ -420,7 +420,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="uvIndex",
         translation_key="uv_index",
-        name="UV Index",
+        name="UV Index (deprecated)",
         seasonal=True,
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
@@ -431,7 +431,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="uv_risk",
         translation_key="uv_risk",
-        name="UV Risk",
+        name="UV Index",
         seasonal=True,
         device_class=SensorDeviceClass.ENUM,
         options=["low", "moderate", "high", "very_high", "extreme"],
@@ -558,7 +558,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="pressureTendencyTrend",
         translation_key="pressure_tendency_trend",
-        name="Pressure Tendency Trend",
+        name="Pressure Tendency Trend (deprecated)",
         exists_fn=_has_observations,
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
@@ -567,7 +567,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="pressure_trend",
         translation_key="pressure_trend",
-        name="Pressure Trend",
+        name="Pressure Tendency Trend",
         exists_fn=_has_observations,
         device_class=SensorDeviceClass.ENUM,
         options=_PRESSURE_TREND_OPTIONS,
@@ -622,7 +622,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="weather_warnings",
         translation_key="weather_warnings",
-        name="MetService Weather Warnings",
+        name="MetService Weather Warnings (deprecated)",
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
         value_fn=lambda data, _: _warnings_state(data),
@@ -634,7 +634,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="warning_level",
         translation_key="warning_level",
-        name="Weather Warning Level",
+        name="MetService Weather Warnings",
         device_class=SensorDeviceClass.ENUM,
         options=["none", "watch", "warning", "orange", "red"],
         value_fn=lambda data, _: _warnings_enum_state(data),
@@ -648,7 +648,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="fire_season",
         translation_key="fire_season",
-        name="Fire Season",
+        name="Fire Season (deprecated)",
         seasonal=True,
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
@@ -657,7 +657,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="fire_season_status",
         translation_key="fire_season_status",
-        name="Fire Season Status",
+        name="Fire Season",
         seasonal=True,
         device_class=SensorDeviceClass.ENUM,
         options=_FIRE_SEASON_OPTIONS,
@@ -672,7 +672,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="fire_danger",
         translation_key="fire_danger",
-        name="Fire Danger",
+        name="Fire Danger (deprecated)",
         seasonal=True,
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
@@ -681,7 +681,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="fire_danger_level",
         translation_key="fire_danger_level",
-        name="Fire Danger Level",
+        name="Fire Danger",
         seasonal=True,
         device_class=SensorDeviceClass.ENUM,
         options=_FIRE_DANGER_OPTIONS,
@@ -872,7 +872,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="wind_strength",
         translation_key="wind_strength",
-        name="Wind Strength",
+        name="Wind Strength (deprecated)",
         exists_fn=_has_observations,
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
@@ -883,7 +883,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="wind_strength_level",
         translation_key="wind_strength_level",
-        name="Wind Strength Level",
+        name="Wind Strength",
         exists_fn=_has_observations,
         device_class=SensorDeviceClass.ENUM,
         options=_WIND_STRENGTH_OPTIONS,
@@ -999,7 +999,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="sunrise",
         translation_key="sunrise",
-        name="Sunrise",
+        name="Sunrise (deprecated)",
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
         value_fn=lambda data, _: cast(str, data.sunrise) if data.sunrise else None,
@@ -1007,7 +1007,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="sunrise_at",
         translation_key="sunrise_at",
-        name="Sunrise Time",
+        name="Sunrise",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
             datetime.datetime.fromisoformat(data.sunrise_at)
@@ -1020,7 +1020,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="sunset",
         translation_key="sunset",
-        name="Sunset",
+        name="Sunset (deprecated)",
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
         value_fn=lambda data, _: cast(str, data.sunset) if data.sunset else None,
@@ -1028,7 +1028,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="sunset_at",
         translation_key="sunset_at",
-        name="Sunset Time",
+        name="Sunset",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
             datetime.datetime.fromisoformat(data.sunset_at)
@@ -1041,7 +1041,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="moonrise",
         translation_key="moonrise",
-        name="Moonrise",
+        name="Moonrise (deprecated)",
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
         value_fn=lambda data, _: cast(str, data.moonrise) if data.moonrise else None,
@@ -1049,7 +1049,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="moonrise_at",
         translation_key="moonrise_at",
-        name="Moonrise Time",
+        name="Moonrise",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
             datetime.datetime.fromisoformat(data.moonrise_at)
@@ -1062,7 +1062,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="moonset",
         translation_key="moonset",
-        name="Moonset",
+        name="Moonset (deprecated)",
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
         value_fn=lambda data, _: cast(str, data.moonset) if data.moonset else None,
@@ -1070,7 +1070,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="moonset_at",
         translation_key="moonset_at",
-        name="Moonset Time",
+        name="Moonset",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
             datetime.datetime.fromisoformat(data.moonset_at)
@@ -1083,7 +1083,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="moon_phase",
         translation_key="moon_phase",
-        name="Moon Phase",
+        name="Moon Phase (deprecated)",
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
         value_fn=lambda data, _: (
@@ -1098,7 +1098,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="next_moon_phase",
         translation_key="next_moon_phase",
-        name="Next Moon Phase",
+        name="Moon Phase",
         device_class=SensorDeviceClass.ENUM,
         options=_MOON_PHASE_ENUM_OPTIONS,
         value_fn=lambda data, _: _moon_phase_enum_state(data.moon_phase),

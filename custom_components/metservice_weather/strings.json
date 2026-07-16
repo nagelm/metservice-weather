@@ -56,10 +56,10 @@
         "name": "Relative Humidity"
       },
       "uv_index": {
-        "name": "UV Index"
+        "name": "UV Index (deprecated)"
       },
       "uv_risk": {
-        "name": "UV Risk",
+        "name": "UV Index",
         "state": {
           "low": "Low",
           "moderate": "Moderate",
@@ -102,10 +102,10 @@
         "name": "Next Rain Expected"
       },
       "pressure_tendency_trend": {
-        "name": "Pressure Tendency Trend"
+        "name": "Pressure Tendency Trend (deprecated)"
       },
       "pressure_trend": {
-        "name": "Pressure Trend",
+        "name": "Pressure Tendency Trend",
         "state": {
           "rising": "Rising",
           "falling": "Falling",
@@ -128,10 +128,10 @@
         "name": "Pollen Type"
       },
       "weather_warnings": {
-        "name": "MetService Weather Warnings"
+        "name": "MetService Weather Warnings (deprecated)"
       },
       "warning_level": {
-        "name": "Weather Warning Level",
+        "name": "MetService Weather Warnings",
         "state": {
           "none": "None",
           "watch": "Watch",
@@ -141,10 +141,10 @@
         }
       },
       "fire_season": {
-        "name": "Fire Season"
+        "name": "Fire Season (deprecated)"
       },
       "fire_season_status": {
-        "name": "Fire Season Status",
+        "name": "Fire Season",
         "state": {
           "open": "Open",
           "restricted": "Restricted",
@@ -152,10 +152,10 @@
         }
       },
       "fire_danger": {
-        "name": "Fire Danger"
+        "name": "Fire Danger (deprecated)"
       },
       "fire_danger_level": {
-        "name": "Fire Danger Level",
+        "name": "Fire Danger",
         "state": {
           "low": "Low",
           "moderate": "Moderate",
@@ -216,10 +216,10 @@
         "name": "Surf Period"
       },
       "wind_strength": {
-        "name": "Wind Strength"
+        "name": "Wind Strength (deprecated)"
       },
       "wind_strength_level": {
-        "name": "Wind Strength Level",
+        "name": "Wind Strength",
         "state": {
           "calm": "Calm",
           "light_winds": "Light winds",
@@ -262,34 +262,34 @@
         "name": "Today — Overnight Condition"
       },
       "sunrise": {
-        "name": "Sunrise"
+        "name": "Sunrise (deprecated)"
       },
       "sunrise_at": {
-        "name": "Sunrise Time"
+        "name": "Sunrise"
       },
       "sunset": {
-        "name": "Sunset"
+        "name": "Sunset (deprecated)"
       },
       "sunset_at": {
-        "name": "Sunset Time"
+        "name": "Sunset"
       },
       "moonrise": {
-        "name": "Moonrise"
+        "name": "Moonrise (deprecated)"
       },
       "moonrise_at": {
-        "name": "Moonrise Time"
+        "name": "Moonrise"
       },
       "moonset": {
-        "name": "Moonset"
+        "name": "Moonset (deprecated)"
       },
       "moonset_at": {
-        "name": "Moonset Time"
+        "name": "Moonset"
       },
       "moon_phase": {
-        "name": "Moon Phase"
+        "name": "Moon Phase (deprecated)"
       },
       "next_moon_phase": {
-        "name": "Next Moon Phase",
+        "name": "Moon Phase",
         "state": {
           "new": "New",
           "first_quarter": "First quarter",
