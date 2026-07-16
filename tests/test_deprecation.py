@@ -372,6 +372,206 @@ async def test_multiple_deprecated_keys_handled_independently(hass):
 
 
 # ---------------------------------------------------------------------------
+# Test: auto-hide/un-hide of unreferenced deprecated sensors +
+# hidden_deprecated notice
+# ---------------------------------------------------------------------------
+
+
+def _hidden_notice_id(entry: MockConfigEntry) -> str:
+    return f"hidden_deprecated_{entry.entry_id}"
+
+
+async def test_unreferenced_enabled_deprecated_entity_is_hidden_by_integration(hass):
+    """An enabled, unreferenced deprecated sensor is auto-hidden by the integration."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    assert reg_entry.hidden_by is None
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=[]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.hidden_by == er.RegistryEntryHider.INTEGRATION
+
+
+async def test_user_hidden_deprecated_entity_is_left_untouched(hass):
+    """A row the user already hid themselves is never overridden by auto-hide."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    ent_reg.async_update_entity(
+        reg_entry.entity_id, hidden_by=er.RegistryEntryHider.USER
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=[]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.hidden_by == er.RegistryEntryHider.USER
+
+
+async def test_referenced_previously_hidden_entity_is_unhidden(hass):
+    """A row the integration had hidden is un-hidden once it becomes referenced again."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    ent_reg.async_update_entity(
+        reg_entry.entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=["automation.check_uv"]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.hidden_by is None
+    # The usual deprecated_entity nag issue still fires while referenced.
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
+        is not None
+    )
+
+
+async def test_hidden_deprecated_notice_created_when_newly_hiding(hass):
+    """A run that newly hides a sensor creates the one-time hidden_deprecated notice."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=[]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, _hidden_notice_id(entry))
+    assert issue is not None
+    assert issue.translation_placeholders["count"] == "1"
+    assert reg_entry.entity_id in issue.translation_placeholders["entity_ids"]
+    assert issue.severity == ir.IssueSeverity.WARNING
+    assert issue.is_fixable is False
+
+
+async def test_hidden_deprecated_notice_not_recreated_when_nothing_new_hides(hass):
+    """A run that hides nothing new never calls create_issue for the notice — dismissal sticks."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    # Simulate a prior run that already auto-hid this entity.
+    ent_reg.async_update_entity(
+        reg_entry.entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
+    )
+
+    notice_id = _hidden_notice_id(entry)
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        notice_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="hidden_deprecated",
+        translation_placeholders={
+            "count": "1",
+            "entity_ids": reg_entry.entity_id,
+        },
+    )
+    ir.async_get(hass).async_ignore(DOMAIN, notice_id, True)
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, notice_id).dismissed_version
+        is not None
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=[]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+        patch(
+            "custom_components.metservice_weather.deprecation.ir.async_create_issue"
+        ) as mock_create_issue,
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+        mock_create_issue.assert_not_called()
+
+    # Still hidden, still dismissed — nothing recreated or overwritten.
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.hidden_by == er.RegistryEntryHider.INTEGRATION
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, notice_id).dismissed_version
+        is not None
+    )
+
+
+async def test_hidden_deprecated_notice_deleted_when_nothing_remains_hidden(hass):
+    """The notice is cleared once no deprecated sensor is integration-hidden anymore."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    notice_id = _hidden_notice_id(entry)
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        notice_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="hidden_deprecated",
+        translation_placeholders={"count": "1", "entity_ids": "sensor.napier_uvindex"},
+    )
+    assert ir.async_get(hass).async_get_issue(DOMAIN, notice_id) is not None
+
+    # No deprecated-sensor registry rows at all this run -> nothing hidden.
+    hass.config.components.add("automation")
+    with patch(_AUTOMATIONS_PATCH) as mock_automations:
+        await async_check_deprecated_entities(hass, entry, coord)
+        mock_automations.assert_not_called()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, notice_id) is None
+
+
+# ---------------------------------------------------------------------------
 # Detector 1: async_check_removed_entity (removed entity still referenced)
 # ---------------------------------------------------------------------------
 

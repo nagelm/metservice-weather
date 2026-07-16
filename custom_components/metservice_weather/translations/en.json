@@ -186,7 +186,11 @@
   "issues": {
     "deprecated_entity": {
       "title": "Deprecated sensor {entity_id} is still in use",
-      "description": "The {entity_id} sensor keeps its v2026.7.0 behaviour for existing installs, but it is deprecated and superseded by the {replacement_key} sensor. It is still referenced by: {references}. Please update these to use {replacement_key} before a future release removes {entity_id}."
+      "description": "The {entity_id} sensor keeps its v2026.7.0 behaviour for existing installs, but it is deprecated and superseded by the {replacement_key} sensor. It is still referenced by: {references}. Please update these to use {replacement_key} — {entity_id} is planned for removal in version 2026.9.0."
+    },
+    "hidden_deprecated": {
+      "title": "Deprecated sensors hidden automatically",
+      "description": "{count} deprecated MetService Weather sensor(s) were hidden because nothing currently references them: {entity_ids}. They still work and keep recording history in the background — you can un-hide any of them individually from Settings > Devices & services > Entities. This notice will not reappear once dismissed, unless another sensor is newly hidden."
     },
     "removed_entity": {
       "title": "Removed entity {entity_id} is still in use",

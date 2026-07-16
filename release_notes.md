@@ -51,7 +51,7 @@ A new setup/reconfigure toggle ("Automatically remove sensors while MetService p
 
 #### Zero breaking changes: deprecation instead of removal
 
-Every sensor whose format changed is **forked, not broken**: your existing sensors keep their exact previous behaviour, and the new enum/timestamp versions arrive as separate entities (enabled for everyone; the deprecated originals are hidden and disabled only for fresh installs).
+Every sensor whose format changed is **forked, not broken**: your existing sensors keep their exact previous behaviour, and the new enum/timestamp versions arrive as separate entities (enabled for everyone; the deprecated originals are hidden and disabled only for fresh installs)). Deprecated sensors that nothing in your automations or scripts references are auto-hidden (still working, still recording — un-hide per entity in the UI; a one-time dismissible notice lists them). Removal of the deprecated set is planned for version 2026.9.0.
 
 #### Added: Repairs guidance (Settings → Repairs)
 

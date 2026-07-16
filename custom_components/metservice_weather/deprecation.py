@@ -11,6 +11,11 @@ exists):
   sensor carries the new behaviour, enabled by default. Raises a
   (self-clearing) repair issue for any existing install whose old,
   deprecated entity is still referenced by an automation or script.
+  Deprecated sensors are planned for removal in version 2026.9.0.
+  Enabled, unreferenced deprecated sensors are also auto-hidden
+  (hidden_by=INTEGRATION) rather than left cluttering the entity list, and
+  a one-time dismissible notice explains why; a sensor that starts being
+  referenced again while integration-hidden is automatically un-hidden.
 * Removed entity still referenced — generic catch for ANY 0.9.x-era
   entity a stale-registry cleanup is about to delete (sensor or weather
   domain), not just the sensors tracked below.
@@ -113,9 +118,24 @@ async def async_check_deprecated_entities(
     for it, or the row is disabled, there is nothing to warn about (a new
     install never creates it disabled-by-default; an existing install that
     already disabled it has already migrated) — any stale issue is
-    cleared. Otherwise, automations/scripts referencing the entity are
-    collected; a repair issue is created when there are any, and cleared
-    (self-heals) once there are none.
+    cleared, and the row is left alone (hiding is only ever considered for
+    an enabled row). Otherwise, automations/scripts referencing the entity
+    are collected:
+
+    * Unreferenced — the deprecated_entity issue is cleared, and the row
+      is auto-hidden (hidden_by=INTEGRATION) so it stops cluttering the
+      entity list, unless the user has already set their own hidden_by
+      (never override that, and never re-write a row already
+      integration-hidden).
+    * Referenced — a repair issue is created (self-heals once there are
+      no more references), and if the row was previously
+      integration-hidden it is un-hidden so it's visible while the repair
+      nags.
+
+    A one-time, dismissible notice ("hidden_deprecated") is created when
+    this run newly auto-hides at least one sensor — never recreated on a
+    run that hides nothing new, so a user's dismissal sticks — and deleted
+    once no deprecated sensor remains integration-hidden.
 
     Also sweeps and self-clears any "removed_entity" issue (detector 1,
     below) for this entry whose stored entity_id is no longer referenced —
@@ -126,6 +146,8 @@ async def async_check_deprecated_entities(
     """
     try:
         ent_reg = er.async_get(hass)
+        newly_hidden: list[str] = []
+        hidden_now: list[str] = []
         for old_key, new_key in DEPRECATED_SENSOR_REPLACEMENTS.items():
             issue_id = f"deprecated_entity_{entry.entry_id}_{old_key}"
             unique_id = f"{coordinator.location}_{old_key}".lower()
@@ -142,6 +164,14 @@ async def async_check_deprecated_entities(
             references = _referencing_items(hass, entity_id)
             if not references:
                 ir.async_delete_issue(hass, DOMAIN, issue_id)
+                if reg_entry.hidden_by is None:
+                    ent_reg.async_update_entity(
+                        entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
+                    )
+                    newly_hidden.append(entity_id)
+                    hidden_now.append(entity_id)
+                elif reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION:
+                    hidden_now.append(entity_id)
                 continue
 
             ir.async_create_issue(
@@ -159,6 +189,11 @@ async def async_check_deprecated_entities(
                 },
             )
 
+            if reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION:
+                ent_reg.async_update_entity(entity_id, hidden_by=None)
+
+        _async_sync_hidden_deprecated_notice(hass, entry, newly_hidden, hidden_now)
+
         removed_entity_prefix = f"removed_entity_{entry.entry_id}_"
         issue_reg = ir.async_get(hass)
         for (issue_domain, issue_id), issue in list(issue_reg.issues.items()):
@@ -172,6 +207,40 @@ async def async_check_deprecated_entities(
             "Deprecated-entity repair check failed; continuing without it",
             exc_info=True,
         )
+
+
+def _async_sync_hidden_deprecated_notice(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    newly_hidden: list[str],
+    hidden_now: list[str],
+) -> None:
+    """Create, leave alone, or clear the auto-hidden-sensors notice for this entry.
+
+    Only (re)created when this run newly auto-hid at least one deprecated
+    sensor, so a user's dismissal of the notice sticks across runs that
+    hide nothing new — but a run that hides a further sensor surfaces the
+    notice again with the full, current list. Deleted once no deprecated
+    sensor remains integration-hidden for this entry (e.g. the last one
+    was un-hidden by the user, or started being referenced again).
+    """
+    issue_id = f"hidden_deprecated_{entry.entry_id}"
+    if newly_hidden:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="hidden_deprecated",
+            learn_more_url=_LEARN_MORE_URL,
+            translation_placeholders={
+                "count": str(len(hidden_now)),
+                "entity_ids": _format_references(hidden_now),
+            },
+        )
+    elif not hidden_now:
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
 
 
 # ---------------------------------------------------------------------------
