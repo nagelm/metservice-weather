@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -24,6 +25,7 @@ from custom_components.metservice_weather.deprecation import (
     _friendly_key,
     _replacement_display_name,
     async_check_deprecated_entities,
+    async_check_marine_device_move,
     async_check_removed_entity,
     async_check_removed_forecast_attributes,
 )
@@ -34,6 +36,12 @@ _AUTOMATIONS_PATCH = (
     "custom_components.metservice_weather.deprecation.automations_with_entity"
 )
 _SCRIPTS_PATCH = "custom_components.metservice_weather.deprecation.scripts_with_entity"
+_AUTOMATIONS_DEVICE_PATCH = (
+    "custom_components.metservice_weather.deprecation.automations_with_device"
+)
+_SCRIPTS_DEVICE_PATCH = (
+    "custom_components.metservice_weather.deprecation.scripts_with_device"
+)
 
 
 class _FakeAutomationEntity:
@@ -58,7 +66,9 @@ class _FakeEntityComponent:
 # ---------------------------------------------------------------------------
 
 
-def _make_coordinator(hass) -> WeatherUpdateCoordinator:
+def _make_coordinator(
+    hass, tide_url="", boating_url="", surf_url=""
+) -> WeatherUpdateCoordinator:
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
@@ -66,9 +76,9 @@ def _make_coordinator(hass) -> WeatherUpdateCoordinator:
         unit_system="metric",
         location=LOCATION,
         location_name="Napier",
-        tide_url="",
-        boating_url="",
-        surf_url="",
+        tide_url=tide_url,
+        boating_url=boating_url,
+        surf_url=surf_url,
     )
     coord = WeatherUpdateCoordinator(hass, config)
     coord.data = MetServicePublicData()
@@ -1007,3 +1017,262 @@ async def test_forecast_attributes_exception_inside_check_does_not_propagate(has
     ):
         # Must not raise.
         await async_check_removed_forecast_attributes(hass, entry, coord)
+
+
+# ---------------------------------------------------------------------------
+# Detector 4: async_check_marine_device_move (marine sensors moved off the
+# location device onto their own marine device)
+# ---------------------------------------------------------------------------
+
+_TIDE_URL = (
+    "https://www.metservice.com/publicData/webdata/marine/regions/"
+    "kapiti-wellington/tides/locations/wellington"
+)
+
+
+def _marine_issue_id(entry: MockConfigEntry) -> str:
+    return f"marine_device_move_{entry.entry_id}"
+
+
+def _make_location_device(
+    hass, entry: MockConfigEntry, coord: WeatherUpdateCoordinator
+):
+    """Create the location device row, mirroring MetServiceEntity's DeviceInfo."""
+    return dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, coord.location)},
+        name=coord.location_name,
+    )
+
+
+async def test_marine_device_move_issue_created_when_referenced_via_marine_entity_id(
+    hass,
+):
+    """A device automation whose raw_config mentions a registered marine entity_id is flagged."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass, tide_url=_TIDE_URL)
+
+    device = _make_location_device(hass, entry, coord)
+    ent_reg = er.async_get(hass)
+    tides_high = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_tides_high".lower(), config_entry=entry
+    )
+
+    hass.config.components.add("automation")
+    hass.data["automation"] = _FakeEntityComponent(
+        {
+            "automation.tide_alert": _FakeAutomationEntity(
+                {
+                    "alias": "Tide alert",
+                    "trigger": [
+                        {
+                            "platform": "device",
+                            "device_id": device.id,
+                            "domain": "sensor",
+                            "entity_id": tides_high.entity_id,
+                            "type": "value",
+                        }
+                    ],
+                }
+            )
+        }
+    )
+
+    with (
+        patch(_AUTOMATIONS_DEVICE_PATCH, return_value=["automation.tide_alert"]),
+        patch(_SCRIPTS_DEVICE_PATCH, return_value=[]),
+    ):
+        await async_check_marine_device_move(hass, entry, coord)
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, _marine_issue_id(entry))
+    assert issue is not None
+    assert "automation.tide_alert" in issue.translation_placeholders["references"]
+    assert (
+        issue.translation_placeholders["marine_device"]
+        == "Kapiti and Wellington Marine"
+    )
+    assert issue.severity == ir.IssueSeverity.WARNING
+    assert issue.is_fixable is False
+
+
+async def test_marine_device_move_issue_created_via_script_and_token_only_match(hass):
+    """A script device-reference is also checked, and a marine token alone (no entity_id) still flags."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass, boating_url=_TIDE_URL.replace("tides", "boating"))
+
+    device = _make_location_device(hass, entry, coord)
+
+    hass.config.components.add("script")
+    hass.data["script"] = _FakeEntityComponent(
+        {
+            "script.check_boating": _FakeAutomationEntity(
+                {
+                    "alias": "Check boating",
+                    "sequence": [
+                        {
+                            "condition": "device",
+                            "device_id": device.id,
+                            "domain": "sensor",
+                            "type": "boating_status",
+                        }
+                    ],
+                }
+            )
+        }
+    )
+
+    with (
+        patch(_AUTOMATIONS_DEVICE_PATCH, return_value=[]),
+        patch(_SCRIPTS_DEVICE_PATCH, return_value=["script.check_boating"]),
+    ):
+        await async_check_marine_device_move(hass, entry, coord)
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, _marine_issue_id(entry))
+    assert issue is not None
+    assert "script.check_boating" in issue.translation_placeholders["references"]
+
+
+async def test_marine_device_move_silent_when_device_automation_has_no_marine_content(
+    hass,
+):
+    """A device automation that references the location device for unrelated content stays silent."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass, tide_url=_TIDE_URL)
+
+    device = _make_location_device(hass, entry, coord)
+
+    hass.config.components.add("automation")
+    hass.data["automation"] = _FakeEntityComponent(
+        {
+            "automation.temp_alert": _FakeAutomationEntity(
+                {
+                    "alias": "Temperature alert",
+                    "trigger": [
+                        {
+                            "platform": "device",
+                            "device_id": device.id,
+                            "domain": "sensor",
+                            "entity_id": "sensor.napier_temperature",
+                            "type": "value",
+                        }
+                    ],
+                }
+            )
+        }
+    )
+
+    with (
+        patch(_AUTOMATIONS_DEVICE_PATCH, return_value=["automation.temp_alert"]),
+        patch(_SCRIPTS_DEVICE_PATCH, return_value=[]),
+    ):
+        await async_check_marine_device_move(hass, entry, coord)
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, _marine_issue_id(entry)) is None
+
+
+async def test_marine_device_move_silent_when_no_marine_configured(hass):
+    """No marine service configured -> stays silent even if a device automation looks marine-related."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)  # tide_url/boating_url/surf_url all default ""
+    assert not (coord.enable_tides or coord.enable_boating or coord.enable_surf)
+
+    device = _make_location_device(hass, entry, coord)
+
+    hass.config.components.add("automation")
+    hass.data["automation"] = _FakeEntityComponent(
+        {
+            "automation.stale_tide_trigger": _FakeAutomationEntity(
+                {
+                    "alias": "Stale tide trigger",
+                    "trigger": [
+                        {
+                            "platform": "device",
+                            "device_id": device.id,
+                            "domain": "sensor",
+                            "entity_id": f"{coord.location}_tides_high".lower(),
+                            "type": "tides_high",
+                        }
+                    ],
+                }
+            )
+        }
+    )
+
+    with patch(_AUTOMATIONS_DEVICE_PATCH) as mock_automations:
+        await async_check_marine_device_move(hass, entry, coord)
+        # No marine service configured -> short-circuits before ever
+        # looking up the device or its referencing automations.
+        mock_automations.assert_not_called()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, _marine_issue_id(entry)) is None
+
+
+async def test_marine_device_move_silent_when_location_device_missing(hass):
+    """No location device row yet (e.g. entities not added) is a safe, self-clearing no-op."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass, tide_url=_TIDE_URL)
+
+    issue_id = _marine_issue_id(entry)
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="marine_device_move",
+    )
+
+    with patch(_AUTOMATIONS_DEVICE_PATCH) as mock_automations:
+        await async_check_marine_device_move(hass, entry, coord)
+        mock_automations.assert_not_called()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_marine_device_move_issue_cleared_when_references_vanish(hass):
+    """A pre-existing issue is deleted once nothing references the location device anymore."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass, tide_url=_TIDE_URL)
+
+    _make_location_device(hass, entry, coord)
+
+    issue_id = _marine_issue_id(entry)
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="marine_device_move",
+    )
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_DEVICE_PATCH, return_value=[]),
+        patch(_SCRIPTS_DEVICE_PATCH, return_value=[]),
+    ):
+        await async_check_marine_device_move(hass, entry, coord)
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_marine_device_move_exception_inside_check_does_not_propagate(hass):
+    """A failure anywhere inside the marine-device-move check is swallowed, never raised out of setup."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass, tide_url=_TIDE_URL)
+
+    with patch(
+        "custom_components.metservice_weather.deprecation.dr.async_get",
+        side_effect=RuntimeError("boom"),
+    ):
+        # Must not raise.
+        await async_check_marine_device_move(hass, entry, coord)

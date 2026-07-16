@@ -3,7 +3,7 @@
     "step": {
       "setup": {
         "title": "MetService Weather",
-        "description": "Configure your MetService NZ weather integration.",
+        "description": "Configure your MetService NZ weather location.\n\nSeasonal products (UV, fire danger, clothes drying) pause for part of the year. Turn on the automatic-removal option below to remove their sensors while MetService pauses them — they return automatically when data resumes. Leave it off (default) and they stay, reading unknown while paused.",
         "data": {
           "name": "Device name",
           "location": "Weather location",
@@ -13,8 +13,7 @@
         "data_description": {
           "name": "The prefix for all entities this integration creates — use your location name (e.g. \"Napier\") so entities read as \"Napier Temperature\". Add the integration again with a different name to cover more locations.",
           "location": "The MetService town or rural location weather data is fetched for. Choose the one closest to you — around 150 locations are available.",
-          "marine_region": "Optional. Select the coastal region nearest to you to enable tide times, boating conditions, and surf sensors. You will choose specific stations for each on the next screen. Choose \"None — skip marine data\" if you don't need any of these.",
-          "auto_hide_seasonal": "Optional. Removes seasonal sensors (UV, fire danger, clothes drying) while MetService pauses them for the off-season, returning them automatically when data resumes. When off (default), they stay and read unknown."
+          "marine_region": "Optional. Select the coastal region nearest to you to enable tide times, boating conditions, and surf sensors. You will choose specific stations for each on the next screen. Choose \"None — skip marine data\" if you don't need any of these."
         }
       },
       "locations": {
@@ -335,6 +334,10 @@
     "forecast_attributes_removed": {
       "title": "Removed forecast_hourly/forecast_daily attributes are still read",
       "description": "The following automations/scripts still read the forecast_hourly or forecast_daily weather-entity attributes, which were removed: {references}. Forecasts now come from the weather.get_forecasts action (Home Assistant's 2024.4+ direction) — or use the opt-in Rain — Next 8 Hours / Rain — Next 24 Hours sensors as ready-made replacements."
+    },
+    "marine_device_move": {
+      "title": "Marine sensors moved to a new device",
+      "description": "Tide, boating, and surf entities now live on the {marine_device} device instead of the main location device — entity IDs are unchanged, so entity-based automations keep working. But device-based triggers, conditions, or actions in the following automations/scripts still target the old device and may no longer fire as expected: {references}. Open each one and re-select the entity, or point it at the {marine_device} device."
     }
   }
 }

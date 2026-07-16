@@ -20,7 +20,11 @@ from typing import Any
 
 from .coordinator import WeatherUpdateCoordinator
 from .entity import MetServiceEntity
-from .deprecation import async_check_deprecated_entities, async_check_removed_entity
+from .deprecation import (
+    async_check_deprecated_entities,
+    async_check_marine_device_move,
+    async_check_removed_entity,
+)
 
 from .const import CONF_ATTRIBUTION, CONF_AUTO_HIDE_SEASONAL
 from .weather_current_conditions_sensors import (
@@ -62,7 +66,11 @@ async def async_setup_entry(
 
     After entities are added, async_check_deprecated_entities raises (or
     clears) repair issues for any pre-v2026.7.1 sensor still referenced by
-    an automation or script.
+    an automation or script. When any marine service is configured,
+    async_check_marine_device_move similarly raises (or clears) a repair
+    issue for any DEVICE-based automation/script still targeting the old
+    location device for marine (tide/boating/surf) sensors, which moved to
+    their own marine device.
     """
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
     auto_hide_seasonal = entry.data.get(CONF_AUTO_HIDE_SEASONAL, False)
@@ -105,6 +113,13 @@ async def async_setup_entry(
     async_add_entities(sensors)
 
     await async_check_deprecated_entities(hass, entry, coordinator)
+
+    if (
+        coordinator.enable_tides
+        or coordinator.enable_boating
+        or coordinator.enable_surf
+    ):
+        await async_check_marine_device_move(hass, entry, coordinator)
 
     if not skipped_seasonal:
         return

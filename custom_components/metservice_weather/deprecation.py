@@ -1,6 +1,6 @@
 """Repair issues for entities/entries deprecated across the v0.9.x -> v1.0+ and v2026.7.1 transitions.
 
-Three retroactive, evidence-driven detectors live here (a fourth,
+Four retroactive, evidence-driven detectors live here (a fifth,
 legacy-entry, lives in __init__.py since it runs before any coordinator
 exists):
 
@@ -22,8 +22,14 @@ exists):
 * Removed forecast attributes — v0.9.x exposed forecast_hourly/
   forecast_daily as weather-entity attributes; both were removed in
   favour of the weather.get_forecasts action.
+* Marine device move — tide/boating/surf sensors moved off the shared
+  location device onto their own marine device. entity_id references are
+  unaffected, but a DEVICE-based automation trigger/condition/action built
+  against the old location device silently stops working for anything
+  marine-related, since the device it targets no longer owns those
+  entities.
 
-All three are warning/error severity, non-fixable (the fix is a config or
+All four are warning/error severity, non-fixable (the fix is a config or
 automation change only the user can make), self-clearing once the
 underlying condition stops being true, and wrapped so a failure in any of
 them can never break setup.
@@ -34,16 +40,24 @@ from __future__ import annotations
 import json
 import logging
 
-from homeassistant.components.automation import automations_with_entity
-from homeassistant.components.script import scripts_with_entity
+from homeassistant.components.automation import (
+    automations_with_device,
+    automations_with_entity,
+)
+from homeassistant.components.script import scripts_with_device, scripts_with_entity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import slugify
 
 from .const import DOMAIN
 from .coordinator import WeatherUpdateCoordinator
+from .entity import _marine_device_name
+from .weather_current_conditions_sensors import (
+    current_condition_sensor_descriptions_public,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -439,5 +453,140 @@ async def async_check_removed_forecast_attributes(
     except Exception:
         _LOGGER.debug(
             "Removed-forecast-attributes repair check failed; continuing without it",
+            exc_info=True,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Detector 4: marine sensors moved to their own device
+# ---------------------------------------------------------------------------
+
+# The 14 tide/boating/surf sensor keys, derived from the descriptions
+# themselves (device="marine") rather than hand-duplicated here, so this
+# stays in sync automatically if the marine sensor set ever changes. Also
+# asserted against directly in test_sensor.py.
+_MARINE_SENSOR_KEYS: frozenset[str] = frozenset(
+    description.key
+    for description in current_condition_sensor_descriptions_public
+    if description.device == "marine"
+)
+
+# Fallback tokens for flagging a device-automation whose raw_config doesn't
+# literally contain one of this entry's marine entity_ids (e.g. it isn't
+# registered, or the automation only stores a device_id + trigger
+# type/subtype rather than a full entity_id) but still clearly targets
+# something marine, based on the unique-id key vocabulary used across the
+# marine sensors.
+_MARINE_REFERENCE_TOKENS: tuple[str, ...] = ("tides_high", "surf_", "boating_")
+
+
+def _device_referencing_items(hass: HomeAssistant, device_id: str) -> list[str]:
+    """Return automation/script entity_ids with a trigger/condition/action on device_id.
+
+    Mirrors _referencing_items, but for DEVICE-based automation references
+    instead of entity-based ones — each owning component is only queried
+    once loaded, since calling automations_with_device/scripts_with_device
+    before the component is set up raises.
+    """
+    references: list[str] = []
+    if "automation" in hass.config.components:
+        references.extend(automations_with_device(hass, device_id))
+    if "script" in hass.config.components:
+        references.extend(scripts_with_device(hass, device_id))
+    return references
+
+
+async def async_check_marine_device_move(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: WeatherUpdateCoordinator,
+) -> None:
+    """Warn when a DEVICE-based automation/script still targets the old location device for marine sensors.
+
+    Tide, boating, and surf sensors used to live on the shared location
+    device; they now live on their own marine device (see entity.py's
+    MetServiceEntity). Unique IDs and entity_ids are unchanged, so an
+    entity_id-based trigger/condition/action keeps working untouched — but
+    a DEVICE-based one recorded against the old location device silently
+    stops covering those entities, since HA re-homes the registry rows to
+    the new device without updating any automation.
+
+    Only called when this entry has at least one marine service configured
+    (see sensor.py); also self-clears if that configuration is later
+    removed entirely, since there is then no meaningful marine device to
+    point users at. Every automation/script referencing the location
+    DEVICE is a candidate; a candidate is only flagged if its raw YAML
+    config also mentions one of this entry's marine entity_ids, or a
+    marine unique-key token, so unrelated device-automations (e.g. one
+    that triggers off the same device's temperature sensor) stay silent.
+
+    Wrapped in a broad except so a failure in this best-effort check can
+    never break setup.
+    """
+    issue_id = f"marine_device_move_{entry.entry_id}"
+    try:
+        if not (
+            coordinator.enable_tides
+            or coordinator.enable_boating
+            or coordinator.enable_surf
+        ):
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+            return
+
+        dev_reg = dr.async_get(hass)
+        device = dev_reg.async_get_device(identifiers={(DOMAIN, coordinator.location)})
+        if device is None:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+            return
+
+        candidates = _device_referencing_items(hass, device.id)
+        if not candidates:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+            return
+
+        ent_reg = er.async_get(hass)
+        marine_entity_ids = {
+            entity_id
+            for key in _MARINE_SENSOR_KEYS
+            if (
+                entity_id := ent_reg.async_get_entity_id(
+                    "sensor", DOMAIN, f"{coordinator.location}_{key}".lower()
+                )
+            )
+            is not None
+        }
+
+        offenders = [
+            reference
+            for reference in candidates
+            if (raw_json := _raw_config_json(hass, reference)) is not None
+            and (
+                any(entity_id in raw_json for entity_id in marine_entity_ids)
+                or any(token in raw_json for token in _MARINE_REFERENCE_TOKENS)
+            )
+        ]
+
+        if not offenders:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+            return
+
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="marine_device_move",
+            learn_more_url=_LEARN_MORE_URL,
+            translation_placeholders={
+                "references": _format_references(offenders),
+                "marine_device": _marine_device_name(
+                    coordinator.marine_region_slug, coordinator.location_name
+                ),
+            },
+        )
+    except Exception:
+        _LOGGER.debug(
+            "Marine-device-move repair check failed; continuing without it",
             exc_info=True,
         )
