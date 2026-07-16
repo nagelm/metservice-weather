@@ -48,8 +48,9 @@
       "valid_time_local": {"name": "Forecast Description Updated Time"},
       "weather_description": {"name": "Weather Description"},
       "relative_humidity": {"name": "Relative Humidity"},
-      "uv_index": {
-        "name": "UV Index",
+      "uv_index": {"name": "UV Index"},
+      "uv_risk": {
+        "name": "UV Risk",
         "state": {
           "low": "Low",
           "moderate": "Moderate",
@@ -69,8 +70,9 @@
       "rain_next_8_hours": {"name": "Rain — Next 8 Hours"},
       "rain_next_24_hours": {"name": "Rain — Next 24 Hours"},
       "next_rain_at": {"name": "Next Rain Expected"},
-      "pressure_tendency_trend": {
-        "name": "Pressure Tendency Trend",
+      "pressure_tendency_trend": {"name": "Pressure Tendency Trend"},
+      "pressure_trend": {
+        "name": "Pressure Trend",
         "state": {
           "rising": "Rising",
           "falling": "Falling",
@@ -86,8 +88,11 @@
           "high": "High"
         }
       },
-      "weather_warnings": {
-        "name": "MetService Weather Warnings",
+      "pollen_levels": {"name": "Pollen Levels"},
+      "pollen_type": {"name": "Pollen Type"},
+      "weather_warnings": {"name": "MetService Weather Warnings"},
+      "warning_level": {
+        "name": "Weather Warning Level",
         "state": {
           "none": "None",
           "watch": "Watch",
@@ -96,16 +101,18 @@
           "red": "Red"
         }
       },
-      "fire_season": {
-        "name": "Fire Season",
+      "fire_season": {"name": "Fire Season"},
+      "fire_season_status": {
+        "name": "Fire Season Status",
         "state": {
           "open": "Open",
           "restricted": "Restricted",
           "prohibited": "Prohibited"
         }
       },
-      "fire_danger": {
-        "name": "Fire Danger",
+      "fire_danger": {"name": "Fire Danger"},
+      "fire_danger_level": {
+        "name": "Fire Danger Level",
         "state": {
           "low": "Low",
           "moderate": "Moderate",
@@ -131,8 +138,9 @@
       "surf_wind_speed": {"name": "Surf Wind Speed"},
       "surf_wind_gust": {"name": "Surf Wind Gust"},
       "surf_period": {"name": "Surf Period"},
-      "wind_strength": {
-        "name": "Wind Strength",
+      "wind_strength": {"name": "Wind Strength"},
+      "wind_strength_level": {
+        "name": "Wind Strength Level",
         "state": {
           "calm": "Calm",
           "light_winds": "Light winds",
@@ -155,11 +163,16 @@
       "breakdown_evening": {"name": "Today — Evening Condition"},
       "breakdown_overnight": {"name": "Today — Overnight Condition"},
       "sunrise": {"name": "Sunrise"},
+      "sunrise_at": {"name": "Sunrise Time"},
       "sunset": {"name": "Sunset"},
+      "sunset_at": {"name": "Sunset Time"},
       "moonrise": {"name": "Moonrise"},
+      "moonrise_at": {"name": "Moonrise Time"},
       "moonset": {"name": "Moonset"},
-      "moon_phase": {
-        "name": "Moon Phase",
+      "moonset_at": {"name": "Moonset Time"},
+      "moon_phase": {"name": "Moon Phase"},
+      "next_moon_phase": {
+        "name": "Next Moon Phase",
         "state": {
           "new": "New",
           "first_quarter": "First quarter",
@@ -168,6 +181,24 @@
         }
       },
       "moon_phase_date": {"name": "Next Moon Phase Date"}
+    }
+  },
+  "issues": {
+    "deprecated_entity": {
+      "title": "Deprecated sensor {entity_id} is still in use",
+      "description": "The {entity_id} sensor keeps its v2026.7.0 behaviour for existing installs, but it is deprecated and superseded by the {replacement_key} sensor. It is still referenced by: {references}. Please update these to use {replacement_key} before a future release removes {entity_id}."
+    },
+    "removed_entity": {
+      "title": "Removed entity {entity_id} is still in use",
+      "description": "The {entity_id} entity no longer exists in this MetService Weather installation, but it is still referenced by: {references}. Suggested replacement: {replacement}. Please update these automations/scripts — {entity_id} will not come back."
+    },
+    "legacy_entry": {
+      "title": "This MetService Weather entry needs reconfiguration",
+      "description": "This entry uses {reason}. Only the public API's current set of ~150 supported locations works since v1.0.0. Select **Reconfigure** on this integration entry and choose one of the current locations, or stay on integration version v0.9.19 if you need the previous behaviour."
+    },
+    "forecast_attributes_removed": {
+      "title": "Removed forecast_hourly/forecast_daily attributes are still read",
+      "description": "The following automations/scripts still read the forecast_hourly or forecast_daily weather-entity attributes, which were removed: {references}. Forecasts now come from the weather.get_forecasts action (Home Assistant's 2024.4+ direction) — or use the opt-in Rain — Next 8 Hours / Rain — Next 24 Hours sensors as ready-made replacements."
     }
   }
 }

@@ -20,7 +20,7 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     current_condition_sensor_descriptions_public,
 )
 
-# The six descriptions the spec marks seasonal — pulled from the live
+# The nine descriptions the spec marks seasonal — pulled from the live
 # descriptions list so this stays in sync with weather_current_conditions_sensors.py.
 SEASONAL_KEYS = {
     d.key for d in current_condition_sensor_descriptions_public if d.seasonal
@@ -81,16 +81,19 @@ async def _cleanup_listeners(hass, entry: MockConfigEntry) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Sanity: exactly the six documented descriptions are marked seasonal
+# Sanity: exactly the nine documented descriptions are marked seasonal
 # ---------------------------------------------------------------------------
 
 
-def test_exactly_six_seasonal_descriptions_marked():
-    """Only uvIndex/fire_season/fire_danger/drying_* are marked seasonal."""
+def test_exactly_nine_seasonal_descriptions_marked():
+    """Deprecated + replacement UV/fire_season/fire_danger sensors, plus drying_*, are marked seasonal (9 total)."""
     assert {
         "uvIndex",
+        "uv_risk",
         "fire_season",
+        "fire_season_status",
         "fire_danger",
+        "fire_danger_level",
         "drying_index_morning",
         "drying_index_afternoon",
         "drying_next_good_day",
@@ -170,9 +173,10 @@ async def test_option_on_creates_only_seasonal_sensors_with_data(hass):
     entry = _make_entry(auto_hide_seasonal=True)
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
-    # uvIndex's value_fn now reads uv_alert_level (mapped through the ENUM
-    # mapping), not the legacy uv_index status- string.
-    coord.data = MetServicePublicData(uv_alert_level="Moderate")
+    # uv_risk's value_fn reads uv_alert_level (mapped through the ENUM
+    # mapping); the deprecated uvIndex reads the raw legacy uv_index field.
+    # Both need their own source populated to count as "has data".
+    coord.data = MetServicePublicData(uv_index="Moderate", uv_alert_level="Moderate")
     entry.runtime_data = coord
 
     added = []
@@ -184,10 +188,13 @@ async def test_option_on_creates_only_seasonal_sensors_with_data(hass):
 
     keys = {s.entity_description.key for s in added}
     assert "uvIndex" in keys
+    assert "uv_risk" in keys
     assert keys.isdisjoint(
         {
             "fire_season",
+            "fire_season_status",
             "fire_danger",
+            "fire_danger_level",
             "drying_index_morning",
             "drying_index_afternoon",
             "drying_next_good_day",
@@ -240,8 +247,11 @@ async def test_option_on_listener_adds_sensors_once_data_arrives(hass):
     ):
         assert keys_after_first_update.count(key) == 1
     assert "uvIndex" not in keys_after_first_update
+    assert "uv_risk" not in keys_after_first_update
     assert "fire_season" not in keys_after_first_update
+    assert "fire_season_status" not in keys_after_first_update
     assert "fire_danger" not in keys_after_first_update
+    assert "fire_danger_level" not in keys_after_first_update
 
     # Fire again with unchanged data — must be a no-op, no duplicates.
     coord.async_update_listeners()

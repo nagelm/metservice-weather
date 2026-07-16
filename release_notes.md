@@ -8,7 +8,7 @@
 
 Every sensor's real-world behaviour was audited against two months of recorded Home Assistant history; this release fixes what that audit surfaced.
 
-#### ⚠️ Breaking: one Pollen sensor replaces Pollen Levels + Pollen Type
+#### New Pollen sensor (old sensors deprecated, not removed)
 
 MetService's allergen page serves several concurrent status blocks — e.g. mid-July: `Imminent` (wattle, pine — season approaching) alongside `Low` (cypress, hazelnut — currently in the air). The old sensors flattened this to whichever block came first, mixing a *forecast notice* into what looked like an exposure level.
 
@@ -19,27 +19,27 @@ The new `sensor.<device>_pollen`:
 - **`imminent_allergens`** attribute lists species whose season is about to start
 - **`level_label`** carries MetService's verbatim wording
 
-`sensor.<device>_pollen_levels` and `sensor.<device>_pollen_type` are removed automatically on upgrade. Templates referencing them need updating; an automation watching `imminent_allergens` is the new way to get a "pollen season starting" alert.
+`sensor.<device>_pollen_levels` and `sensor.<device>_pollen_type` are **deprecated but keep working** — existing installs keep them; new installs get them disabled and hidden. An automation watching `imminent_allergens` is the new way to get a "pollen season starting" alert.
 
-#### ⚠️ Changed: Weather Warnings sensor is now a severity enum
+#### New Weather Warning Level sensor (severity enum)
 
-The old newline-joined state truncated at 255 characters mid-word, silently losing warnings. The sensor is now an enum keyed to severity:
+A new `warning_level` sensor is an enum keyed to severity; the existing Weather Warnings sensor is deprecated but keeps working (its state is the headline text — the old truncation bug stays fixed):
 
 - **State**: `none` / `watch` / `warning` / `orange` / `red` — the most severe active warning's level, so numeric-style "at least orange" automation conditions work.
 - **Attributes**: `headline` (most severe warning's name, e.g. `Strong Wind Warning - Orange (+1 more)`), `count`, and a structured `warnings` list (`name`, `text`, `threat_period`) with no truncation.
-- Automations checking `state != "No warnings"` should switch to `state != "none"`; templates on the old concatenated text should use `headline` or the structured list.
+- Existing automations on the old sensor keep working; when migrating, `state != "No warnings"` becomes `state != "none"` on the new sensor.
 
-#### ⚠️ Changed: UV Index is now a 5-level enum with advice attributes
+#### New UV Risk sensor (5-level enum; UV Index deprecated)
 
-State is `low` / `moderate` / `high` / `very_high` / `extreme` (NIWA's alert scale — a closed vocabulary, so ad-hoc wording changes can't break automations). New attributes: `level_label` (verbatim wording), `status_class`, `advice` (the sun-protection message), `protection_window_start` / `protection_window_end` (populated in season), `has_alert`, and NIWA attribution. Off-season the sensor reads `unknown` as before.
+The new `uv_risk` sensor's state is `low` / `moderate` / `high` / `very_high` / `extreme` (NIWA's alert scale — a closed vocabulary, so ad-hoc wording changes can't break automations). New attributes: `level_label` (verbatim wording), `status_class`, `advice` (the sun-protection message), `protection_window_start` / `protection_window_end` (populated in season), `has_alert`, and NIWA attribution. Off-season the sensor reads `unknown` as before.
 
-#### ⚠️ Changed: closed-vocabulary enums for five more sensors
+#### New closed-vocabulary enum sensors (old text sensors deprecated)
 
-Pressure Trend (`rising`/`falling`/`stable`), Wind Strength (`calm`→`storm`), Fire Season (FENZ `open`/`restricted`/`prohibited` — the descriptive text moved to attributes), Fire Danger (`low`→`extreme`, keyed to NIWA's own index), and Moon Phase (`new`/`first_quarter`/`full`/`last_quarter` — MetService publishes the *next* principal phase event) are now enum sensors with translated states and validated vocabularies. States are lowercase keys; the UI shows friendly labels. Any unexpected upstream value logs one warning and reads `unknown` instead of breaking.
+New sensors: Pressure Trend (`rising`/`falling`/`stable`), Wind Strength (`calm`→`storm`), Fire Season (FENZ `open`/`restricted`/`prohibited` — the descriptive text moved to attributes), Fire Danger (`low`→`extreme`, keyed to NIWA's own index), and Moon Phase (`new`/`first_quarter`/`full`/`last_quarter` — MetService publishes the *next* principal phase event) — enum sensors with translated states and validated vocabularies alongside the original text sensors, which are deprecated but unchanged. Any unexpected upstream value logs one warning and reads `unknown` instead of breaking.
 
-#### ⚠️ Changed: sunrise/sunset/moonrise/moonset are now timestamp sensors
+#### New sunrise/sunset/moonrise/moonset timestamp sensors
 
-Previously local strings like `"7:42am"`; now real timestamps usable in automation triggers and templates. The old display string is kept as a `display` attribute.
+New `*_time` sensors carry real timestamps usable in automation triggers and templates (with the `7:42am`-style text as a `display` attribute). The original string sensors are deprecated but unchanged.
 
 #### Added: opt-in forecast rain sensors
 
@@ -48,6 +48,19 @@ Three new sensors, disabled by default (enable on the device page): **Rain — N
 #### Added: option to auto-remove sensors with no upstream data
 
 A new setup/reconfigure toggle ("Automatically remove sensors while MetService publishes no data", default off) removes seasonal sensors (UV, fire danger, clothes drying) while MetService pauses the product, and re-adds them automatically — no restart — when data resumes. Leave it off to keep today's behaviour (sensors stay and read `unknown` off-season).
+
+#### Zero breaking changes: deprecation instead of removal
+
+Every sensor whose format changed is **forked, not broken**: your existing sensors keep their exact previous behaviour, and the new enum/timestamp versions arrive as separate entities (enabled for everyone; the deprecated originals are hidden and disabled only for fresh installs).
+
+#### Added: Repairs guidance (Settings → Repairs)
+
+Repair issues now appear **only when your setup shows evidence of needing them**, and clear themselves once fixed:
+
+- A deprecated sensor still referenced by your automations/scripts → migration notice naming them and the replacement.
+- An entity removed on upgrade that your automations still referenced → removal notice with a suggested replacement.
+- A config entry still on the mobile API removed in v1.0.0 (or an unknown location) → reconfigure guidance.
+- Automations/scripts still reading the `forecast_hourly`/`forecast_daily` weather attributes removed after v0.9.x → pointer to `weather.get_forecasts` and the new rain sensors.
 
 #### Added: tide detail attributes
 

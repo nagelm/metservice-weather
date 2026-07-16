@@ -838,6 +838,107 @@ async def test_weather_setup_removes_stale_weather_registry_entries(hass):
     assert len(added) == 1
 
 
+async def test_weather_stale_removal_creates_removed_entity_issue_when_referenced(hass):
+    """A stale weather-domain row still referenced by an automation gets a removed_entity issue before removal."""
+    from custom_components.metservice_weather.weather import async_setup_entry
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.helpers import issue_registry as ir
+    from homeassistant.util import slugify
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+    entry.runtime_data = coord
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "weather", DOMAIN, "napier,weather", config_entry=entry
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(
+            "custom_components.metservice_weather.deprecation.automations_with_entity",
+            return_value=["automation.dashboard"],
+        ),
+        patch(
+            "custom_components.metservice_weather.deprecation.scripts_with_entity",
+            return_value=[],
+        ),
+    ):
+        await async_setup_entry(hass, entry, lambda entities, *a, **k: None)
+
+    assert ent_reg.async_get(stale.entity_id) is None
+    issue_id = f"removed_entity_{entry.entry_id}_{slugify(stale.entity_id)}"
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert issue is not None
+    assert issue.translation_placeholders["entity_id"] == stale.entity_id
+    assert "automation.dashboard" in issue.translation_placeholders["references"]
+
+
+async def test_self_corrected_user_weather_stale_removal_without_references_stays_silent(
+    hass,
+):
+    """A stale weather-domain row with no references is removed without any removed_entity issue."""
+    from custom_components.metservice_weather.weather import async_setup_entry
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.helpers import issue_registry as ir
+    from homeassistant.util import slugify
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+    entry.runtime_data = coord
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "weather", DOMAIN, "napier,weather", config_entry=entry
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(
+            "custom_components.metservice_weather.deprecation.automations_with_entity",
+            return_value=[],
+        ),
+        patch(
+            "custom_components.metservice_weather.deprecation.scripts_with_entity",
+            return_value=[],
+        ),
+    ):
+        await async_setup_entry(hass, entry, lambda entities, *a, **k: None)
+
+    assert ent_reg.async_get(stale.entity_id) is None
+    issue_id = f"removed_entity_{entry.entry_id}_{slugify(stale.entity_id)}"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
 async def test_entity_unavailable_when_coordinator_fails(hass):
     """Available is False when the coordinator's last update failed."""
     coord = _make_coordinator(hass)

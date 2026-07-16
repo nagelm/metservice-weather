@@ -8,6 +8,10 @@ from __future__ import annotations
 
 from .coordinator import WeatherUpdateCoordinator
 from .entity import MetServiceEntity
+from .deprecation import (
+    async_check_removed_entity,
+    async_check_removed_forecast_attributes,
+)
 from homeassistant.config_entries import ConfigEntry
 from .const import (
     LENGTHUNIT,
@@ -118,6 +122,14 @@ async def async_setup_entry(
     (e.g. the duplicated-name entity from the old entity_id collision) are
     removed, mirroring the sensor platform's cleanup — otherwise they
     survive every upgrade as permanently-unavailable restored entities.
+    Before each removal, async_check_removed_entity raises a
+    (self-clearing) repair issue if the entity being deleted is still
+    referenced by an automation or script.
+
+    After the entity is added, async_check_removed_forecast_attributes
+    raises (or clears) a repair issue for any automation/script still
+    reading the forecast_hourly/forecast_daily weather-entity attributes
+    removed since v0.9.x.
     """
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
     entity = MetServiceForecastPublic(coordinator)
@@ -128,9 +140,12 @@ async def async_setup_entry(
             reg_entry.domain == WEATHER_DOMAIN
             and reg_entry.unique_id != entity.unique_id
         ):
+            await async_check_removed_entity(hass, entry, coordinator, reg_entry)
             ent_reg.async_remove(reg_entry.entity_id)
 
     async_add_entities([entity])
+
+    await async_check_removed_forecast_attributes(hass, entry, coordinator)
 
 
 class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):

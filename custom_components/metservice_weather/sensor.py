@@ -20,6 +20,7 @@ from typing import Any
 
 from .coordinator import WeatherUpdateCoordinator
 from .entity import MetServiceEntity
+from .deprecation import async_check_deprecated_entities, async_check_removed_entity
 
 from .const import CONF_ATTRIBUTION, CONF_AUTO_HIDE_SEASONAL
 from .weather_current_conditions_sensors import (
@@ -47,7 +48,10 @@ async def async_setup_entry(
     supports that sensor (marine sensors need a configured marine location;
     observation sensors need a weather station, which rural locations lack).
     Registry entries for sensors the location no longer provides are removed
-    so users aren't left with permanently-unknown entities.
+    so users aren't left with permanently-unknown entities. Before each
+    removal, async_check_removed_entity raises a (self-clearing) repair
+    issue if the entity being deleted is still referenced by an automation
+    or script.
 
     When CONF_AUTO_HIDE_SEASONAL is enabled, seasonal descriptions (UV, fire
     danger, clothes drying) that currently have no data are skipped at setup
@@ -55,6 +59,10 @@ async def async_setup_entry(
     cleanup below removes any leftover registry entries for them. A
     coordinator listener re-checks the skipped descriptions on every update
     and creates them once MetService resumes publishing data.
+
+    After entities are added, async_check_deprecated_entities raises (or
+    clears) repair issues for any pre-v2026.7.1 sensor still referenced by
+    an automation or script.
     """
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
     auto_hide_seasonal = entry.data.get(CONF_AUTO_HIDE_SEASONAL, False)
@@ -91,9 +99,12 @@ async def async_setup_entry(
             reg_entry.domain == SENSOR_DOMAIN
             and reg_entry.unique_id not in expected_unique_ids
         ):
+            await async_check_removed_entity(hass, entry, coordinator, reg_entry)
             ent_reg.async_remove(reg_entry.entity_id)
 
     async_add_entities(sensors)
+
+    await async_check_deprecated_entities(hass, entry, coordinator)
 
     if not skipped_seasonal:
         return
