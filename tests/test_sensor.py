@@ -237,6 +237,17 @@ def test_warnings_state_attr_count_matches_list_length():
     assert attrs["warnings"] == warnings
 
 
+def test_warnings_state_truncates_to_255_chars():
+    """A most-severe warning name longer than 255 chars is truncated to exactly 255."""
+    long_name = "Severe Weather Warning - Red " + ("x" * 300)
+    data = MetServicePublicData(
+        warnings_list=[{"name": long_name, "text": "Details", "threat_period": "Today"}]
+    )
+    state = _warnings_state(data)
+    assert len(state) == 255
+    assert state == long_name[:255]
+
+
 # ---------------------------------------------------------------------------
 # Test: sensor descriptions are non-empty lists
 # ---------------------------------------------------------------------------
@@ -612,3 +623,47 @@ async def test_setup_entry_removes_stale_registry_entries(hass):
     assert ent_reg.async_get(stale.entity_id) is None
     assert ent_reg.async_get(keep.entity_id) is not None
     assert ent_reg.async_get(weather_ent.entity_id) is not None
+
+
+async def test_setup_entry_removes_stale_pollen_registry_entries(hass):
+    """The pre-v2026.7.1 pollen_levels/pollen_type registry entries are removed, and the new pollen sensor is created in their place."""
+    from custom_components.metservice_weather.sensor import async_setup_entry
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.metservice_weather.const import DOMAIN
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+    entry.runtime_data = coord
+    loc = coord.location
+
+    ent_reg = er.async_get(hass)
+    stale_levels = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{loc}_pollen_levels".lower(), config_entry=entry
+    )
+    stale_type = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{loc}_pollen_type".lower(), config_entry=entry
+    )
+
+    added = []
+
+    def add_entities(entities, *args, **kwargs):
+        added.extend(entities)
+
+    await async_setup_entry(hass, entry, add_entities)
+
+    assert ent_reg.async_get(stale_levels.entity_id) is None
+    assert ent_reg.async_get(stale_type.entity_id) is None
+    assert f"{loc}_pollen".lower() in {s.unique_id for s in added}

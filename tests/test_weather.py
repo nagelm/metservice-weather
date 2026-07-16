@@ -659,6 +659,185 @@ async def test_public_extra_state_attributes_is_none(hass):
     assert entity.extra_state_attributes is None
 
 
+# ---------------------------------------------------------------------------
+# Test: current-conditions fallback to the nearest forecast hour
+# ---------------------------------------------------------------------------
+
+
+async def test_current_conditions_fall_back_to_nearest_forecast_hour(hass):
+    """Without observations the nearest forecast hour supplies temp and wind."""
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    now = dt_util.now()
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        temperature=None,
+        hourly_entries=[
+            HourlyEntry(
+                datetime=(now - timedelta(hours=1)).isoformat(),
+                temperature=8.0,
+                wind_speed=10.0,
+                wind_direction="N",
+            ),
+            HourlyEntry(
+                datetime=now.isoformat(),
+                temperature=9.5,
+                wind_speed=22.0,
+                wind_direction="SE",
+            ),
+            HourlyEntry(
+                datetime=(now + timedelta(hours=1)).isoformat(),
+                temperature=11.0,
+                wind_speed=30.0,
+                wind_direction="W",
+            ),
+        ],
+    )
+    entity = MetServiceForecastPublic(coord)
+    assert entity.native_temperature == 9.5
+    assert entity.native_wind_speed == 22.0
+    assert entity.wind_bearing == "SE"
+
+
+async def test_current_conditions_prefer_observed_readings(hass):
+    """Observed station readings win over the forecast-hour fallback."""
+    from homeassistant.util import dt as dt_util
+
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        temperature=18.5,
+        wind_speed=33.0,
+        wind_direction="W",
+        hourly_entries=[
+            HourlyEntry(
+                datetime=dt_util.now().isoformat(),
+                temperature=9.5,
+                wind_speed=22.0,
+                wind_direction="SE",
+            )
+        ],
+    )
+    entity = MetServiceForecastPublic(coord)
+    assert entity.native_temperature == 18.5
+    assert entity.native_wind_speed == 33.0
+    assert entity.wind_bearing == "W"
+
+
+async def test_forecast_hour_fallback_requires_recent_entry(hass):
+    """Hourly entries over 3 hours away do not masquerade as current conditions."""
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        temperature=None,
+        hourly_entries=[
+            HourlyEntry(
+                datetime=(dt_util.now() + timedelta(hours=4)).isoformat(),
+                temperature=12.0,
+                wind_speed=15.0,
+                wind_direction="N",
+            )
+        ],
+    )
+    entity = MetServiceForecastPublic(coord)
+    assert entity.native_temperature is None
+    assert entity.native_wind_speed is None
+    assert entity.wind_bearing is None
+
+
+async def test_forecast_hour_fallback_skips_malformed_datetimes(hass):
+    """Malformed or naive hourly datetimes are skipped, not crashed on."""
+    from homeassistant.util import dt as dt_util
+
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        temperature=None,
+        hourly_entries=[
+            HourlyEntry(datetime="not-a-date", temperature=99.0, wind_speed=99.0),
+            HourlyEntry(datetime="", temperature=98.0, wind_speed=98.0),
+            # Naive timestamp (no offset) can't be compared to aware now().
+            HourlyEntry(
+                datetime="2024-06-15T10:00:00", temperature=97.0, wind_speed=97.0
+            ),
+            HourlyEntry(
+                datetime=dt_util.now().isoformat(),
+                temperature=9.5,
+                wind_speed=22.0,
+                wind_direction="SE",
+            ),
+        ],
+    )
+    entity = MetServiceForecastPublic(coord)
+    assert entity.native_temperature == 9.5
+
+
+async def test_forecast_hour_fallback_none_when_no_hourly_data(hass):
+    """With neither observations nor hourly entries the attributes stay None."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(temperature=None, hourly_entries=[])
+    entity = MetServiceForecastPublic(coord)
+    assert entity.native_temperature is None
+    assert entity.native_wind_speed is None
+    assert entity.wind_bearing is None
+
+
+# ---------------------------------------------------------------------------
+# Test: stale weather-domain registry cleanup
+# ---------------------------------------------------------------------------
+
+
+async def test_weather_setup_removes_stale_weather_registry_entries(hass):
+    """Stale weather-domain registry rows are pruned; the current weather row and sensor rows survive."""
+    from custom_components.metservice_weather.weather import async_setup_entry
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from homeassistant.helpers import entity_registry as er
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+    entry.runtime_data = coord
+    loc = coord.location
+
+    ent_reg = er.async_get(hass)
+    # The pre-fork duplicated-name weather entity's unique_id format.
+    stale = ent_reg.async_get_or_create(
+        "weather", DOMAIN, "napier,weather", config_entry=entry
+    )
+    current = ent_reg.async_get_or_create(
+        "weather", DOMAIN, f"{loc}_weather".lower(), config_entry=entry
+    )
+    sensor_row = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{loc}_weather_warnings".lower(), config_entry=entry
+    )
+
+    added = []
+
+    def add_entities(entities, *args, **kwargs):
+        added.extend(entities)
+
+    await async_setup_entry(hass, entry, add_entities)
+
+    assert ent_reg.async_get(stale.entity_id) is None
+    assert ent_reg.async_get(current.entity_id) is not None
+    assert ent_reg.async_get(sensor_row.entity_id) is not None
+    assert len(added) == 1
+
+
 async def test_entity_unavailable_when_coordinator_fails(hass):
     """Available is False when the coordinator's last update failed."""
     coord = _make_coordinator(hass)

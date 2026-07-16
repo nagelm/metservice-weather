@@ -18,7 +18,7 @@ from .const import (
 )
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.components.weather import (
     ATTR_FORECAST_NATIVE_PRECIPITATION,
@@ -38,8 +38,10 @@ from homeassistant.components.weather import (
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers import sun as sun_helper
+from homeassistant.helpers import entity_registry as er, sun as sun_helper
+from homeassistant.util import dt as dt_util
 
+from .coordinator_types import HourlyEntry, MetServicePublicData
 from .helpers import format_timestamp
 
 _LOGGER = logging.getLogger(__name__)
@@ -75,14 +77,60 @@ def _map_condition(raw: str | None) -> str | None:
     return None
 
 
+# How far the nearest hourly forecast entry may be from now before it is
+# too stale to stand in for a current observation.
+_FORECAST_FALLBACK_WINDOW = timedelta(hours=3)
+
+
+def _nearest_hourly_entry(data: MetServicePublicData) -> HourlyEntry | None:
+    """Return the hourly forecast entry closest to now, within 3 hours.
+
+    Stationless locations (rural pages without a weather station — note
+    some rural pages DO have stations, so this keys on the missing value,
+    never on is_rural) and stations mid-dropout publish no current
+    observations; the forecast for the current hour is the best available
+    stand-in. Only temperature and wind can be backfilled this way —
+    humidity and pressure have no hourly forecast source.
+    """
+    now = dt_util.now()
+    best: HourlyEntry | None = None
+    best_diff = _FORECAST_FALLBACK_WINDOW
+    for entry in data.hourly_entries:
+        if not entry.datetime:
+            continue
+        try:
+            diff = abs(datetime.fromisoformat(entry.datetime) - now)
+        except (ValueError, TypeError):
+            continue
+        if diff < best_diff:
+            best, best_diff = entry, diff
+    return best
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry[WeatherUpdateCoordinator],
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Add weather entity."""
+    """Add weather entity.
+
+    Stale weather-domain registry entries left behind by earlier versions
+    (e.g. the duplicated-name entity from the old entity_id collision) are
+    removed, mirroring the sensor platform's cleanup — otherwise they
+    survive every upgrade as permanently-unavailable restored entities.
+    """
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
-    async_add_entities([MetServiceForecastPublic(coordinator)])
+    entity = MetServiceForecastPublic(coordinator)
+
+    ent_reg = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if (
+            reg_entry.domain == WEATHER_DOMAIN
+            and reg_entry.unique_id != entity.unique_id
+        ):
+            ent_reg.async_remove(reg_entry.entity_id)
+
+    async_add_entities([entity])
 
 
 class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
@@ -92,7 +140,12 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
     def native_temperature(self) -> float | None:
         """Return the platform temperature in native units (i.e. not converted)."""
         data = self.coordinator.data
-        return data.temperature if data else None
+        if data is None:
+            return None
+        if data.temperature is not None:
+            return data.temperature
+        entry = _nearest_hourly_entry(data)
+        return entry.temperature if entry else None
 
     @property
     def native_temperature_unit(self) -> str:
@@ -120,7 +173,12 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
     def native_wind_speed(self) -> float | None:
         """Return the wind speed in native units."""
         data = self.coordinator.data
-        return data.wind_speed if data else None
+        if data is None:
+            return None
+        if data.wind_speed is not None:
+            return data.wind_speed
+        entry = _nearest_hourly_entry(data)
+        return entry.wind_speed if entry else None
 
     @property
     def native_wind_speed_unit(self) -> str:
@@ -131,7 +189,12 @@ class MetServicePublic(MetServiceEntity, SingleCoordinatorWeatherEntity):
     def wind_bearing(self) -> str | None:
         """Return the wind bearing."""
         data = self.coordinator.data
-        return data.wind_direction if data else None
+        if data is None:
+            return None
+        if data.wind_direction is not None:
+            return data.wind_direction
+        entry = _nearest_hourly_entry(data)
+        return entry.wind_direction if entry else None
 
     @property
     def native_precipitation_unit(self) -> str:

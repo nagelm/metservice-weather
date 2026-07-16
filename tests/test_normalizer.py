@@ -859,6 +859,39 @@ def test_rain_total_none_when_daily_date_has_no_hourly_bucket():
     assert result.daily_entries[0].rain_total_mm is None
 
 
+def test_rain_total_ignores_malformed_hourly_datetime():
+    """A hourly column with an unparseable date is skipped, not counted or summed."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 0.5) for h in range(24)
+    ] + [_hourly_column("not-a-date", 5.0), _hourly_column("", 7.0)]
+    current = _graph_payload(columns)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm == 12.0
+
+
+def test_rain_total_none_when_daily_date_malformed():
+    """A daily entry with an unparseable date leaves rain_total_mm None instead of raising."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 1.0) for h in range(24)
+    ]
+    current = _graph_payload(columns)
+    daily = _daily_payload([{"date": "garbage"}])
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm is None
+
+
+def test_rain_total_rounds_away_float_noise():
+    """Summing 24 columns of 0.15 mm produces Python float noise that round(x, 1) must clean up."""
+    columns = [
+        _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 0.15) for h in range(24)
+    ]
+    current = _graph_payload(columns)
+    daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
+    result = normalize_public_data(current, daily)
+    assert result.daily_entries[0].rain_total_mm == 3.6
+
+
 def test_rain_total_crosscheck_debug_logs_when_notes_diverge(caplog):
     """A debug record fires when the summed total diverges from MetService's own note by more than 1.5 mm."""
     columns = [
