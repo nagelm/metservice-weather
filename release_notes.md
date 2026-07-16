@@ -62,6 +62,10 @@ Repair issues now appear **only when your setup shows evidence of needing them**
 - A config entry still on the mobile API removed in v1.0.0 (or an unknown location) → reconfigure guidance.
 - Automations/scripts still reading the `forecast_hourly`/`forecast_daily` weather attributes removed after v0.9.x → pointer to `weather.get_forecasts` and the new rain sensors.
 
+#### Added: marine data gets its own device
+
+Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically.
+
 #### Added: tide detail attributes
 
 Next High/Low Tide sensors now carry `height_m` and a full-day `tide_table` attribute (type, time, height per entry).
