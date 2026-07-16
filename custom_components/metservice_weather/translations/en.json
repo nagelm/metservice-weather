@@ -3,17 +3,25 @@
     "step": {
       "setup": {
         "title": "MetService Weather",
-        "description": "Configure your MetService NZ weather location.\n\nSeasonal products (UV, fire danger, clothes drying) pause for part of the year. Turn on the automatic-removal option below to remove their sensors while MetService pauses them — they return automatically when data resumes. Leave it off (default) and they stay, reading unknown while paused.",
+        "description": "Configure your MetService NZ weather location.",
         "data": {
           "name": "Device name",
           "location": "Weather location",
-          "marine_region": "Marine Region",
-          "auto_hide_seasonal": "Automatically remove sensors while MetService publishes no data"
+          "marine_region": "Marine Region"
         },
         "data_description": {
           "name": "The prefix for all entities this integration creates — use your location name (e.g. \"Napier\") so entities read as \"Napier Temperature\". Add the integration again with a different name to cover more locations.",
           "location": "The MetService town or rural location weather data is fetched for. Choose the one closest to you — around 150 locations are available.",
           "marine_region": "Optional. Select the coastal region nearest to you to enable tide times, boating conditions, and surf sensors. You will choose specific stations for each on the next screen. Choose \"None — skip marine data\" if you don't need any of these."
+        },
+        "sections": {
+          "advanced_options": {
+            "name": "Advanced",
+            "description": "Seasonal products (UV, fire danger, clothes drying) pause for part of the year. Turn on the automatic-removal option to remove their sensors while MetService pauses them — they return automatically when data resumes. Leave it off (default) and they stay, reading unknown while paused.",
+            "data": {
+              "auto_hide_seasonal": "Automatically remove sensors while MetService publishes no data"
+            }
+          }
         }
       },
       "locations": {

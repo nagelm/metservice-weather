@@ -6,6 +6,7 @@ import logging
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_LOCATION, CONF_NAME
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     SelectSelector,
@@ -24,6 +25,11 @@ CONF_TIDE_URL = "tide_url"
 CONF_BOATING_URL = "boating_url"
 CONF_SURF_URL = "surf_url"
 CONF_API = "api"
+
+# Key of the collapsed "Advanced" section on the setup form. The toggle
+# nested under it arrives in user_input[SECTION_ADVANCED_OPTIONS], but is
+# stored flat in entry.data — see _build_setup_schema and async_step_setup.
+SECTION_ADVANCED_OPTIONS = "advanced_options"
 
 # Legacy keys — kept for backward compatibility when reading old config entries
 _LEGACY_TIDE_REGION_URL = "tide_region_url"
@@ -105,7 +111,11 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self.user_info[CONF_LOCATION] = user_input[CONF_LOCATION]
         self.user_info[CONF_NAME] = user_input[CONF_NAME]
         self.user_info[CONF_API] = "public"
-        self.user_info[CONF_AUTO_HIDE_SEASONAL] = user_input.get(
+        # The toggle is nested under the "Advanced" section in the submitted
+        # form data, but entry.data keeps it as a flat key — sensor.py reads
+        # it flat and there is no migration.
+        advanced_options = user_input.get(SECTION_ADVANCED_OPTIONS, {})
+        self.user_info[CONF_AUTO_HIDE_SEASONAL] = advanced_options.get(
             CONF_AUTO_HIDE_SEASONAL, False
         )
 
@@ -179,10 +189,22 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_MARINE_REGION, default=marine_default
                 ): SelectSelector(SelectSelectorConfig(options=region_opts)),
-                vol.Optional(
-                    CONF_AUTO_HIDE_SEASONAL,
-                    default=values.get(CONF_AUTO_HIDE_SEASONAL, False),
-                ): bool,
+                vol.Required(SECTION_ADVANCED_OPTIONS): section(
+                    vol.Schema(
+                        {
+                            vol.Optional(
+                                CONF_AUTO_HIDE_SEASONAL,
+                                default=values.get(CONF_AUTO_HIDE_SEASONAL, False),
+                            ): bool,
+                        }
+                    ),
+                    # Collapsed by default on fresh setup (no stored value —
+                    # values.get(...) is False, so `not False` is True). On
+                    # reconfigure, open the section when the toggle is
+                    # currently enabled so the user sees their non-default
+                    # choice.
+                    {"collapsed": not values.get(CONF_AUTO_HIDE_SEASONAL, False)},
+                ),
             }
         )
 
