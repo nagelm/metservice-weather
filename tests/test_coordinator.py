@@ -79,6 +79,53 @@ async def test_coordinator_properties(hass):
     assert coord.enable_surf is False
 
 
+# ---------------------------------------------------------------------------
+# Test: marine_region_slug (drives the marine device's display name)
+# ---------------------------------------------------------------------------
+
+
+async def test_marine_region_slug_empty_when_no_marine_urls(hass):
+    """marine_region_slug is "" when no marine service is configured."""
+    coord = _make_coordinator(hass)
+    assert coord.marine_region_slug == ""
+
+
+async def test_marine_region_slug_parses_from_tide_url(hass):
+    """marine_region_slug parses the region slug out of the tide URL."""
+    coord = _make_coordinator(
+        hass,
+        tide_url=(
+            "https://www.metservice.com/publicData/webdata/marine/regions/"
+            "kapiti-wellington/tides/locations/wellington"
+        ),
+    )
+    assert coord.marine_region_slug == "kapiti-wellington"
+
+
+async def test_marine_region_slug_parses_from_boating_url_when_tide_absent(hass):
+    """marine_region_slug falls back to the boating URL when tides aren't configured."""
+    coord = _make_coordinator(
+        hass,
+        boating_url=(
+            "https://www.metservice.com/publicData/webdata/marine/regions/"
+            "hawke-bay-wairarapa/boating/locations/napier"
+        ),
+    )
+    assert coord.marine_region_slug == "hawke-bay-wairarapa"
+
+
+async def test_marine_region_slug_parses_from_surf_url_when_others_absent(hass):
+    """marine_region_slug falls back to the surf URL when tides/boating aren't configured."""
+    coord = _make_coordinator(
+        hass,
+        surf_url=(
+            "https://www.metservice.com/publicData/webdata/marine/regions/"
+            "piha/surf/locations/muriwai-beach"
+        ),
+    )
+    assert coord.marine_region_slug == "piha"
+
+
 async def test_coordinator_properties_with_urls(hass):
     """Coordinator enables tides, boating, and surf when their URLs are configured."""
     coord = _make_coordinator(

@@ -33,6 +33,10 @@ _LOGGER = logging.getLogger(__name__)
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=20)
 
+# Matches the region slug out of a tide/boating/surf URL, e.g.
+# ".../marine/regions/kapiti-wellington/tides/locations/wellington".
+_MARINE_REGION_SLUG_RE = re.compile(r"/marine/regions/([^/]+)/")
+
 
 @dataclass
 class WeatherUpdateCoordinatorConfig:
@@ -112,6 +116,25 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     def tide_url(self) -> str:
         """Return the tide URL."""
         return self._tide_url
+
+    @property
+    def marine_region_slug(self) -> str:
+        """Return the marine region slug (e.g. "kapiti-wellington"), or "".
+
+        Tide, boating, and surf URLs are all built from the same
+        ``.../marine/regions/<slug>/<service>/locations/...`` path (see
+        config_flow.py's ``_finish_flow``/``_resolve_url``), so the slug is
+        parsed from whichever of the three is configured — there is no
+        separate stored field for it. Used to derive the marine device's
+        display name. Returns "" when no marine service is configured.
+        """
+        for url in (self._tide_url, self._boating_url, self._surf_url):
+            if not url:
+                continue
+            match = _MARINE_REGION_SLUG_RE.search(url)
+            if match:
+                return match.group(1)
+        return ""
 
     # Shared headers for public API and supplementary fetches
     _PUBLIC_HEADERS: dict[str, str] = {

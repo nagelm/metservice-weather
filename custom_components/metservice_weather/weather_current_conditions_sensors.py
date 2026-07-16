@@ -390,6 +390,11 @@ class WeatherSensorEntityDescription(SensorEntityDescription, WeatherRequiredKey
     # Seasonal products are server-stripped part of the year; never
     # structurally gated via exists_fn.
     seasonal: bool = False
+    # Which device registry entry this sensor is grouped under: "location"
+    # (default) is the town/rural page device; "marine" is the separate
+    # device for tide/boating/surf sensors, which describe the selected
+    # marine region rather than the town. See entity.py's MetServiceEntity.
+    device: str = "location"
 
 
 current_condition_sensor_descriptions_public = [
@@ -745,6 +750,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="tides_high",
         name="Next High Tide",
         exists_fn=_tides_enabled,
+        device="marine",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: _next_tide_time(data.tides, "HIGH"),
         attr_fn=lambda data: _tide_attrs(data, "HIGH"),
@@ -754,6 +760,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="tides_low",
         name="Next Low Tide",
         exists_fn=_tides_enabled,
+        device="marine",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: _next_tide_time(data.tides, "LOW"),
         attr_fn=lambda data: _tide_attrs(data, "LOW"),
@@ -763,6 +770,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="boating_status",
         name="Boating Conditions",
         exists_fn=_boating_enabled,
+        device="marine",
         value_fn=lambda data, _: (
             cast(str, data.boating_status) if data.boating_status else None
         ),
@@ -772,6 +780,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="boating_forecast",
         name="Boating Forecast",
         exists_fn=_boating_enabled,
+        device="marine",
         value_fn=lambda data, _: (
             f"{data.boating_forecast[:252]}..."
             if isinstance(data.boating_forecast, str)
@@ -785,6 +794,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_conditions",
         name="Surf Conditions",
         exists_fn=_surf_enabled,
+        device="marine",
         value_fn=lambda data, _: (
             cast(str, data.surf_conditions) if data.surf_conditions else None
         ),
@@ -794,6 +804,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_rating",
         name="Surf Rating",
         exists_fn=_surf_enabled,
+        device="marine",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
         value_fn=lambda data, _: _safe_int(data.surf_rating),
@@ -803,6 +814,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_wave_height",
         name="Surf Wave Height",
         exists_fn=_surf_enabled,
+        device="marine",
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.DISTANCE,
         suggested_display_precision=1,
@@ -814,6 +826,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_set_face",
         name="Surf Set Face",
         exists_fn=_surf_enabled,
+        device="marine",
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.DISTANCE,
         suggested_display_precision=1,
@@ -825,6 +838,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_swell_direction",
         name="Surf Swell Direction",
         exists_fn=_surf_enabled,
+        device="marine",
         value_fn=lambda data, _: (
             cast(str, data.surf_swell_direction) if data.surf_swell_direction else None
         ),
@@ -834,6 +848,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_swell_height",
         name="Surf Swell Height",
         exists_fn=_surf_enabled,
+        device="marine",
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.DISTANCE,
         suggested_display_precision=1,
@@ -845,6 +860,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_wind_direction",
         name="Surf Wind Direction",
         exists_fn=_surf_enabled,
+        device="marine",
         value_fn=lambda data, _: (
             cast(str, data.surf_wind_direction) if data.surf_wind_direction else None
         ),
@@ -854,6 +870,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_wind_speed",
         name="Surf Wind Speed",
         exists_fn=_surf_enabled,
+        device="marine",
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.WIND_SPEED,
         suggested_display_precision=0,
@@ -865,6 +882,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_wind_gust",
         name="Surf Wind Gust",
         exists_fn=_surf_enabled,
+        device="marine",
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.WIND_SPEED,
         suggested_display_precision=0,
@@ -876,6 +894,7 @@ current_condition_sensor_descriptions_public = [
         translation_key="surf_period",
         name="Surf Period",
         exists_fn=_surf_enabled,
+        device="marine",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
         unit_fn=lambda _: "s",

@@ -279,6 +279,46 @@ def test_public_sensor_descriptions_non_empty():
 
 
 # ---------------------------------------------------------------------------
+# Test: device="marine" is flagged on exactly the 14 marine sensors
+# ---------------------------------------------------------------------------
+
+_MARINE_SENSOR_KEYS = {
+    "tides_high",
+    "tides_low",
+    "boating_status",
+    "boating_forecast",
+    "surf_conditions",
+    "surf_rating",
+    "surf_wave_height",
+    "surf_set_face",
+    "surf_swell_direction",
+    "surf_swell_height",
+    "surf_wind_direction",
+    "surf_wind_speed",
+    "surf_wind_gust",
+    "surf_period",
+}
+
+
+def test_marine_device_flag_covers_exactly_the_fourteen_marine_sensors():
+    """device="marine" is set on exactly the 14 tide/boating/surf sensors — no more, no fewer."""
+    marine_keys = {
+        d.key
+        for d in current_condition_sensor_descriptions_public
+        if d.device == "marine"
+    }
+    assert marine_keys == _MARINE_SENSOR_KEYS
+    assert len(_MARINE_SENSOR_KEYS) == 14
+
+
+def test_non_marine_descriptions_default_to_location_device():
+    """Every sensor outside the marine set stays on the default "location" device."""
+    for desc in current_condition_sensor_descriptions_public:
+        if desc.key not in _MARINE_SENSOR_KEYS:
+            assert desc.device == "location", desc.key
+
+
+# ---------------------------------------------------------------------------
 # Test: pollen sensor description (one-sensor redesign)
 # ---------------------------------------------------------------------------
 
@@ -503,6 +543,126 @@ async def test_sensor_setup_entry_public_skips_tide_sensors(hass):
     keys = [s.entity_description.key for s in added]
     assert "tides_high" not in keys
     assert "tides_low" not in keys
+
+
+# ---------------------------------------------------------------------------
+# Test: async_setup_entry marine device grouping
+# ---------------------------------------------------------------------------
+
+
+async def test_marine_skip_setup_creates_no_marine_device_entities(hass):
+    """With no marine URLs configured, no entity is grouped under the marine device."""
+    from custom_components.metservice_weather.sensor import async_setup_entry
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.metservice_weather.const import DOMAIN
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    coord = _make_coordinator(hass)
+    entry.runtime_data = coord
+
+    added = []
+
+    def add_entities(entities, *args, **kwargs):
+        added.extend(entities)
+
+    await async_setup_entry(hass, entry, add_entities)
+
+    assert added  # sanity — ungated sensors are still created
+    assert not any(s.entity_description.device == "marine" for s in added)
+    marine_identifier = (DOMAIN, f"{coord.location}_marine")
+    for sensor in added:
+        assert sensor.device_info["identifiers"] != {marine_identifier}
+        assert sensor.device_info["identifiers"] == {(DOMAIN, coord.location)}
+
+
+async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device(hass):
+    """Marine sensors land on a device distinct from the location device.
+
+    Linked to it via via_device, while non-marine sensors stay on the
+    location device as before.
+    """
+    from custom_components.metservice_weather.sensor import async_setup_entry
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.metservice_weather.const import DOMAIN
+
+    tide_url = (
+        "https://www.metservice.com/publicData/webdata/marine/regions/"
+        "kapiti-wellington/tides/locations/wellington"
+    )
+    boating_url = (
+        "https://www.metservice.com/publicData/webdata/marine/regions/"
+        "kapiti-wellington/boating/locations/wellington"
+    )
+    surf_url = (
+        "https://www.metservice.com/publicData/webdata/marine/regions/"
+        "kapiti-wellington/surf/locations/lyall-bay"
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "marine/regions/kapiti-wellington",
+            "tide_url": tide_url,
+            "boating_url": boating_url,
+            "surf_url": surf_url,
+        },
+    )
+    config = WeatherUpdateCoordinatorConfig(
+        api_url="https://www.metservice.com/publicData/webdata",
+        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
+        unit_system_api="m",
+        unit_system="metric",
+        location="/towns-cities/regions/hawkes-bay/locations/napier",
+        location_name="Napier",
+        tide_url=tide_url,
+        boating_url=boating_url,
+        surf_url=surf_url,
+    )
+    coord = WeatherUpdateCoordinator(hass, config)
+    coord.data = MetServicePublicData()
+    entry.runtime_data = coord
+
+    added = []
+
+    def add_entities(entities, *args, **kwargs):
+        added.extend(entities)
+
+    await async_setup_entry(hass, entry, add_entities)
+
+    marine_sensors = [s for s in added if s.entity_description.device == "marine"]
+    location_sensors = [s for s in added if s.entity_description.device == "location"]
+
+    assert {s.entity_description.key for s in marine_sensors} == _MARINE_SENSOR_KEYS
+    assert location_sensors  # ungated non-marine sensors are still created
+
+    location_identifier = (DOMAIN, coord.location)
+    marine_identifier = (DOMAIN, f"{coord.location}_marine")
+
+    for sensor in marine_sensors:
+        info = sensor.device_info
+        assert info["identifiers"] == {marine_identifier}
+        assert info["identifiers"] != {location_identifier}
+        assert info["via_device"] == location_identifier
+        assert info["name"] == "Kapiti and Wellington Marine"
+
+    for sensor in location_sensors:
+        info = sensor.device_info
+        assert info["identifiers"] == {location_identifier}
+        assert info.get("via_device") is None
 
 
 # ---------------------------------------------------------------------------

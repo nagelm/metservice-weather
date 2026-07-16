@@ -144,7 +144,7 @@ class WeatherSensor(MetServiceEntity, SensorEntity):
         description: WeatherSensorEntityDescription,
     ):
         """Initialize MetService sensors."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, device=description.device)
         self.entity_description = description
 
         self._attr_unique_id = f"{self.coordinator.location}_{description.key}".lower()
