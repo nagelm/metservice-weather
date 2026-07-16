@@ -11,9 +11,10 @@
           "auto_hide_seasonal": "Automatically remove sensors while MetService publishes no data"
         },
         "data_description": {
-          "name": "This name appears on all entities and the device in Home Assistant. Use your location name (e.g. \"Napier\") so entities read as \"Napier Temperature\". You can add multiple instances of this integration with different names and locations if you need weather data for more than one place.",
+          "name": "The prefix for all entities this integration creates — use your location name (e.g. \"Napier\") so entities read as \"Napier Temperature\". Add the integration again with a different name to cover more locations.",
+          "location": "The MetService town or rural location weather data is fetched for. Choose the one closest to you — around 150 locations are available.",
           "marine_region": "Optional. Select the coastal region nearest to you to enable tide times, boating conditions, and surf sensors. You will choose specific stations for each on the next screen. Choose \"None — skip marine data\" if you don't need any of these.",
-          "auto_hide_seasonal": "Seasonal products (UV, fire danger, clothes drying) pause for part of the year. With this on, their sensors are removed while paused and return automatically when data resumes. With it off (default), they stay and read unknown."
+          "auto_hide_seasonal": "Optional. Removes seasonal sensors (UV, fire danger, clothes drying) while MetService pauses them for the off-season, returning them automatically when data resumes. When off (default), they stay and read unknown."
         }
       },
       "locations": {
@@ -45,10 +46,18 @@
   },
   "entity": {
     "sensor": {
-      "valid_time_local": {"name": "Forecast Description Updated Time"},
-      "weather_description": {"name": "Weather Description"},
-      "relative_humidity": {"name": "Relative Humidity"},
-      "uv_index": {"name": "UV Index"},
+      "valid_time_local": {
+        "name": "Forecast Description Updated Time"
+      },
+      "weather_description": {
+        "name": "Weather Description"
+      },
+      "relative_humidity": {
+        "name": "Relative Humidity"
+      },
+      "uv_index": {
+        "name": "UV Index"
+      },
       "uv_risk": {
         "name": "UV Risk",
         "state": {
@@ -59,18 +68,42 @@
           "extreme": "Extreme"
         }
       },
-      "uv_alert": {"name": "UV Alert"},
-      "wind_direction": {"name": "Wind Direction"},
-      "temperature_feels_like": {"name": "Temperature - Feels Like"},
-      "temperature": {"name": "Temperature"},
-      "pressure": {"name": "Pressure"},
-      "wind_gust": {"name": "Wind Gust"},
-      "wind_speed": {"name": "Wind Speed"},
-      "rainfall": {"name": "Rainfall"},
-      "rain_next_8_hours": {"name": "Rain — Next 8 Hours"},
-      "rain_next_24_hours": {"name": "Rain — Next 24 Hours"},
-      "next_rain_at": {"name": "Next Rain Expected"},
-      "pressure_tendency_trend": {"name": "Pressure Tendency Trend"},
+      "uv_alert": {
+        "name": "UV Alert"
+      },
+      "wind_direction": {
+        "name": "Wind Direction"
+      },
+      "temperature_feels_like": {
+        "name": "Temperature - Feels Like"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "pressure": {
+        "name": "Pressure"
+      },
+      "wind_gust": {
+        "name": "Wind Gust"
+      },
+      "wind_speed": {
+        "name": "Wind Speed"
+      },
+      "rainfall": {
+        "name": "Rainfall"
+      },
+      "rain_next_8_hours": {
+        "name": "Rain — Next 8 Hours"
+      },
+      "rain_next_24_hours": {
+        "name": "Rain — Next 24 Hours"
+      },
+      "next_rain_at": {
+        "name": "Next Rain Expected"
+      },
+      "pressure_tendency_trend": {
+        "name": "Pressure Tendency Trend"
+      },
       "pressure_trend": {
         "name": "Pressure Trend",
         "state": {
@@ -88,9 +121,15 @@
           "high": "High"
         }
       },
-      "pollen_levels": {"name": "Pollen Levels"},
-      "pollen_type": {"name": "Pollen Type"},
-      "weather_warnings": {"name": "MetService Weather Warnings"},
+      "pollen_levels": {
+        "name": "Pollen Levels"
+      },
+      "pollen_type": {
+        "name": "Pollen Type"
+      },
+      "weather_warnings": {
+        "name": "MetService Weather Warnings"
+      },
       "warning_level": {
         "name": "Weather Warning Level",
         "state": {
@@ -101,7 +140,9 @@
           "red": "Red"
         }
       },
-      "fire_season": {"name": "Fire Season"},
+      "fire_season": {
+        "name": "Fire Season"
+      },
       "fire_season_status": {
         "name": "Fire Season Status",
         "state": {
@@ -110,7 +151,9 @@
           "prohibited": "Prohibited"
         }
       },
-      "fire_danger": {"name": "Fire Danger"},
+      "fire_danger": {
+        "name": "Fire Danger"
+      },
       "fire_danger_level": {
         "name": "Fire Danger Level",
         "state": {
@@ -121,24 +164,60 @@
           "extreme": "Extreme"
         }
       },
-      "drying_index_morning": {"name": "Clothes Drying Time - Morning"},
-      "drying_index_afternoon": {"name": "Clothes Drying Time - Afternoon"},
-      "drying_next_good_day": {"name": "Clothes Drying - Next Good Day"},
-      "tides_high": {"name": "Next High Tide"},
-      "tides_low": {"name": "Next Low Tide"},
-      "boating_status": {"name": "Boating Conditions"},
-      "boating_forecast": {"name": "Boating Forecast"},
-      "surf_conditions": {"name": "Surf Conditions"},
-      "surf_rating": {"name": "Surf Rating"},
-      "surf_wave_height": {"name": "Surf Wave Height"},
-      "surf_set_face": {"name": "Surf Set Face"},
-      "surf_swell_direction": {"name": "Surf Swell Direction"},
-      "surf_swell_height": {"name": "Surf Swell Height"},
-      "surf_wind_direction": {"name": "Surf Wind Direction"},
-      "surf_wind_speed": {"name": "Surf Wind Speed"},
-      "surf_wind_gust": {"name": "Surf Wind Gust"},
-      "surf_period": {"name": "Surf Period"},
-      "wind_strength": {"name": "Wind Strength"},
+      "drying_index_morning": {
+        "name": "Clothes Drying Time - Morning"
+      },
+      "drying_index_afternoon": {
+        "name": "Clothes Drying Time - Afternoon"
+      },
+      "drying_next_good_day": {
+        "name": "Clothes Drying - Next Good Day"
+      },
+      "tides_high": {
+        "name": "Next High Tide"
+      },
+      "tides_low": {
+        "name": "Next Low Tide"
+      },
+      "boating_status": {
+        "name": "Boating Conditions"
+      },
+      "boating_forecast": {
+        "name": "Boating Forecast"
+      },
+      "surf_conditions": {
+        "name": "Surf Conditions"
+      },
+      "surf_rating": {
+        "name": "Surf Rating"
+      },
+      "surf_wave_height": {
+        "name": "Surf Wave Height"
+      },
+      "surf_set_face": {
+        "name": "Surf Set Face"
+      },
+      "surf_swell_direction": {
+        "name": "Surf Swell Direction"
+      },
+      "surf_swell_height": {
+        "name": "Surf Swell Height"
+      },
+      "surf_wind_direction": {
+        "name": "Surf Wind Direction"
+      },
+      "surf_wind_speed": {
+        "name": "Surf Wind Speed"
+      },
+      "surf_wind_gust": {
+        "name": "Surf Wind Gust"
+      },
+      "surf_period": {
+        "name": "Surf Period"
+      },
+      "wind_strength": {
+        "name": "Wind Strength"
+      },
       "wind_strength_level": {
         "name": "Wind Strength Level",
         "state": {
@@ -152,25 +231,63 @@
           "storm": "Storm"
         }
       },
-      "temperature_today_high": {"name": "Today's High Temperature"},
-      "temperature_today_low": {"name": "Today's Low Temperature"},
-      "tomorrow_condition": {"name": "Tomorrow — Condition"},
-      "tomorrow_temp_high": {"name": "Tomorrow — High Temperature"},
-      "tomorrow_temp_low": {"name": "Tomorrow — Low Temperature"},
-      "tomorrow_description": {"name": "Tomorrow — Description"},
-      "breakdown_morning": {"name": "Today — Morning Condition"},
-      "breakdown_afternoon": {"name": "Today — Afternoon Condition"},
-      "breakdown_evening": {"name": "Today — Evening Condition"},
-      "breakdown_overnight": {"name": "Today — Overnight Condition"},
-      "sunrise": {"name": "Sunrise"},
-      "sunrise_at": {"name": "Sunrise Time"},
-      "sunset": {"name": "Sunset"},
-      "sunset_at": {"name": "Sunset Time"},
-      "moonrise": {"name": "Moonrise"},
-      "moonrise_at": {"name": "Moonrise Time"},
-      "moonset": {"name": "Moonset"},
-      "moonset_at": {"name": "Moonset Time"},
-      "moon_phase": {"name": "Moon Phase"},
+      "temperature_today_high": {
+        "name": "Today's High Temperature"
+      },
+      "temperature_today_low": {
+        "name": "Today's Low Temperature"
+      },
+      "tomorrow_condition": {
+        "name": "Tomorrow — Condition"
+      },
+      "tomorrow_temp_high": {
+        "name": "Tomorrow — High Temperature"
+      },
+      "tomorrow_temp_low": {
+        "name": "Tomorrow — Low Temperature"
+      },
+      "tomorrow_description": {
+        "name": "Tomorrow — Description"
+      },
+      "breakdown_morning": {
+        "name": "Today — Morning Condition"
+      },
+      "breakdown_afternoon": {
+        "name": "Today — Afternoon Condition"
+      },
+      "breakdown_evening": {
+        "name": "Today — Evening Condition"
+      },
+      "breakdown_overnight": {
+        "name": "Today — Overnight Condition"
+      },
+      "sunrise": {
+        "name": "Sunrise"
+      },
+      "sunrise_at": {
+        "name": "Sunrise Time"
+      },
+      "sunset": {
+        "name": "Sunset"
+      },
+      "sunset_at": {
+        "name": "Sunset Time"
+      },
+      "moonrise": {
+        "name": "Moonrise"
+      },
+      "moonrise_at": {
+        "name": "Moonrise Time"
+      },
+      "moonset": {
+        "name": "Moonset"
+      },
+      "moonset_at": {
+        "name": "Moonset Time"
+      },
+      "moon_phase": {
+        "name": "Moon Phase"
+      },
       "next_moon_phase": {
         "name": "Next Moon Phase",
         "state": {
@@ -180,7 +297,9 @@
           "last_quarter": "Last quarter"
         }
       },
-      "moon_phase_date": {"name": "Next Moon Phase Date"}
+      "moon_phase_date": {
+        "name": "Next Moon Phase Date"
+      }
     }
   },
   "issues": {
