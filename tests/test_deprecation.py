@@ -19,8 +19,10 @@ from custom_components.metservice_weather.coordinator_types import MetServicePub
 from custom_components.metservice_weather.deprecation import (
     DEPRECATED_SENSOR_REPLACEMENTS,
     _GENERIC_REMOVED_REPLACEMENT_FALLBACK,
+    _REPLACEMENT_DISPLAY_NAMES,
     _format_references,
     _friendly_key,
+    _replacement_display_name,
     async_check_deprecated_entities,
     async_check_removed_entity,
     async_check_removed_forecast_attributes,
@@ -131,6 +133,38 @@ def test_friendly_key_formats_snake_case_with_uv_uppercased():
     assert _friendly_key("pollen") == "Pollen"
 
 
+def test_replacement_display_names_cover_every_replacement_key():
+    """_REPLACEMENT_DISPLAY_NAMES has an entry for every value in DEPRECATED_SENSOR_REPLACEMENTS."""
+    assert set(DEPRECATED_SENSOR_REPLACEMENTS.values()) <= set(
+        _REPLACEMENT_DISPLAY_NAMES
+    )
+
+
+def test_replacement_display_name_diverges_from_friendly_key_for_uv_risk():
+    """_replacement_display_name uses the real sensor name, not _friendly_key's mechanical guess."""
+    assert _friendly_key("uv_risk") == "UV Risk"
+    assert _replacement_display_name("uv_risk") == "UV Index"
+
+
+def test_replacement_display_name_diverges_from_friendly_key_for_warning_level():
+    """warning_level's real sensor name is "MetService Weather Warnings", not "Warning Level"."""
+    assert _friendly_key("warning_level") == "Warning Level"
+    assert _replacement_display_name("warning_level") == "MetService Weather Warnings"
+
+
+def test_replacement_display_name_moon_phase_replacement_is_next_moon_phase():
+    """moon_phase's replacement key (next_moon_phase) displays as "Next Moon Phase"."""
+    assert DEPRECATED_SENSOR_REPLACEMENTS["moon_phase"] == "next_moon_phase"
+    assert _replacement_display_name("next_moon_phase") == "Next Moon Phase"
+
+
+def test_replacement_display_name_falls_back_to_friendly_key_for_unmapped_key():
+    """A key with no explicit entry in _REPLACEMENT_DISPLAY_NAMES falls back to _friendly_key."""
+    assert _replacement_display_name("some_unmapped_key") == _friendly_key(
+        "some_unmapped_key"
+    )
+
+
 def test_format_references_short_list_joins_with_commas():
     """A reference list at or under the cap is comma-joined verbatim."""
     assert (
@@ -175,7 +209,7 @@ async def test_issue_created_when_deprecated_entity_referenced(hass):
     issue = ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
     assert issue is not None
     assert issue.translation_placeholders["entity_id"] == reg_entry.entity_id
-    assert issue.translation_placeholders["replacement_key"] == "UV Risk"
+    assert issue.translation_placeholders["replacement_key"] == "UV Index"
     assert "automation.check_uv" in issue.translation_placeholders["references"]
     assert issue.severity == ir.IssueSeverity.WARNING
     assert issue.is_fixable is False
@@ -209,7 +243,10 @@ async def test_issue_combines_automation_and_script_references(hass):
     assert issue is not None
     assert "automation.storm_alert" in issue.translation_placeholders["references"]
     assert "script.notify_warnings" in issue.translation_placeholders["references"]
-    assert issue.translation_placeholders["replacement_key"] == "Warning Level"
+    assert (
+        issue.translation_placeholders["replacement_key"]
+        == "MetService Weather Warnings"
+    )
 
 
 async def test_issue_cleared_when_no_longer_referenced(hass):
@@ -604,7 +641,7 @@ async def test_removed_entity_issue_created_when_referenced(hass):
     assert issue is not None
     assert issue.translation_placeholders["entity_id"] == reg_entry.entity_id
     assert "automation.check_uv" in issue.translation_placeholders["references"]
-    assert issue.translation_placeholders["replacement"] == "UV Risk"
+    assert issue.translation_placeholders["replacement"] == "UV Index"
     assert issue.severity == ir.IssueSeverity.WARNING
     assert issue.is_fixable is False
     assert issue.data == {"entity_id": reg_entry.entity_id}

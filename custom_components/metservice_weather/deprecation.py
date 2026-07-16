@@ -73,12 +73,45 @@ DEPRECATED_SENSOR_REPLACEMENTS: dict[str, str] = {
 # install doesn't produce an unreadable wall of entity_ids.
 _MAX_LISTED_REFERENCES = 10
 
+# Explicit display names for every replacement sensor key in
+# DEPRECATED_SENSOR_REPLACEMENTS.values(), sourced from the name= field of
+# that successor's WeatherSensorEntityDescription in
+# weather_current_conditions_sensors.py. _friendly_key's mechanical
+# snake_case -> Title Case conversion diverges from several real display
+# names (e.g. uv_risk's sensor is named "UV Index", not "Uv Risk"; moon_phase's
+# replacement, next_moon_phase, is named "Next Moon Phase"), so this map is
+# the source of truth for repair-issue replacement text.
+_REPLACEMENT_DISPLAY_NAMES: dict[str, str] = {
+    "uv_risk": "UV Index",
+    "warning_level": "MetService Weather Warnings",
+    "pressure_trend": "Pressure Tendency Trend",
+    "wind_strength_level": "Wind Strength",
+    "fire_season_status": "Fire Season",
+    "fire_danger_level": "Fire Danger",
+    "next_moon_phase": "Next Moon Phase",
+    "sunrise_at": "Sunrise",
+    "sunset_at": "Sunset",
+    "moonrise_at": "Moonrise",
+    "moonset_at": "Moonset",
+    "pollen": "Pollen",
+}
+
 
 def _friendly_key(key: str) -> str:
-    """Return a human-readable form of a snake_case replacement sensor key."""
+    """Return a human-readable form of a snake_case replacement sensor key.
+
+    Fallback only — _REPLACEMENT_DISPLAY_NAMES is the source of truth for
+    every key in DEPRECATED_SENSOR_REPLACEMENTS.values(); this mechanical
+    conversion covers any key that map doesn't (yet) have an entry for.
+    """
     return " ".join(
         word.upper() if word == "uv" else word.capitalize() for word in key.split("_")
     )
+
+
+def _replacement_display_name(key: str) -> str:
+    """Return the replacement sensor's display name for repair-issue text."""
+    return _REPLACEMENT_DISPLAY_NAMES.get(key, _friendly_key(key))
 
 
 def _format_references(references: list[str]) -> str:
@@ -184,7 +217,7 @@ async def async_check_deprecated_entities(
                 learn_more_url=_LEARN_MORE_URL,
                 translation_placeholders={
                     "entity_id": entity_id,
-                    "replacement_key": _friendly_key(new_key),
+                    "replacement_key": _replacement_display_name(new_key),
                     "references": _format_references(references),
                 },
             )
@@ -265,7 +298,11 @@ _DEPRECATED_SENSOR_REPLACEMENTS_LOWER = {
 def _removed_entity_replacement_text(key: str) -> str:
     """Return replacement wording for a removed entity's unique_id key suffix."""
     new_key = _DEPRECATED_SENSOR_REPLACEMENTS_LOWER.get(key.lower())
-    return _friendly_key(new_key) if new_key else _GENERIC_REMOVED_REPLACEMENT_FALLBACK
+    return (
+        _replacement_display_name(new_key)
+        if new_key
+        else _GENERIC_REMOVED_REPLACEMENT_FALLBACK
+    )
 
 
 async def async_check_removed_entity(

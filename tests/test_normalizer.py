@@ -1064,6 +1064,135 @@ def test_moon_phase_raw_jitter_logged_at_debug(caplog):
 
 
 # ---------------------------------------------------------------------------
+# moon_phase_current — current-phase derivation from moonPhases[0] + issuedAt
+# ---------------------------------------------------------------------------
+
+
+def _moon_phase_current_payload(moon_phases, issued_at) -> dict:
+    """Build a `current`-shaped payload carrying issuedAt (via days) and a moonPhases list."""
+    return {
+        "layout": {
+            "primary": {
+                "slots": {"main": {"modules": [{"days": [{"issuedAt": issued_at}]}]}}
+            },
+            "secondary": {
+                "slots": {
+                    "major": {"modules": [{"riseSet": {}, "moonPhases": moon_phases}]}
+                }
+            },
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    ("phase_token", "expected"),
+    [
+        ("NEW", "new_moon"),
+        ("FIRST", "first_quarter"),
+        ("FULL", "full_moon"),
+        ("LAST", "last_quarter"),
+    ],
+)
+def test_moon_phase_current_on_event_day(phase_token, expected):
+    """When today's local date matches moonPhases[0]'s event date, the principal phase is reported."""
+    moon_phases = [{"phase": phase_token, "dateISO": "2026-07-16T09:00:00+12:00"}]
+    current = _moon_phase_current_payload(moon_phases, "2026-07-16T17:00:00+12:00")
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current == expected
+
+
+@pytest.mark.parametrize(
+    ("next_phase_token", "expected"),
+    [
+        ("FIRST", "waxing_crescent"),
+        ("FULL", "waxing_gibbous"),
+        ("LAST", "waning_gibbous"),
+        ("NEW", "waning_crescent"),
+    ],
+)
+def test_moon_phase_current_between_events(next_phase_token, expected):
+    """When today isn't the event date, the intermediate phase leading up to the next event is reported."""
+    moon_phases = [{"phase": next_phase_token, "dateISO": "2026-07-20T09:00:00+12:00"}]
+    current = _moon_phase_current_payload(moon_phases, "2026-07-16T17:00:00+12:00")
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current == expected
+
+
+def test_moon_phase_current_none_when_moon_phases_key_missing():
+    """No moonPhases key at all leaves moon_phase_current None."""
+    current = {
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {
+                        "modules": [
+                            {"days": [{"issuedAt": "2026-07-16T17:00:00+12:00"}]}
+                        ]
+                    }
+                }
+            },
+            "secondary": {"slots": {"major": {"modules": [{"riseSet": {}}]}}},
+        }
+    }
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current is None
+
+
+def test_moon_phase_current_none_when_moon_phases_empty():
+    """An empty moonPhases list leaves moon_phase_current None."""
+    current = _moon_phase_current_payload([], "2026-07-16T17:00:00+12:00")
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current is None
+
+
+def test_moon_phase_current_none_when_first_entry_not_a_dict():
+    """A non-dict first moonPhases entry leaves moon_phase_current None instead of raising."""
+    current = _moon_phase_current_payload(["not-a-dict"], "2026-07-16T17:00:00+12:00")
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current is None
+
+
+def test_moon_phase_current_none_when_phase_token_unknown():
+    """An unrecognised phase token leaves moon_phase_current None, even on the event day."""
+    moon_phases = [{"phase": "WAXING", "dateISO": "2026-07-16T09:00:00+12:00"}]
+    current = _moon_phase_current_payload(moon_phases, "2026-07-16T17:00:00+12:00")
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current is None
+
+
+def test_moon_phase_current_none_when_date_iso_unparseable():
+    """An unparseable dateISO leaves moon_phase_current None instead of raising."""
+    moon_phases = [{"phase": "FULL", "dateISO": "not-a-date"}]
+    current = _moon_phase_current_payload(moon_phases, "2026-07-16T17:00:00+12:00")
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current is None
+
+
+def test_moon_phase_current_none_when_date_iso_missing():
+    """A missing dateISO on the next event leaves moon_phase_current None."""
+    moon_phases = [{"phase": "FULL"}]
+    current = _moon_phase_current_payload(moon_phases, "2026-07-16T17:00:00+12:00")
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current is None
+
+
+def test_moon_phase_current_none_when_issued_at_missing():
+    """A missing issuedAt (no "today" reference) leaves moon_phase_current None."""
+    moon_phases = [{"phase": "FULL", "dateISO": "2026-07-16T09:00:00+12:00"}]
+    current = _moon_phase_current_payload(moon_phases, None)
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current is None
+
+
+def test_moon_phase_current_none_when_issued_at_garbage():
+    """An unparseable issuedAt leaves moon_phase_current None."""
+    moon_phases = [{"phase": "FULL", "dateISO": "2026-07-16T09:00:00+12:00"}]
+    current = _moon_phase_current_payload(moon_phases, "not-a-date")
+    result = normalize_public_data(current, {})
+    assert result.moon_phase_current is None
+
+
+# ---------------------------------------------------------------------------
 # Pollen groups — multiple concurrent status blocks
 # ---------------------------------------------------------------------------
 
@@ -1641,6 +1770,17 @@ def test_napier_fixture_new_fields_populate_without_crashing(napier):
     assert napier.rain_next_8h_mm is None or isinstance(napier.rain_next_8h_mm, float)
     assert napier.rain_next_24h_mm is None or isinstance(napier.rain_next_24h_mm, float)
     assert napier.next_rain_at is None or isinstance(napier.next_rain_at, str)
+    assert napier.moon_phase_current in {
+        None,
+        "new_moon",
+        "waxing_crescent",
+        "first_quarter",
+        "waxing_gibbous",
+        "full_moon",
+        "waning_gibbous",
+        "last_quarter",
+        "waning_crescent",
+    }
 
 
 def test_kumeu_fixture_new_fields_none_for_seasonal_absence(kumeu):

@@ -67,6 +67,7 @@
       "moonset_at": {"default": "mdi:weather-night"},
       "moon_phase": {"default": "mdi:moon-new"},
       "next_moon_phase": {"default": "mdi:moon-new"},
+      "moon_phase_current": {"default": "mdi:moon-waxing-crescent"},
       "moon_phase_date": {"default": "mdi:calendar-month"}
     }
   }

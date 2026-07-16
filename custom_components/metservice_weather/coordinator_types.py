@@ -139,6 +139,55 @@ def _scan_forecasts(day: Any, key: str) -> Any:
     return day.get(key)
 
 
+# HA core's moon-phase ENUM vocabulary. moonPhases[0] (from the riseSet
+# module) is MetService's next upcoming principal-phase event; when today's
+# local date matches that event's date we're literally on the principal
+# phase, otherwise we're in the intermediate phase that leads up to it.
+_MOON_PHASE_PRINCIPAL_MAP: dict[str, str] = {
+    "NEW": "new_moon",
+    "FIRST": "first_quarter",
+    "FULL": "full_moon",
+    "LAST": "last_quarter",
+}
+_MOON_PHASE_INTERMEDIATE_MAP: dict[str, str] = {
+    "FIRST": "waxing_crescent",
+    "FULL": "waxing_gibbous",
+    "LAST": "waning_gibbous",
+    "NEW": "waning_crescent",
+}
+
+
+def _moon_phase_current(moon_phases: Any, reference: datetime | None) -> str | None:
+    """Derive the current-moon-phase ENUM state from MetService's moonPhases list.
+
+    moonPhases[0] is MetService's next upcoming principal-phase event
+    (NEW/FIRST/FULL/LAST) with its own local dateISO. When `reference`'s
+    local date matches that event's date, today IS the principal phase
+    day. On any other day, the moon is in the intermediate phase that
+    leads up to that next event (e.g. the days before a FULL moon are
+    "waxing gibbous"). None-safe throughout: a missing/empty list, a
+    non-dict entry, an unparseable or missing dateISO, a missing
+    `reference`, or an unrecognised phase token all produce None rather
+    than a guess.
+    """
+    if not moon_phases or reference is None:
+        return None
+    next_event = moon_phases[0]
+    if not isinstance(next_event, dict):
+        return None
+    phase_token = next_event.get("phase")
+    date_iso = next_event.get("dateISO")
+    if not isinstance(date_iso, str):
+        return None
+    try:
+        event_date = datetime.fromisoformat(date_iso).date()
+    except ValueError:
+        return None
+    if event_date == reference.date():
+        return _MOON_PHASE_PRINCIPAL_MAP.get(phase_token)
+    return _MOON_PHASE_INTERMEDIATE_MAP.get(phase_token)
+
+
 # MetService's site-wide pollen status_class taxonomy: good/medium/bad form
 # the exposure severity ramp; medium-good is an informational outlook notice
 # (e.g. pre-season "Imminent"); none means no data for that block.
@@ -278,6 +327,7 @@ class MetServicePublicData:
     moonset: str | None = None
     moon_phase: str | None = None
     moon_phase_date: str | None = None
+    moon_phase_current: str | None = None
     sunrise_at: str | None = None
     sunset_at: str | None = None
     moonrise_at: str | None = None
@@ -679,6 +729,7 @@ def normalize_public_data(
         _LOGGER.debug(
             "Moon phase dateISO %s rounded to %s", raw_phase_date, moon_phase_date
         )
+    moon_phase_current = _moon_phase_current(moon_phases, issued_at_reference)
 
     # ------------------------------------------------------------------
     # Assemble dataclass
@@ -724,6 +775,7 @@ def normalize_public_data(
         moonset=rise_set.get("moonSet"),
         moon_phase=_get(moon_phases, "0", "phase"),
         moon_phase_date=moon_phase_date,
+        moon_phase_current=moon_phase_current,
         sunrise_at=sunrise_at,
         sunset_at=sunset_at,
         moonrise_at=moonrise_at,

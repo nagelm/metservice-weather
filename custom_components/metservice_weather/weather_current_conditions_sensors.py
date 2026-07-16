@@ -317,6 +317,20 @@ _MOON_PHASE_ENUM_MAP: dict[str, str] = {
 }
 _UNKNOWN_MOON_PHASE_LOGGED: set[str] = set()
 
+# HA core's moon-phase ENUM vocabulary, used by the moon_phase_current
+# sensor. Values are derived in the normalizer (coordinator_types.py); this
+# module only declares them as the ENUM sensor's options.
+_MOON_PHASE_CURRENT_OPTIONS = [
+    "new_moon",
+    "waxing_crescent",
+    "first_quarter",
+    "waxing_gibbous",
+    "full_moon",
+    "waning_gibbous",
+    "last_quarter",
+    "waning_crescent",
+]
+
 
 def _moon_phase_enum_state(raw: str | None) -> str | None:
     """Map the raw NEW/FIRST/FULL/LAST phase token to its ENUM state.
@@ -1097,8 +1111,11 @@ current_condition_sensor_descriptions_public = [
     ),
     WeatherSensorEntityDescription(
         key="next_moon_phase",
+        # Opt-in: superseded as a default by the current-phase Moon Phase
+        # sensor; enable on the device page if the next-event view is wanted.
+        entity_registry_enabled_default=False,
         translation_key="next_moon_phase",
-        name="Moon Phase",
+        name="Next Moon Phase",
         device_class=SensorDeviceClass.ENUM,
         options=_MOON_PHASE_ENUM_OPTIONS,
         value_fn=lambda data, _: _moon_phase_enum_state(data.moon_phase),
@@ -1112,7 +1129,18 @@ current_condition_sensor_descriptions_public = [
         ),
     ),
     WeatherSensorEntityDescription(
+        key="moon_phase_current",
+        translation_key="moon_phase_current",
+        name="Moon Phase",
+        device_class=SensorDeviceClass.ENUM,
+        options=_MOON_PHASE_CURRENT_OPTIONS,
+        value_fn=lambda data, _: data.moon_phase_current,
+    ),
+    WeatherSensorEntityDescription(
         key="moon_phase_date",
+        # Opt-in: superseded as a default by the current-phase Moon Phase
+        # sensor; enable on the device page if the next-event view is wanted.
+        entity_registry_enabled_default=False,
         translation_key="moon_phase_date",
         name="Next Moon Phase Date",
         device_class=SensorDeviceClass.TIMESTAMP,

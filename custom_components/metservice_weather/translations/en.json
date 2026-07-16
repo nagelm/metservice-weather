@@ -289,12 +289,25 @@
         "name": "Moon Phase (deprecated)"
       },
       "next_moon_phase": {
-        "name": "Moon Phase",
+        "name": "Next Moon Phase",
         "state": {
           "new": "New",
           "first_quarter": "First quarter",
           "full": "Full",
           "last_quarter": "Last quarter"
+        }
+      },
+      "moon_phase_current": {
+        "name": "Moon Phase",
+        "state": {
+          "new_moon": "New Moon",
+          "waxing_crescent": "Waxing Crescent",
+          "first_quarter": "First Quarter",
+          "waxing_gibbous": "Waxing Gibbous",
+          "full_moon": "Full Moon",
+          "waning_gibbous": "Waning Gibbous",
+          "last_quarter": "Last Quarter",
+          "waning_crescent": "Waning Crescent"
         }
       },
       "moon_phase_date": {
