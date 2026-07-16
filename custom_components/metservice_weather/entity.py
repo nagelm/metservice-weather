@@ -49,7 +49,8 @@ def _marine_device_name(region_slug: str, location_name: str) -> str:
     ``region_slug`` is the coordinator's parsed marine region slug (e.g.
     "kapiti-wellington", from ``WeatherUpdateCoordinator.marine_region_slug``).
     A known slug maps to MetService's own region label, e.g.
-    "kapiti-wellington" -> "Kapiti and Wellington Marine". An unrecognised
+    "kapiti-wellington" -> "Kapiti and Wellington" (verbatim MetService label,
+    per user decision - sensor names already say tide/surf/boating). Unrecognised
     slug (a marine region MetService adds after this table was captured)
     falls back to a generic hyphen/underscore -> title-case derivation.
     A missing/empty slug falls back to f"{location_name} Marine".
@@ -60,7 +61,7 @@ def _marine_device_name(region_slug: str, location_name: str) -> str:
     if label is None:
         words = region_slug.replace("-", " ").replace("_", " ").split()
         label = " ".join(word.capitalize() for word in words) if words else None
-    return f"{label} Marine" if label else f"{location_name} Marine"
+    return label if label else f"{location_name} Marine"
 
 
 class MetServiceEntity(CoordinatorEntity[WeatherUpdateCoordinator]):

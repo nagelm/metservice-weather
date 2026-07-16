@@ -644,11 +644,12 @@ current_condition_sensor_descriptions_public = [
         name="MetService Weather Warnings (deprecated)",
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
-        value_fn=lambda data, _: _warnings_state(data),
-        attr_fn=lambda data: {
-            "count": len(data.warnings_list),
-            "warnings": data.warnings_list,
-        },
+        value_fn=lambda data, _: (
+            (data.weather_warnings[:252] + "...")
+            if len(data.weather_warnings) > 255
+            else data.weather_warnings
+        ),
+        attr_fn=lambda data: {"warnings": data.weather_warnings},
     ),
     WeatherSensorEntityDescription(
         key="warning_level",

@@ -1088,10 +1088,7 @@ async def test_marine_device_move_issue_created_when_referenced_via_marine_entit
     issue = ir.async_get(hass).async_get_issue(DOMAIN, _marine_issue_id(entry))
     assert issue is not None
     assert "automation.tide_alert" in issue.translation_placeholders["references"]
-    assert (
-        issue.translation_placeholders["marine_device"]
-        == "Kapiti and Wellington Marine"
-    )
+    assert issue.translation_placeholders["marine_device"] == "Kapiti and Wellington"
     assert issue.severity == ir.IssueSeverity.WARNING
     assert issue.is_fixable is False
 

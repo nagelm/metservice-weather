@@ -64,7 +64,7 @@ Repair issues now appear **only when your setup shows evidence of needing them**
 
 #### Added: marine data gets its own device
 
-Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically.
+Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically. Because these sensors move to their own device, their displayed friendly name changes too (e.g. "Napier Next High Tide" becomes "Kapiti and Wellington Next High Tide"). entity_id, unique_id, and recorded history are unaffected — but update any notification template, dashboard label, or voice-assistant phrase that used the old friendly name.
 
 #### Added: tide detail attributes
 

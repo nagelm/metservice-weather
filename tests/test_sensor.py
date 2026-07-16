@@ -241,7 +241,13 @@ def test_warnings_state_embedded_newline_survives_in_attribute():
 
 
 def test_warnings_state_attr_count_matches_list_length():
-    """The attribute count matches the number of active warnings."""
+    """The attribute count matches the number of active warnings.
+
+    Targets the current warning_level ENUM sensor, which carries the
+    structured warnings_list/count attributes today — the deprecated
+    weather_warnings sensor reverted to its v2026.7.0 shape (a single
+    joined "warnings" string, no count) and is covered separately below.
+    """
     warnings = [
         {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
         {"name": "Heavy Rain Warning", "text": "b", "threat_period": "Tonight"},
@@ -250,7 +256,7 @@ def test_warnings_state_attr_count_matches_list_length():
     desc = next(
         d
         for d in current_condition_sensor_descriptions_public
-        if d.key == "weather_warnings"
+        if d.key == "warning_level"
     )
     attrs = desc.attr_fn(data)
     assert attrs["count"] == 2
@@ -657,7 +663,7 @@ async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device
         assert info["identifiers"] == {marine_identifier}
         assert info["identifiers"] != {location_identifier}
         assert info["via_device"] == location_identifier
-        assert info["name"] == "Kapiti and Wellington Marine"
+        assert info["name"] == "Kapiti and Wellington"
 
     for sensor in location_sensors:
         info = sensor.device_info
@@ -1207,8 +1213,9 @@ def test_warning_level_description_headline_truncates_to_255():
 
 
 # ---------------------------------------------------------------------------
-# Test: deprecated weather_warnings sensor keeps its v2026.7.0 headline-text
-# behaviour
+# Test: deprecated weather_warnings sensor keeps its exact v2026.7.0
+# behaviour — the full joined `weather_warnings` string (not the
+# warnings_list-derived headline used by the new warning_level sensor).
 # ---------------------------------------------------------------------------
 
 
@@ -1220,43 +1227,55 @@ def test_deprecated_weather_warnings_is_hidden_and_disabled():
     assert desc.device_class is None
 
 
-def test_deprecated_weather_warnings_state_is_headline_text():
-    """The deprecated sensor's state is the headline text, not the enum."""
+def test_deprecated_weather_warnings_state_is_full_joined_text():
+    """The deprecated sensor's state is the full joined weather_warnings text.
+
+    v2026.7.0 read the pre-joined `weather_warnings` string field verbatim —
+    not the structured warnings_list used by the new warning_level sensor.
+    """
     desc = _desc("weather_warnings")
     data = MetServicePublicData(
-        warnings_list=[
-            {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
-            {
-                "name": "Strong Wind Warning - Orange",
-                "text": "b",
-                "threat_period": "Tonight",
-            },
-        ]
+        weather_warnings="Strong Wind Watch. Strong Wind Warning - Orange."
     )
-    assert desc.value_fn(data, "metric") == "Strong Wind Warning - Orange (+1 more)"
+    assert (
+        desc.value_fn(data, "metric")
+        == "Strong Wind Watch. Strong Wind Warning - Orange."
+    )
     attrs = desc.attr_fn(data)
-    assert attrs["count"] == 2
-    assert attrs["warnings"] == data.warnings_list
+    assert attrs == {"warnings": "Strong Wind Watch. Strong Wind Warning - Orange."}
+    assert "count" not in attrs
     assert "headline" not in attrs
 
 
 def test_deprecated_weather_warnings_no_warnings():
-    """No active warnings state as 'No warnings', matching v2026.7.0."""
+    """No active warnings falls back to the 'No warnings' default, matching v2026.7.0."""
     desc = _desc("weather_warnings")
-    data = MetServicePublicData(warnings_list=[])
+    data = MetServicePublicData()  # weather_warnings defaults to "No warnings"
     assert desc.value_fn(data, "metric") == "No warnings"
+    assert desc.attr_fn(data) == {"warnings": "No warnings"}
 
 
 def test_deprecated_weather_warnings_truncates_to_255():
-    """The deprecated sensor's state keeps the original 255-char truncation."""
+    """v2026.7.0's original string-truncation: [:252] + "..." when over 255 chars.
+
+    This is distinct from the new warning_level headline's plain [:255]
+    slice — v2026.7.0 appended an ellipsis instead of hard-cutting.
+    """
     desc = _desc("weather_warnings")
-    long_name = "Severe Weather Warning - Red " + ("x" * 300)
-    data = MetServicePublicData(
-        warnings_list=[{"name": long_name, "text": "Details", "threat_period": "Today"}]
-    )
+    long_text = "Severe Weather Warning - Red. " + ("x" * 300)
+    data = MetServicePublicData(weather_warnings=long_text)
     state = desc.value_fn(data, "metric")
     assert len(state) == 255
-    assert state == long_name[:255]
+    assert state == long_text[:252] + "..."
+    assert desc.attr_fn(data) == {"warnings": long_text}
+
+
+def test_deprecated_weather_warnings_at_or_under_255_not_truncated():
+    """weather_warnings text at or under 255 chars passes through unchanged."""
+    desc = _desc("weather_warnings")
+    exact_255 = "x" * 255
+    data = MetServicePublicData(weather_warnings=exact_255)
+    assert desc.value_fn(data, "metric") == exact_255
 
 
 # ---------------------------------------------------------------------------
