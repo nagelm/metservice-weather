@@ -129,10 +129,10 @@
         }
       },
       "pollen_levels": {
-        "name": "Pollen Levels"
+        "name": "Pollen Levels (deprecated)"
       },
       "pollen_type": {
-        "name": "Pollen Type"
+        "name": "Pollen Type (deprecated)"
       },
       "weather_warnings": {
         "name": "MetService Weather Warnings (deprecated)"

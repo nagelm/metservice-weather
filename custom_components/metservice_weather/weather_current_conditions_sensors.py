@@ -613,7 +613,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="pollen_levels",
         translation_key="pollen_levels",
-        name="Pollen Levels",
+        name="Pollen Levels (deprecated)",
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
         value_fn=lambda data, _: cast(str, data.pollen_level),
@@ -622,7 +622,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="pollen_type",
         translation_key="pollen_type",
-        name="Pollen Type",
+        name="Pollen Type (deprecated)",
         entity_registry_enabled_default=False,
         entity_registry_visible_default=False,
         value_fn=lambda data, _: (
