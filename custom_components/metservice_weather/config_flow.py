@@ -16,6 +16,7 @@ from .const import (
     DOMAIN,
     DEFAULT_LOCATION,
     LOCATIONS,
+    CONF_AUTO_HIDE_SEASONAL,
 )
 
 CONF_MARINE_REGION = "marine_region"
@@ -104,6 +105,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self.user_info[CONF_LOCATION] = user_input[CONF_LOCATION]
         self.user_info[CONF_NAME] = user_input[CONF_NAME]
         self.user_info[CONF_API] = "public"
+        self.user_info[CONF_AUTO_HIDE_SEASONAL] = user_input.get(
+            CONF_AUTO_HIDE_SEASONAL, False
+        )
 
         # Set unique ID on first-time setup only.
         if not self._is_reconfiguring:
@@ -175,6 +179,10 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_MARINE_REGION, default=marine_default
                 ): SelectSelector(SelectSelectorConfig(options=region_opts)),
+                vol.Optional(
+                    CONF_AUTO_HIDE_SEASONAL,
+                    default=values.get(CONF_AUTO_HIDE_SEASONAL, False),
+                ): bool,
             }
         )
 

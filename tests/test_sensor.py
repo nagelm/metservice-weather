@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 from unittest.mock import patch
 
 from homeassistant.components.sensor import SensorDeviceClass
@@ -17,11 +18,30 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     _safe_float,
     _safe_int,
     _next_tide_time,
+    _tide_attrs,
     _warning_severity,
     _warnings_state,
+    _warnings_enum_state,
+    _uv_alert_level_state,
+    _pressure_trend_state,
+    _wind_strength_state,
+    _fire_season_state,
+    _fire_danger_state,
+    _moon_phase_enum_state,
+    _UNKNOWN_UV_ALERT_LEVELS_LOGGED,
+    _UNKNOWN_PRESSURE_TREND_LOGGED,
+    _UNKNOWN_WIND_STRENGTH_LOGGED,
+    _UNKNOWN_FIRE_SEASON_LOGGED,
+    _UNKNOWN_FIRE_DANGER_LOGGED,
+    _UNKNOWN_MOON_PHASE_LOGGED,
     current_condition_sensor_descriptions_public,
 )
 from custom_components.metservice_weather.coordinator_types import MetServicePublicData
+
+
+def _desc(key: str) -> WeatherSensorEntityDescription:
+    """Look up a live sensor description by key, for value_fn/attr_fn tests."""
+    return next(d for d in current_condition_sensor_descriptions_public if d.key == key)
 
 
 # ---------------------------------------------------------------------------
@@ -667,3 +687,702 @@ async def test_setup_entry_removes_stale_pollen_registry_entries(hass):
     assert ent_reg.async_get(stale_levels.entity_id) is None
     assert ent_reg.async_get(stale_type.entity_id) is None
     assert f"{loc}_pollen".lower() in {s.unique_id for s in added}
+
+
+# ---------------------------------------------------------------------------
+# Test: new rain-window sensors (rain_next_8_hours / rain_next_24_hours /
+# next_rain_at)
+# ---------------------------------------------------------------------------
+
+
+def test_rain_next_8_hours_value_passthrough():
+    """rain_next_8_hours passes rain_next_8h_mm straight through."""
+    desc = _desc("rain_next_8_hours")
+    data = MetServicePublicData(rain_next_8h_mm=4.2)
+    assert desc.value_fn(data, "metric") == 4.2
+
+
+def test_rain_next_8_hours_none_when_insufficient_coverage():
+    """rain_next_8_hours is None when the coordinator couldn't compute a window."""
+    desc = _desc("rain_next_8_hours")
+    data = MetServicePublicData(rain_next_8h_mm=None)
+    assert desc.value_fn(data, "metric") is None
+
+
+def test_rain_next_8_hours_disabled_by_default():
+    """rain_next_8_hours is opt-in (not shown by default)."""
+    assert _desc("rain_next_8_hours").entity_registry_enabled_default is False
+
+
+def test_rain_next_24_hours_value_passthrough():
+    """rain_next_24_hours passes rain_next_24h_mm straight through."""
+    desc = _desc("rain_next_24_hours")
+    data = MetServicePublicData(rain_next_24h_mm=12.5)
+    assert desc.value_fn(data, "metric") == 12.5
+
+
+def test_rain_next_24_hours_none_when_insufficient_coverage():
+    """rain_next_24_hours is None when the coordinator couldn't compute a window."""
+    desc = _desc("rain_next_24_hours")
+    data = MetServicePublicData(rain_next_24h_mm=None)
+    assert desc.value_fn(data, "metric") is None
+
+
+def test_rain_next_24_hours_disabled_by_default():
+    """rain_next_24_hours is opt-in (not shown by default)."""
+    assert _desc("rain_next_24_hours").entity_registry_enabled_default is False
+
+
+def test_next_rain_at_parses_iso_datetime():
+    """next_rain_at converts the ISO string to a datetime."""
+    desc = _desc("next_rain_at")
+    data = MetServicePublicData(next_rain_at="2026-07-16T14:00:00+12:00")
+    result = desc.value_fn(data, "metric")
+    assert isinstance(result, datetime.datetime)
+
+
+def test_next_rain_at_none_when_absent():
+    """next_rain_at is None-safe when there's no rain in the forecast window."""
+    desc = _desc("next_rain_at")
+    data = MetServicePublicData(next_rain_at=None)
+    assert desc.value_fn(data, "metric") is None
+
+
+def test_next_rain_at_disabled_by_default():
+    """next_rain_at is opt-in (not shown by default)."""
+    assert _desc("next_rain_at").entity_registry_enabled_default is False
+
+
+# ---------------------------------------------------------------------------
+# Test: UV ENUM sensor (uvIndex, now sourced from uv_alert_level)
+# ---------------------------------------------------------------------------
+
+
+def test_uv_alert_level_known_mappings():
+    """Every documented UV alert level label maps to its snake_case state."""
+    assert _uv_alert_level_state("Low") == "low"
+    assert _uv_alert_level_state("Moderate") == "moderate"
+    assert _uv_alert_level_state("High") == "high"
+    assert _uv_alert_level_state("Very High") == "very_high"
+    assert _uv_alert_level_state("Extreme") == "extreme"
+    # Case/whitespace insensitive.
+    assert _uv_alert_level_state("  very high  ") == "very_high"
+
+
+def test_uv_alert_level_none_when_absent():
+    """A missing/empty UV alert level maps to None (not a warn-once event)."""
+    assert _uv_alert_level_state(None) is None
+    assert _uv_alert_level_state("") is None
+
+
+def test_uv_alert_level_unknown_warns_once(caplog):
+    """An unrecognised UV alert level logs one warning per runtime and returns None."""
+    _UNKNOWN_UV_ALERT_LEVELS_LOGGED.discard("Cataclysmic")
+    with caplog.at_level(logging.WARNING):
+        assert _uv_alert_level_state("Cataclysmic") is None
+        assert _uv_alert_level_state("Cataclysmic") is None
+    matches = [r for r in caplog.records if "Cataclysmic" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_uv_index_description_is_enum_with_five_options():
+    """UvIndex is a seasonal ENUM sensor with the five documented states."""
+    desc = _desc("uvIndex")
+    assert desc.device_class == SensorDeviceClass.ENUM
+    assert desc.options == ["low", "moderate", "high", "very_high", "extreme"]
+    assert desc.seasonal is True
+
+
+def test_uv_index_description_value_and_attrs():
+    """value_fn/attr_fn read uv_alert_level and the UV detail fields."""
+    desc = _desc("uvIndex")
+    data = MetServicePublicData(
+        uv_alert_level="Moderate",
+        uv_status_class="moderate",
+        uv_message="Take care",
+        uv_has_alert=True,
+        uv_window_start_at="2026-07-16T09:00:00+12:00",
+        uv_window_end_at="2026-07-16T17:00:00+12:00",
+    )
+    assert desc.value_fn(data, "metric") == "moderate"
+    attrs = desc.attr_fn(data)
+    assert attrs["level_label"] == "Moderate"
+    assert attrs["status_class"] == "moderate"
+    assert attrs["advice"] == "Take care"
+    assert attrs["protection_window_start"] == "2026-07-16T09:00:00+12:00"
+    assert attrs["protection_window_end"] == "2026-07-16T17:00:00+12:00"
+    assert attrs["has_alert"] is True
+    assert "niwa.co.nz" in attrs["attribution"]
+
+
+def test_uv_index_description_attrs_fall_back_to_raw_window():
+    """protection_window_* falls back to the *_raw fields when *_at is None."""
+    desc = _desc("uvIndex")
+    data = MetServicePublicData(
+        uv_alert_level="Low",
+        uv_window_start_raw="9:00am",
+        uv_window_end_raw="5:00pm",
+    )
+    attrs = desc.attr_fn(data)
+    assert attrs["protection_window_start"] == "9:00am"
+    assert attrs["protection_window_end"] == "5:00pm"
+
+
+def test_uv_index_description_attrs_empty_when_state_none():
+    """attr_fn returns {} when the UV alert level didn't map (no data / unknown)."""
+    desc = _desc("uvIndex")
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {}
+
+
+# ---------------------------------------------------------------------------
+# Test: weather_warnings ENUM sensor
+# ---------------------------------------------------------------------------
+
+
+def test_warnings_enum_state_none_when_no_warnings():
+    """No active warnings maps to the 'none' state."""
+    data = MetServicePublicData(warnings_list=[])
+    assert _warnings_enum_state(data) == "none"
+
+
+def test_warnings_enum_state_watch():
+    """A plain Watch maps to the 'watch' state."""
+    data = MetServicePublicData(
+        warnings_list=[
+            {"name": "Strong Wind Watch", "text": "t", "threat_period": "Today"}
+        ]
+    )
+    assert _warnings_enum_state(data) == "watch"
+
+
+def test_warnings_enum_state_warning():
+    """A plain Warning maps to the 'warning' state."""
+    data = MetServicePublicData(
+        warnings_list=[
+            {"name": "Strong Wind Warning", "text": "t", "threat_period": "Today"}
+        ]
+    )
+    assert _warnings_enum_state(data) == "warning"
+
+
+def test_warnings_enum_state_orange():
+    """An Orange warning maps to the 'orange' state."""
+    data = MetServicePublicData(
+        warnings_list=[
+            {
+                "name": "Strong Wind Warning - Orange",
+                "text": "t",
+                "threat_period": "Today",
+            }
+        ]
+    )
+    assert _warnings_enum_state(data) == "orange"
+
+
+def test_warnings_enum_state_red():
+    """A Red warning maps to the 'red' state."""
+    data = MetServicePublicData(
+        warnings_list=[
+            {
+                "name": "Severe Weather Warning - Red",
+                "text": "t",
+                "threat_period": "Today",
+            }
+        ]
+    )
+    assert _warnings_enum_state(data) == "red"
+
+
+def test_warnings_enum_state_ranks_highest_regardless_of_list_order():
+    """The highest-severity warning wins the enum state even when listed first."""
+    data = MetServicePublicData(
+        warnings_list=[
+            {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
+            {
+                "name": "Severe Weather Warning - Red",
+                "text": "b",
+                "threat_period": "Tonight",
+            },
+            {
+                "name": "Strong Wind Warning - Orange",
+                "text": "c",
+                "threat_period": "Tomorrow",
+            },
+        ]
+    )
+    assert _warnings_enum_state(data) == "red"
+
+
+def test_weather_warnings_description_is_enum_with_five_options():
+    """weather_warnings is an ENUM sensor with the five documented states."""
+    desc = _desc("weather_warnings")
+    assert desc.device_class == SensorDeviceClass.ENUM
+    assert desc.options == ["none", "watch", "warning", "orange", "red"]
+
+
+def test_weather_warnings_description_value_is_enum_state():
+    """value_fn reports the ranked enum state, not the old headline text."""
+    desc = _desc("weather_warnings")
+    data = MetServicePublicData(
+        warnings_list=[
+            {
+                "name": "Severe Weather Warning - Red",
+                "text": "t",
+                "threat_period": "Today",
+            }
+        ]
+    )
+    assert desc.value_fn(data, "metric") == "red"
+
+
+def test_weather_warnings_description_headline_attribute():
+    """The old headline text and warning count now live in attr_fn."""
+    desc = _desc("weather_warnings")
+    data = MetServicePublicData(
+        warnings_list=[
+            {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
+            {
+                "name": "Strong Wind Warning - Orange",
+                "text": "b",
+                "threat_period": "Tonight",
+            },
+        ]
+    )
+    attrs = desc.attr_fn(data)
+    assert attrs["headline"] == "Strong Wind Warning - Orange (+1 more)"
+    assert attrs["count"] == 2
+    assert attrs["warnings"] == data.warnings_list
+
+
+def test_weather_warnings_description_headline_truncates_to_255():
+    """The headline attribute keeps the original 255-char truncation."""
+    desc = _desc("weather_warnings")
+    long_name = "Severe Weather Warning - Red " + ("x" * 300)
+    data = MetServicePublicData(
+        warnings_list=[{"name": long_name, "text": "Details", "threat_period": "Today"}]
+    )
+    attrs = desc.attr_fn(data)
+    assert len(attrs["headline"]) == 255
+    assert attrs["headline"] == long_name[:255]
+
+
+# ---------------------------------------------------------------------------
+# Test: pressure_tendency_trend ENUM sensor
+# ---------------------------------------------------------------------------
+
+
+def test_pressure_trend_known_mappings():
+    """rising/falling/stable pass through case-insensitively."""
+    assert _pressure_trend_state("Rising") == "rising"
+    assert _pressure_trend_state("Falling") == "falling"
+    assert _pressure_trend_state("Stable") == "stable"
+    assert _pressure_trend_state("  RISING  ") == "rising"
+
+
+def test_pressure_trend_none_when_absent():
+    """A missing/empty pressure trend maps to None."""
+    assert _pressure_trend_state(None) is None
+    assert _pressure_trend_state("") is None
+
+
+def test_pressure_trend_unknown_warns_once(caplog):
+    """An unrecognised pressure trend logs one warning per runtime and returns None."""
+    _UNKNOWN_PRESSURE_TREND_LOGGED.discard("Plummeting")
+    with caplog.at_level(logging.WARNING):
+        assert _pressure_trend_state("Plummeting") is None
+        assert _pressure_trend_state("Plummeting") is None
+    matches = [r for r in caplog.records if "Plummeting" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_pressure_tendency_trend_description_is_enum():
+    """PressureTendencyTrend is an ENUM sensor with the three documented states."""
+    desc = _desc("pressureTendencyTrend")
+    assert desc.device_class == SensorDeviceClass.ENUM
+    assert desc.options == ["rising", "falling", "stable"]
+    data = MetServicePublicData(pressure_trend="Rising")
+    assert desc.value_fn(data, "metric") == "rising"
+
+
+# ---------------------------------------------------------------------------
+# Test: wind_strength ENUM sensor
+# ---------------------------------------------------------------------------
+
+
+def test_wind_strength_known_mappings():
+    """Every mapped wind-strength label, including the two live-probed values."""
+    assert _wind_strength_state("Calm") == "calm"
+    assert _wind_strength_state("Light winds") == "light_winds"
+    assert _wind_strength_state("Moderate") == "moderate"
+    assert _wind_strength_state("Fresh") == "fresh"
+    assert _wind_strength_state("Strong") == "strong"
+    assert _wind_strength_state("Gale") == "gale"
+    assert _wind_strength_state("Severe Gale") == "severe_gale"
+    assert _wind_strength_state("Storm") == "storm"
+
+
+def test_wind_strength_none_when_absent():
+    """A missing/empty wind strength maps to None."""
+    assert _wind_strength_state(None) is None
+    assert _wind_strength_state("") is None
+
+
+def test_wind_strength_unknown_warns_once(caplog):
+    """An unrecognised wind strength logs one warning per runtime and returns None."""
+    _UNKNOWN_WIND_STRENGTH_LOGGED.discard("Hurricane")
+    with caplog.at_level(logging.WARNING):
+        assert _wind_strength_state("Hurricane") is None
+        assert _wind_strength_state("Hurricane") is None
+    matches = [r for r in caplog.records if "Hurricane" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_wind_strength_description_is_enum():
+    """wind_strength is an ENUM sensor covering the full mapped vocabulary."""
+    desc = _desc("wind_strength")
+    assert desc.device_class == SensorDeviceClass.ENUM
+    assert set(desc.options) == {
+        "calm",
+        "light_winds",
+        "moderate",
+        "fresh",
+        "strong",
+        "gale",
+        "severe_gale",
+        "storm",
+    }
+    data = MetServicePublicData(wind_strength="Light winds")
+    assert desc.value_fn(data, "metric") == "light_winds"
+
+
+# ---------------------------------------------------------------------------
+# Test: fire_season ENUM sensor
+# ---------------------------------------------------------------------------
+
+
+def test_fire_season_known_mappings():
+    """open/restricted/prohibited pass through case-insensitively."""
+    assert _fire_season_state("open") == "open"
+    assert _fire_season_state("Restricted") == "restricted"
+    assert _fire_season_state("PROHIBITED") == "prohibited"
+
+
+def test_fire_season_none_when_absent():
+    """A missing fire season status maps to None (seasonal absence, no warning)."""
+    assert _fire_season_state(None) is None
+
+
+def test_fire_season_unknown_warns_once(caplog):
+    """An unrecognised fire season status logs one warning per runtime and returns None."""
+    _UNKNOWN_FIRE_SEASON_LOGGED.discard("closed")
+    with caplog.at_level(logging.WARNING):
+        assert _fire_season_state("closed") is None
+        assert _fire_season_state("closed") is None
+    matches = [r for r in caplog.records if "closed" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_fire_season_description_value_and_attrs():
+    """value_fn/attr_fn read fire_season_status plus the scope/detail fields."""
+    desc = _desc("fire_season")
+    assert desc.seasonal is True
+    assert desc.device_class == SensorDeviceClass.ENUM
+    assert desc.options == ["open", "restricted", "prohibited"]
+    data = MetServicePublicData(
+        fire_season_status="restricted",
+        fire_season_short="Restricted",
+        fire_season_text="A fire permit is required.",
+    )
+    assert desc.value_fn(data, "metric") == "restricted"
+    assert desc.attr_fn(data) == {
+        "scope": "Restricted",
+        "detail": "A fire permit is required.",
+    }
+
+
+def test_fire_season_description_attrs_empty_when_state_none():
+    """attr_fn returns {} when there's no fire season data (off-season)."""
+    desc = _desc("fire_season")
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {}
+
+
+# ---------------------------------------------------------------------------
+# Test: fire_danger ENUM sensor
+# ---------------------------------------------------------------------------
+
+
+def test_fire_danger_index_primary_mapping():
+    """The 1-5 dailyObservationIndex is the primary mapping source."""
+    assert _fire_danger_state(1, None) == "low"
+    assert _fire_danger_state(2, None) == "moderate"
+    assert _fire_danger_state(3, None) == "high"
+    assert _fire_danger_state(4, None) == "very_high"
+    assert _fire_danger_state(5, None) == "extreme"
+
+
+def test_fire_danger_label_fallback_when_index_none():
+    """The label is only consulted when the index is None."""
+    assert _fire_danger_state(None, "Very High") == "very_high"
+    assert _fire_danger_state(None, "Extreme") == "extreme"
+    # Index present (even if unmapped) short-circuits the label fallback.
+    assert _fire_danger_state(3, "Extreme") == "high"
+
+
+def test_fire_danger_none_when_both_absent():
+    """No index and no label maps to None without warning (seasonal absence)."""
+    assert _fire_danger_state(None, None) is None
+
+
+def test_fire_danger_unknown_index_warns_once(caplog):
+    """An out-of-range index logs one warning per runtime and returns None."""
+    _UNKNOWN_FIRE_DANGER_LOGGED.discard("9")
+    with caplog.at_level(logging.WARNING):
+        assert _fire_danger_state(9, "Very High") is None
+        assert _fire_danger_state(9, "Very High") is None
+    matches = [r for r in caplog.records if "9" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_fire_danger_unknown_label_warns_once(caplog):
+    """An unrecognised label (with no index) logs one warning per runtime."""
+    _UNKNOWN_FIRE_DANGER_LOGGED.discard("Catastrophic")
+    with caplog.at_level(logging.WARNING):
+        assert _fire_danger_state(None, "Catastrophic") is None
+        assert _fire_danger_state(None, "Catastrophic") is None
+    matches = [r for r in caplog.records if "Catastrophic" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_fire_danger_description_value_and_attrs():
+    """value_fn/attr_fn read fire_danger_index/fire_danger plus guidance fields."""
+    desc = _desc("fire_danger")
+    assert desc.seasonal is True
+    assert desc.device_class == SensorDeviceClass.ENUM
+    assert desc.options == ["low", "moderate", "high", "very_high", "extreme"]
+    data = MetServicePublicData(
+        fire_danger_index=3,
+        fire_danger="High",
+        fire_danger_text="Extreme caution.",
+        fire_danger_forecast="Very High",
+    )
+    assert desc.value_fn(data, "metric") == "high"
+    assert desc.attr_fn(data) == {
+        "label": "High",
+        "index": 3,
+        "guidance": "Extreme caution.",
+        "tomorrow": "Very High",
+    }
+
+
+def test_fire_danger_description_attrs_empty_when_state_none():
+    """attr_fn returns {} when there's no fire danger data (off-season)."""
+    desc = _desc("fire_danger")
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {}
+
+
+# ---------------------------------------------------------------------------
+# Test: moon_phase ENUM sensor
+# ---------------------------------------------------------------------------
+
+
+def test_moon_phase_enum_known_mappings():
+    """The four principal-phase tokens map to their snake_case states."""
+    assert _moon_phase_enum_state("NEW") == "new"
+    assert _moon_phase_enum_state("FIRST") == "first_quarter"
+    assert _moon_phase_enum_state("FULL") == "full"
+    assert _moon_phase_enum_state("LAST") == "last_quarter"
+
+
+def test_moon_phase_enum_none_when_absent():
+    """A missing moon phase token maps to None."""
+    assert _moon_phase_enum_state(None) is None
+    assert _moon_phase_enum_state("") is None
+
+
+def test_moon_phase_enum_unknown_warns_once(caplog):
+    """An unrecognised moon phase token logs one warning per runtime and returns None."""
+    _UNKNOWN_MOON_PHASE_LOGGED.discard("WANING")
+    with caplog.at_level(logging.WARNING):
+        assert _moon_phase_enum_state("WANING") is None
+        assert _moon_phase_enum_state("WANING") is None
+    matches = [r for r in caplog.records if "WANING" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_moon_phase_description_value_and_attrs():
+    """value_fn/attr_fn read the raw phase token and surface the display label."""
+    desc = _desc("moon_phase")
+    assert desc.device_class == SensorDeviceClass.ENUM
+    assert desc.options == ["new", "first_quarter", "full", "last_quarter"]
+    data = MetServicePublicData(moon_phase="FULL")
+    assert desc.value_fn(data, "metric") == "full"
+    assert desc.attr_fn(data) == {"raw_phase": "FULL", "label": "Full Moon"}
+
+
+def test_moon_phase_description_attrs_empty_when_state_none():
+    """attr_fn returns {} when the moon phase token didn't map."""
+    desc = _desc("moon_phase")
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {}
+
+
+# ---------------------------------------------------------------------------
+# Test: sunrise/sunset/moonrise/moonset become TIMESTAMP sensors
+# ---------------------------------------------------------------------------
+
+
+def test_sunrise_description_parses_iso_datetime_and_display_attr():
+    """Sunrise reads sunrise_at as a datetime and keeps the am/pm string as an attr."""
+    desc = _desc("sunrise")
+    assert desc.device_class == SensorDeviceClass.TIMESTAMP
+    data = MetServicePublicData(
+        sunrise_at="2026-07-16T07:12:00+12:00", sunrise="7:12am"
+    )
+    result = desc.value_fn(data, "metric")
+    assert isinstance(result, datetime.datetime)
+    assert desc.attr_fn(data) == {"display": "7:12am"}
+
+
+def test_sunrise_description_none_safe():
+    """Sunrise is None-safe with no attrs when there's no data."""
+    desc = _desc("sunrise")
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {}
+
+
+def test_sunset_description_parses_iso_datetime_and_display_attr():
+    """Sunset reads sunset_at as a datetime and keeps the am/pm string as an attr."""
+    desc = _desc("sunset")
+    assert desc.device_class == SensorDeviceClass.TIMESTAMP
+    data = MetServicePublicData(sunset_at="2026-07-16T17:23:00+12:00", sunset="5:23pm")
+    result = desc.value_fn(data, "metric")
+    assert isinstance(result, datetime.datetime)
+    assert desc.attr_fn(data) == {"display": "5:23pm"}
+
+
+def test_sunset_description_none_safe():
+    """Sunset is None-safe with no attrs when there's no data."""
+    desc = _desc("sunset")
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {}
+
+
+def test_moonrise_description_parses_iso_datetime_and_display_attr():
+    """Moonrise reads moonrise_at as a datetime and keeps the am/pm string as an attr."""
+    desc = _desc("moonrise")
+    assert desc.device_class == SensorDeviceClass.TIMESTAMP
+    data = MetServicePublicData(
+        moonrise_at="2026-07-16T20:00:00+12:00", moonrise="8:00pm"
+    )
+    result = desc.value_fn(data, "metric")
+    assert isinstance(result, datetime.datetime)
+    assert desc.attr_fn(data) == {"display": "8:00pm"}
+
+
+def test_moonrise_description_none_safe():
+    """Moonrise is None-safe with no attrs when there's no data."""
+    desc = _desc("moonrise")
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {}
+
+
+def test_moonset_description_parses_iso_datetime_and_display_attr():
+    """Moonset reads moonset_at as a datetime and keeps the am/pm string as an attr."""
+    desc = _desc("moonset")
+    assert desc.device_class == SensorDeviceClass.TIMESTAMP
+    data = MetServicePublicData(
+        moonset_at="2026-07-16T09:00:00+12:00", moonset="9:00am"
+    )
+    result = desc.value_fn(data, "metric")
+    assert isinstance(result, datetime.datetime)
+    assert desc.attr_fn(data) == {"display": "9:00am"}
+
+
+def test_moonset_description_none_safe():
+    """Moonset is None-safe with no attrs when there's no data."""
+    desc = _desc("moonset")
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {}
+
+
+# ---------------------------------------------------------------------------
+# Test: tide attribute helpers (height_m + tide_table)
+# ---------------------------------------------------------------------------
+
+
+def test_tide_attrs_height_and_table():
+    """height_m and tide_table are populated from the same upcoming entry."""
+    future1 = (
+        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
+    ).isoformat()
+    future2 = (
+        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=8)
+    ).isoformat()
+    tides = [
+        {"type": "HIGH", "time": future1, "height": "1.8"},
+        {"type": "LOW", "time": future2, "height": "0.4"},
+    ]
+    data = MetServicePublicData(tides=tides)
+    attrs = _tide_attrs(data, "HIGH")
+    assert attrs["height_m"] == 1.8
+    assert attrs["tide_table"] == [
+        {"type": "HIGH", "time": future1, "height": "1.8"},
+        {"type": "LOW", "time": future2, "height": "0.4"},
+    ]
+
+
+def test_tide_attrs_height_none_when_no_upcoming_entry():
+    """height_m is None (table still populated) when every matching tide is past."""
+    past = (
+        datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+    ).isoformat()
+    tides = [{"type": "HIGH", "time": past, "height": "1.8"}]
+    data = MetServicePublicData(tides=tides)
+    attrs = _tide_attrs(data, "HIGH")
+    assert attrs["height_m"] is None
+    assert attrs["tide_table"] == tides
+
+
+def test_tide_attrs_empty_when_tides_not_a_list():
+    """attr_fn returns {} when tides is None (no marine location configured)."""
+    data = MetServicePublicData(tides=None)
+    assert _tide_attrs(data, "HIGH") == {}
+
+
+def test_tides_high_description_attrs_match_value_fn_selection():
+    """height_m in attr_fn always reflects the exact entry value_fn selected."""
+    desc = _desc("tides_high")
+    future = (
+        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=3)
+    ).isoformat()
+    tides = [{"type": "HIGH", "time": future, "height": "2.1"}]
+    data = MetServicePublicData(tides=tides)
+    value = desc.value_fn(data, "metric")
+    attrs = desc.attr_fn(data)
+    assert value is not None
+    assert attrs["height_m"] == 2.1
+
+
+def test_tides_low_description_attrs_match_value_fn_selection():
+    """height_m in attr_fn always reflects the exact entry value_fn selected."""
+    desc = _desc("tides_low")
+    future = (
+        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=5)
+    ).isoformat()
+    tides = [{"type": "LOW", "time": future, "height": "0.3"}]
+    data = MetServicePublicData(tides=tides)
+    value = desc.value_fn(data, "metric")
+    attrs = desc.attr_fn(data)
+    assert value is not None
+    assert attrs["height_m"] == 0.3

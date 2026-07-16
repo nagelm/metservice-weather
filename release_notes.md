@@ -21,13 +21,37 @@ The new `sensor.<device>_pollen`:
 
 `sensor.<device>_pollen_levels` and `sensor.<device>_pollen_type` are removed automatically on upgrade. Templates referencing them need updating; an automation watching `imminent_allergens` is the new way to get a "pollen season starting" alert.
 
-#### ⚠️ Changed: Weather Warnings sensor format
+#### ⚠️ Changed: Weather Warnings sensor is now a severity enum
 
-With multiple simultaneous warnings, the old newline-joined state truncated at 255 characters mid-word, silently losing warnings. New format:
+The old newline-joined state truncated at 255 characters mid-word, silently losing warnings. The sensor is now an enum keyed to severity:
 
-- **State** is now the most severe active warning's name, e.g. `Strong Wind Warning - Orange (+1 more)` (Red > Orange > Warning > Watch), or `No warnings`.
-- **Attributes** now carry `count` and a structured `warnings` list (`name`, `text`, `threat_period` per warning) with no truncation.
-- If you templated against the old concatenated state or the old `warnings` attribute string, switch to the structured list. Automations checking `state != "No warnings"` are unaffected.
+- **State**: `none` / `watch` / `warning` / `orange` / `red` — the most severe active warning's level, so numeric-style "at least orange" automation conditions work.
+- **Attributes**: `headline` (most severe warning's name, e.g. `Strong Wind Warning - Orange (+1 more)`), `count`, and a structured `warnings` list (`name`, `text`, `threat_period`) with no truncation.
+- Automations checking `state != "No warnings"` should switch to `state != "none"`; templates on the old concatenated text should use `headline` or the structured list.
+
+#### ⚠️ Changed: UV Index is now a 5-level enum with advice attributes
+
+State is `low` / `moderate` / `high` / `very_high` / `extreme` (NIWA's alert scale — a closed vocabulary, so ad-hoc wording changes can't break automations). New attributes: `level_label` (verbatim wording), `status_class`, `advice` (the sun-protection message), `protection_window_start` / `protection_window_end` (populated in season), `has_alert`, and NIWA attribution. Off-season the sensor reads `unknown` as before.
+
+#### ⚠️ Changed: closed-vocabulary enums for five more sensors
+
+Pressure Trend (`rising`/`falling`/`stable`), Wind Strength (`calm`→`storm`), Fire Season (FENZ `open`/`restricted`/`prohibited` — the descriptive text moved to attributes), Fire Danger (`low`→`extreme`, keyed to NIWA's own index), and Moon Phase (`new`/`first_quarter`/`full`/`last_quarter` — MetService publishes the *next* principal phase event) are now enum sensors with translated states and validated vocabularies. States are lowercase keys; the UI shows friendly labels. Any unexpected upstream value logs one warning and reads `unknown` instead of breaking.
+
+#### ⚠️ Changed: sunrise/sunset/moonrise/moonset are now timestamp sensors
+
+Previously local strings like `"7:42am"`; now real timestamps usable in automation triggers and templates. The old display string is kept as a `display` attribute.
+
+#### Added: opt-in forecast rain sensors
+
+Three new sensors, disabled by default (enable on the device page): **Rain — Next 8 Hours** (mm), **Rain — Next 24 Hours** (mm), and **Next Rain Expected** (timestamp of the first forecast hour with rain). These replace the `weather.get_forecasts` template dance for the most common rain automations.
+
+#### Added: option to auto-remove sensors with no upstream data
+
+A new setup/reconfigure toggle ("Automatically remove sensors while MetService publishes no data", default off) removes seasonal sensors (UV, fire danger, clothes drying) while MetService pauses the product, and re-adds them automatically — no restart — when data resumes. Leave it off to keep today's behaviour (sensors stay and read `unknown` off-season).
+
+#### Added: tide detail attributes
+
+Next High/Low Tide sensors now carry `height_m` and a full-day `tide_table` attribute (type, time, height per entry).
 
 #### Added: daily rainfall totals for today and tomorrow
 

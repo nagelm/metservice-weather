@@ -21,7 +21,7 @@ from typing import Any
 from .coordinator import WeatherUpdateCoordinator
 from .entity import MetServiceEntity
 
-from .const import CONF_ATTRIBUTION
+from .const import CONF_ATTRIBUTION, CONF_AUTO_HIDE_SEASONAL
 from .weather_current_conditions_sensors import (
     current_condition_sensor_descriptions_public,
     WeatherSensorEntityDescription,
@@ -48,13 +48,41 @@ async def async_setup_entry(
     observation sensors need a weather station, which rural locations lack).
     Registry entries for sensors the location no longer provides are removed
     so users aren't left with permanently-unknown entities.
+
+    When CONF_AUTO_HIDE_SEASONAL is enabled, seasonal descriptions (UV, fire
+    danger, clothes drying) that currently have no data are skipped at setup
+    instead of being created in an always-unknown state — the stale-registry
+    cleanup below removes any leftover registry entries for them. A
+    coordinator listener re-checks the skipped descriptions on every update
+    and creates them once MetService resumes publishing data.
     """
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
-    sensors = [
-        WeatherSensor(coordinator, description)
-        for description in SENSOR_DESCRIPTIONS
-        if description.exists_fn(coordinator)
-    ]
+    auto_hide_seasonal = entry.data.get(CONF_AUTO_HIDE_SEASONAL, False)
+
+    def _seasonal_is_dataless(description: WeatherSensorEntityDescription) -> bool:
+        """Return True when a seasonal description currently has no data."""
+        if coordinator.data is None:
+            return True
+        try:
+            return (
+                description.value_fn(coordinator.data, coordinator.unit_system) is None
+            )
+        except Exception:
+            return True
+
+    skipped_seasonal: dict[str, WeatherSensorEntityDescription] = {}
+    sensors = []
+    for description in SENSOR_DESCRIPTIONS:
+        if not description.exists_fn(coordinator):
+            continue
+        if (
+            auto_hide_seasonal
+            and description.seasonal
+            and _seasonal_is_dataless(description)
+        ):
+            skipped_seasonal[description.key] = description
+            continue
+        sensors.append(WeatherSensor(coordinator, description))
 
     ent_reg = er.async_get(hass)
     expected_unique_ids = {sensor.unique_id for sensor in sensors}
@@ -66,6 +94,31 @@ async def async_setup_entry(
             ent_reg.async_remove(reg_entry.entity_id)
 
     async_add_entities(sensors)
+
+    if not skipped_seasonal:
+        return
+
+    @callback
+    def _add_seasonal_sensors_with_data() -> None:
+        """Create previously-skipped seasonal sensors once they have data.
+
+        Descriptions are popped from skipped_seasonal as they are created,
+        so repeated coordinator updates never create the same sensor twice.
+        """
+        ready_keys = [
+            key
+            for key, description in skipped_seasonal.items()
+            if not _seasonal_is_dataless(description)
+        ]
+        if not ready_keys:
+            return
+        new_sensors = [
+            WeatherSensor(coordinator, skipped_seasonal.pop(key)) for key in ready_keys
+        ]
+        async_add_entities(new_sensors)
+
+    unsub = coordinator.async_add_listener(_add_seasonal_sensors_with_data)
+    entry.async_on_unload(unsub)
 
 
 class WeatherSensor(MetServiceEntity, SensorEntity):

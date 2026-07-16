@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
+from homeassistant.util import dt as dt_util
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -66,6 +68,48 @@ def _safe_int(val: Any) -> int | None:
         return int(val)
     except (TypeError, ValueError):
         return None
+
+
+_CLOCK_TIME_RE = re.compile(r"\d{1,2}:\d{2}\s*[AaPp][Mm]")
+
+
+def _parse_clock_time(clock: str | None, reference: datetime | None) -> str | None:
+    """Combine a bare MetService clock string with reference's date and tz.
+
+    MetService publishes rise/set and UV-window times as bare 12-hour
+    clock strings ("7:07am", "12:26pm") with no date of their own — the
+    calendar day and UTC offset come from the page's `issuedAt` timestamp
+    instead. Returns None (never raises) for a missing/empty clock string,
+    a missing reference, or unparseable input such as the "undefined
+    undefined" UV placeholder.
+    """
+    if not clock or reference is None:
+        return None
+    compact = re.sub(r"\s+", "", clock)
+    try:
+        parsed_time = datetime.strptime(compact, "%I:%M%p").time()
+    except ValueError:
+        return None
+    return reference.replace(
+        hour=parsed_time.hour,
+        minute=parsed_time.minute,
+        second=0,
+        microsecond=0,
+    ).isoformat()
+
+
+def _extract_clock_token(text: Any) -> str | None:
+    """Pull the first bare "H:MMam/pm" token out of a longer string.
+
+    The in-season MetService UV window format is unverified — captured
+    fixtures only carry the "undefined undefined" off-season placeholder —
+    so this extracts best-effort from whatever text is present (e.g. a
+    hypothetical "10:00am Saturday").
+    """
+    if not isinstance(text, str):
+        return None
+    match = _CLOCK_TIME_RE.search(text)
+    return match.group(0) if match else None
 
 
 def _find_module(modules: list, key: str) -> dict:
@@ -211,6 +255,16 @@ class MetServicePublicData:
     uv_index: str | None = None
     location_name: str | None = None
 
+    # UV detail (sunProtection block; absent entirely outside UV season)
+    uv_status_class: str | None = None
+    uv_alert_level: str | None = None
+    uv_message: str | None = None
+    uv_has_alert: bool | None = None
+    uv_window_start_raw: str | None = None
+    uv_window_end_raw: str | None = None
+    uv_window_start_at: str | None = None
+    uv_window_end_at: str | None = None
+
     # Sub-day breakdown
     breakdown_morning: str | None = None
     breakdown_afternoon: str | None = None
@@ -224,10 +278,20 @@ class MetServicePublicData:
     moonset: str | None = None
     moon_phase: str | None = None
     moon_phase_date: str | None = None
+    sunrise_at: str | None = None
+    sunset_at: str | None = None
+    moonrise_at: str | None = None
+    moonset_at: str | None = None
 
     # Fire weather
     fire_danger: str | None = None
     fire_season: str | None = None
+    fire_season_status: str | None = None
+    fire_season_short: str | None = None
+    fire_season_text: str | None = None
+    fire_danger_index: int | None = None
+    fire_danger_text: str | None = None
+    fire_danger_forecast: str | None = None
 
     # Pollen (injected). pollen_level/type reflect the first (headline)
     # block; pollen_groups carries every concurrent status block, e.g. a
@@ -266,6 +330,12 @@ class MetServicePublicData:
     hourly_obs: int | None = None
     hourly_skip: int | None = None
 
+    # Rain windows — summed from the forecast hourly slice, anchored to
+    # the normalizer's `now` (see normalize_public_data's `now` parameter)
+    rain_next_8h_mm: float | None = None
+    rain_next_24h_mm: float | None = None
+    next_rain_at: str | None = None
+
     # Daily forecast
     daily_entries: list[DailyEntry] = field(default_factory=list)
 
@@ -286,14 +356,22 @@ class MetServicePublicData:
     surf_period: str | None = None
 
 
-def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
+def normalize_public_data(
+    current: dict, daily: dict, now: datetime | None = None
+) -> MetServicePublicData:
     """Build a MetServicePublicData from raw coordinator dicts.
 
     Uses exact-path traversal (_get) and explicit section extraction —
     no DFS.  All injected fields (weather_warnings, pollen, drying_*)
     are already present at the root of `current` when this is called;
     tomorrow_* fields are derived here from the 7-day data.
+
+    `now` is resolved once (defaulting to dt_util.now()) and used as the
+    anchor for the rain-window fields; callers may inject a fixed value
+    for deterministic tests.
     """
+    now = now or dt_util.now()
+
     # ------------------------------------------------------------------
     # Extract key sections from the nested layout structure
     # ------------------------------------------------------------------
@@ -330,6 +408,91 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
     rise_mod = _find_module(secondary, "riseSet")
     rise_set = rise_mod.get("riseSet", {})
     moon_phases = rise_mod.get("moonPhases", [])
+
+    # ------------------------------------------------------------------
+    # Reference datetime for combining bare clock strings (sunrise, UV
+    # window, etc.) with a date/timezone offset. Sourced once from day 0's
+    # issuedAt so every clock-string parse in this call uses the same
+    # anchor; an unparseable or missing issuedAt disables all of them.
+    # ------------------------------------------------------------------
+    issued_at_raw = day0.get("issuedAt")
+    try:
+        issued_at_reference = (
+            datetime.fromisoformat(issued_at_raw) if issued_at_raw else None
+        )
+    except (ValueError, TypeError):
+        issued_at_reference = None
+
+    # ------------------------------------------------------------------
+    # Sun / moon clock-time combination
+    # ------------------------------------------------------------------
+    sunrise_at = _parse_clock_time(rise_set.get("sunRise"), issued_at_reference)
+    sunset_at = _parse_clock_time(rise_set.get("sunSet"), issued_at_reference)
+    moonrise_at = _parse_clock_time(rise_set.get("moonRise"), issued_at_reference)
+    moonset_at = _parse_clock_time(rise_set.get("moonSet"), issued_at_reference)
+
+    # ------------------------------------------------------------------
+    # UV detail — sunProtection is absent entirely outside NZ's UV season
+    # (winter payloads carry only a displayEndOfSeasonMessage stub with no
+    # "sunProtection" key), so every field here must be None-safe.
+    # ------------------------------------------------------------------
+    uv_status_raw = _get(uv, "sunProtection", "status")
+    uv_status_class = (
+        uv_status_raw.removeprefix("status-")
+        if isinstance(uv_status_raw, str)
+        else None
+    )
+    uv_alert_level = _get(uv, "sunProtection", "uvAlertLevel")
+    uv_message_raw = _get(uv, "sunProtection", "uvMessage")
+    uv_message = (
+        ". ".join(str(item) for item in uv_message_raw)
+        if isinstance(uv_message_raw, list) and uv_message_raw
+        else None
+    )
+    uv_has_alert_raw = _get(uv, "sunProtection", "uvHasAlert")
+    uv_has_alert = uv_has_alert_raw if isinstance(uv_has_alert_raw, bool) else None
+    uv_start_time_raw = _get(uv, "sunProtection", "uvStartTime")
+    uv_end_time_raw = _get(uv, "sunProtection", "uvEndTime")
+    uv_window_start_raw = (
+        uv_start_time_raw
+        if isinstance(uv_start_time_raw, str) and "undefined" not in uv_start_time_raw
+        else None
+    )
+    uv_window_end_raw = (
+        uv_end_time_raw
+        if isinstance(uv_end_time_raw, str) and "undefined" not in uv_end_time_raw
+        else None
+    )
+    uv_window_start_at = _parse_clock_time(
+        _extract_clock_token(uv_start_time_raw), issued_at_reference
+    )
+    uv_window_end_at = _parse_clock_time(
+        _extract_clock_token(uv_end_time_raw), issued_at_reference
+    )
+
+    # ------------------------------------------------------------------
+    # Fire weather — day 0 carries today's status/index, day 1 carries
+    # tomorrow's forecast danger rating. Rural pages publish
+    # fireWeatherData as an empty list, so every field here is None-safe.
+    # ------------------------------------------------------------------
+    day1 = days[1] if len(days) > 1 and isinstance(days[1], dict) else {}
+    fire_season_status_raw = _get(
+        day0, "fireWeatherData", "fireWeather", "season", "status"
+    )
+    fire_season_status = (
+        fire_season_status_raw.lower()
+        if isinstance(fire_season_status_raw, str)
+        else None
+    )
+    fire_season_short = _get(day0, "fireWeatherData", "fireWeather", "season", "short")
+    fire_season_text = _get(day0, "fireWeatherData", "fireWeather", "season", "text")
+    fire_danger_index = _safe_int(
+        _get(day0, "fireWeatherData", "fireWeather", "danger", "dailyObservationIndex")
+    )
+    fire_danger_text = _get(day0, "fireWeatherData", "fireWeather", "danger", "text")
+    fire_danger_forecast = _get(
+        day1, "fireWeatherData", "fireWeather", "danger", "forecast"
+    )
 
     # ------------------------------------------------------------------
     # Hourly entries
@@ -434,6 +597,45 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
                     theirs,
                 )
 
+    # ------------------------------------------------------------------
+    # Rain windows — summed from the forecast hourly slice, anchored to
+    # `now` floored to the top of the hour (so the current hour's entry
+    # still counts as upcoming). Malformed entry datetimes are skipped;
+    # entries before the floor are excluded as already-elapsed.
+    # ------------------------------------------------------------------
+    now_floor = now.replace(minute=0, second=0, microsecond=0)
+    future_hourly: list[tuple[datetime, HourlyEntry]] = []
+    for h in forecast_hourly:
+        if not h.datetime:
+            continue
+        try:
+            parsed = datetime.fromisoformat(h.datetime)
+            if parsed < now_floor:
+                continue
+        except (ValueError, TypeError):
+            continue
+        future_hourly.append((parsed, h))
+    future_hourly.sort(key=lambda pair: pair[0])
+
+    rain_next_8h_mm = (
+        round(sum((h.rainfall or 0) for _, h in future_hourly[:8]), 1)
+        if len(future_hourly) >= 8
+        else None
+    )
+    rain_next_24h_mm = (
+        round(sum((h.rainfall or 0) for _, h in future_hourly[:24]), 1)
+        if len(future_hourly) >= 24
+        else None
+    )
+    next_rain_at = next(
+        (
+            h.datetime
+            for _, h in future_hourly
+            if h.rainfall is not None and h.rainfall > 0
+        ),
+        None,
+    )
+
     # Tomorrow's forecast is day index 1 of the 7-day data.
     tomorrow = daily_entries[1] if len(daily_entries) > 1 else None
 
@@ -501,6 +703,15 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         issued_at=day0.get("issuedAt"),
         uv_index=_get(uv, "sunProtection", "uvAlertLevel"),
         location_name=_get(current, "location", "label"),
+        # UV detail (sunProtection block; absent entirely off-season)
+        uv_status_class=uv_status_class,
+        uv_alert_level=uv_alert_level,
+        uv_message=uv_message,
+        uv_has_alert=uv_has_alert,
+        uv_window_start_raw=uv_window_start_raw,
+        uv_window_end_raw=uv_window_end_raw,
+        uv_window_start_at=uv_window_start_at,
+        uv_window_end_at=uv_window_end_at,
         # Sub-day breakdown
         breakdown_morning=_get(breakdown0, "morning", "condition"),
         breakdown_afternoon=_get(breakdown0, "afternoon", "condition"),
@@ -513,11 +724,21 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         moonset=rise_set.get("moonSet"),
         moon_phase=_get(moon_phases, "0", "phase"),
         moon_phase_date=moon_phase_date,
+        sunrise_at=sunrise_at,
+        sunset_at=sunset_at,
+        moonrise_at=moonrise_at,
+        moonset_at=moonset_at,
         # Fire weather (from day 0's fireWeatherData)
         fire_danger=_get(
             day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"
         ),
         fire_season=_get(day0, "fireWeatherData", "fireWeather", "season", "short"),
+        fire_season_status=fire_season_status,
+        fire_season_short=fire_season_short,
+        fire_season_text=fire_season_text,
+        fire_danger_index=fire_danger_index,
+        fire_danger_text=fire_danger_text,
+        fire_danger_forecast=fire_danger_forecast,
         # Pollen (injected at root as {"pollenLevels": {...}})
         pollen_level=_get(current, "pollen", "pollenLevels", "level"),
         pollen_type=_get(current, "pollen", "pollenLevels", "type"),
@@ -545,6 +766,9 @@ def normalize_public_data(current: dict, daily: dict) -> MetServicePublicData:
         hourly_entries=hourly_entries,
         hourly_obs=hourly_obs_count,
         hourly_skip=hourly_skip,
+        rain_next_8h_mm=rain_next_8h_mm,
+        rain_next_24h_mm=rain_next_24h_mm,
+        next_rain_at=next_rain_at,
         # Daily
         daily_entries=daily_entries,
         # Tides (injected at root as a list)

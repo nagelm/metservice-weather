@@ -5,7 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.metservice_weather.const import DOMAIN
+from custom_components.metservice_weather.const import (
+    DOMAIN,
+    CONF_AUTO_HIDE_SEASONAL,
+)
 from custom_components.metservice_weather.config_flow import (
     CONF_MARINE_REGION,
     WeatherFlowHandler,
@@ -421,3 +424,113 @@ async def test_reconfigure_prefills_marine_region(hass, mock_coordinator_refresh
             if hasattr(key, "schema") and "marine_region" in str(key.schema):
                 assert key.default() == "Northland"
                 break
+
+
+# ---------------------------------------------------------------------------
+# Test 20 — auto_hide_seasonal field present on the setup form, defaults False
+# ---------------------------------------------------------------------------
+
+
+async def test_setup_form_includes_auto_hide_seasonal_field(hass, mock_marine_session):
+    """The setup form's schema includes auto_hide_seasonal, defaulting False."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "setup"
+
+    schema = result["data_schema"].schema
+    matches = [key for key in schema if key.schema == CONF_AUTO_HIDE_SEASONAL]
+    assert len(matches) == 1
+    assert matches[0].default() is False
+
+
+# ---------------------------------------------------------------------------
+# Test 21 — completing the flow with auto_hide_seasonal true persists it
+# ---------------------------------------------------------------------------
+
+
+async def test_auto_hide_seasonal_true_persists_in_entry_data(
+    hass, mock_marine_session
+):
+    """Submitting the setup form with auto_hide_seasonal=True stores it on the entry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Napier",
+            CONF_LOCATION: "/towns-cities/regions/hawkes-bay/locations/napier",
+            CONF_MARINE_REGION: "skip",
+            CONF_AUTO_HIDE_SEASONAL: True,
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["result"].data[CONF_AUTO_HIDE_SEASONAL] is True
+
+
+# ---------------------------------------------------------------------------
+# Test 22 — completing the flow with auto_hide_seasonal false persists it
+# ---------------------------------------------------------------------------
+
+
+async def test_auto_hide_seasonal_false_persists_in_entry_data(
+    hass, mock_marine_session
+):
+    """Submitting the setup form with auto_hide_seasonal=False stores it on the entry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Napier",
+            CONF_LOCATION: "/towns-cities/regions/hawkes-bay/locations/napier",
+            CONF_MARINE_REGION: "skip",
+            CONF_AUTO_HIDE_SEASONAL: False,
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["result"].data[CONF_AUTO_HIDE_SEASONAL] is False
+
+
+# ---------------------------------------------------------------------------
+# Test 23 — reconfigure pre-fills the existing auto_hide_seasonal value
+# ---------------------------------------------------------------------------
+
+
+async def test_reconfigure_prefills_auto_hide_seasonal(hass, mock_marine_session):
+    """Reconfigure of an entry with auto_hide_seasonal=True pre-fills the toggle."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    existing_entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-/towns-cities/regions/hawkes-bay/locations/napier",
+        data={
+            CONF_NAME: "Napier",
+            CONF_LOCATION: "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+            CONF_AUTO_HIDE_SEASONAL: True,
+        },
+    )
+    existing_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": existing_entry.entry_id,
+        },
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "setup"
+
+    schema = result["data_schema"].schema
+    matches = [key for key in schema if key.schema == CONF_AUTO_HIDE_SEASONAL]
+    assert len(matches) == 1
+    assert matches[0].default() is True

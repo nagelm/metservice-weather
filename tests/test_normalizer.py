@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,9 @@ from custom_components.metservice_weather.coordinator_types import (
     DailyEntry,
     HourlyEntry,
     MetServicePublicData,
+    _extract_clock_token,
     _get,
+    _parse_clock_time,
     _round_iso_to_minutes,
     _safe_float,
     _safe_int,
@@ -1221,3 +1224,436 @@ def test_pollen_empty_type_splits_to_empty_list():
     current = _pollen_current([{"level": "Low", "type": "", "status_class": "good"}])
     result = normalize_public_data(current, {})
     assert result.pollen_active["low"] == []
+
+
+# ---------------------------------------------------------------------------
+# _parse_clock_time / _extract_clock_token
+# ---------------------------------------------------------------------------
+
+_REF = datetime.fromisoformat("2026-05-13T17:12:00+12:00")
+
+
+def test_parse_clock_time_valid_am():
+    """A valid am clock string combines with the reference's date and offset."""
+    assert _parse_clock_time("7:07am", _REF) == "2026-05-13T07:07:00+12:00"
+
+
+def test_parse_clock_time_valid_pm():
+    """A valid pm clock string combines with the reference's date and offset."""
+    assert _parse_clock_time("5:10pm", _REF) == "2026-05-13T17:10:00+12:00"
+
+
+def test_parse_clock_time_midnight_boundary():
+    """12:00am parses to hour 0 (midnight), not hour 12."""
+    assert _parse_clock_time("12:00am", _REF) == "2026-05-13T00:00:00+12:00"
+
+
+def test_parse_clock_time_noon_boundary():
+    """12:00pm parses to hour 12 (noon)."""
+    assert _parse_clock_time("12:00pm", _REF) == "2026-05-13T12:00:00+12:00"
+
+
+def test_parse_clock_time_case_insensitive_and_whitespace_tolerant():
+    """Uppercase am/pm markers and stray whitespace are tolerated."""
+    assert _parse_clock_time("7:07AM", _REF) == "2026-05-13T07:07:00+12:00"
+    assert _parse_clock_time("  7:07 am  ", _REF) == "2026-05-13T07:07:00+12:00"
+
+
+def test_parse_clock_time_undefined_placeholder_returns_none():
+    """The "undefined undefined" MetService off-season placeholder returns None."""
+    assert _parse_clock_time("undefined undefined", _REF) is None
+
+
+def test_parse_clock_time_none_or_empty_returns_none():
+    """A None or empty clock string returns None."""
+    assert _parse_clock_time(None, _REF) is None
+    assert _parse_clock_time("", _REF) is None
+
+
+def test_parse_clock_time_garbage_returns_none():
+    """An unparseable clock string returns None instead of raising."""
+    assert _parse_clock_time("banana", _REF) is None
+
+
+def test_parse_clock_time_none_reference_returns_none():
+    """A None reference returns None even for an otherwise-valid clock string."""
+    assert _parse_clock_time("7:07am", None) is None
+
+
+def test_extract_clock_token_from_longer_string():
+    """_extract_clock_token pulls the first H:MMam/pm token out of surrounding text."""
+    assert _extract_clock_token("10:00am Saturday") == "10:00am"
+
+
+def test_extract_clock_token_none_when_absent():
+    """_extract_clock_token returns None when no clock token is present, or input isn't a string."""
+    assert _extract_clock_token("undefined undefined") is None
+    assert _extract_clock_token(None) is None
+    assert _extract_clock_token(42) is None
+
+
+# ---------------------------------------------------------------------------
+# Sun / moon *_at fields — clock strings combined with issuedAt
+# ---------------------------------------------------------------------------
+
+
+def _riseset_payload(rise_set: dict, issued_at: str | None) -> dict:
+    """Build a `current`-shaped payload carrying issuedAt (via days) and a riseSet module."""
+    return {
+        "layout": {
+            "primary": {
+                "slots": {"main": {"modules": [{"days": [{"issuedAt": issued_at}]}]}}
+            },
+            "secondary": {"slots": {"major": {"modules": [{"riseSet": rise_set}]}}},
+        }
+    }
+
+
+def test_sun_moon_at_derived_from_riseset_and_issued_at():
+    """sunrise_at/sunset_at/moonrise_at/moonset_at combine riseSet strings with issuedAt's date/offset."""
+    rise_set = {
+        "sunRise": "7:07am",
+        "sunSet": "5:10pm",
+        "moonRise": "2:26am",
+        "moonSet": "2:42pm",
+    }
+    current = _riseset_payload(rise_set, "2026-05-13T17:12:00+12:00")
+    result = normalize_public_data(current, {})
+    assert result.sunrise_at == "2026-05-13T07:07:00+12:00"
+    assert result.sunset_at == "2026-05-13T17:10:00+12:00"
+    assert result.moonrise_at == "2026-05-13T02:26:00+12:00"
+    assert result.moonset_at == "2026-05-13T14:42:00+12:00"
+
+
+def test_moonrise_at_none_when_moonrise_missing():
+    """moonrise_at is None when riseSet omits moonRise; other *_at fields still populate."""
+    rise_set = {"sunRise": "7:07am", "sunSet": "5:10pm", "moonSet": "2:42pm"}
+    current = _riseset_payload(rise_set, "2026-05-13T17:12:00+12:00")
+    result = normalize_public_data(current, {})
+    assert result.moonrise_at is None
+    assert result.sunrise_at is not None
+
+
+def test_sun_moon_at_none_when_issued_at_missing():
+    """All *_at fields are None when issuedAt is absent."""
+    rise_set = {"sunRise": "7:07am", "sunSet": "5:10pm"}
+    current = _riseset_payload(rise_set, None)
+    result = normalize_public_data(current, {})
+    assert result.sunrise_at is None
+    assert result.sunset_at is None
+
+
+def test_sun_moon_at_none_when_issued_at_garbage():
+    """All *_at fields are None when issuedAt is unparseable."""
+    rise_set = {"sunRise": "7:07am", "sunSet": "5:10pm"}
+    current = _riseset_payload(rise_set, "not-a-date")
+    result = normalize_public_data(current, {})
+    assert result.sunrise_at is None
+    assert result.sunset_at is None
+
+
+# ---------------------------------------------------------------------------
+# UV detail — sunProtection block
+# ---------------------------------------------------------------------------
+
+
+def _uv_payload(
+    sun_protection: dict | None, issued_at: str | None = "2026-05-13T17:12:00+12:00"
+) -> dict:
+    """Build a `current`-shaped payload carrying a uv module and issuedAt."""
+    uv_value = {"sunProtection": sun_protection} if sun_protection is not None else {}
+    return {
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {"modules": [{"days": [{"issuedAt": issued_at}]}]},
+                    "left-minor": {"modules": [{"uv": uv_value}]},
+                }
+            }
+        }
+    }
+
+
+def test_uv_fields_full_payload():
+    """A full sunProtection block populates status/alert/message/has_alert; placeholder windows collapse to None."""
+    sun_protection = {
+        "status": "status-good",
+        "uvAlertLevel": "Low",
+        "uvMessage": ["Protect if outside for extended periods", "Even on cloudy days"],
+        "uvStartTime": "undefined undefined",
+        "uvEndTime": "undefined undefined",
+        "uvHasAlert": True,
+    }
+    current = _uv_payload(sun_protection)
+    result = normalize_public_data(current, {})
+    assert result.uv_status_class == "good"
+    assert result.uv_alert_level == "Low"
+    assert (
+        result.uv_message
+        == "Protect if outside for extended periods. Even on cloudy days"
+    )
+    assert result.uv_has_alert is True
+    assert result.uv_window_start_raw is None
+    assert result.uv_window_end_raw is None
+    assert result.uv_window_start_at is None
+    assert result.uv_window_end_at is None
+
+
+def test_uv_fields_none_when_sun_protection_absent():
+    """A winter-stub uv module (no sunProtection key) leaves every uv_* field None."""
+    current = _uv_payload(None)
+    result = normalize_public_data(current, {})
+    assert result.uv_status_class is None
+    assert result.uv_alert_level is None
+    assert result.uv_message is None
+    assert result.uv_has_alert is None
+    assert result.uv_window_start_raw is None
+    assert result.uv_window_end_raw is None
+    assert result.uv_window_start_at is None
+    assert result.uv_window_end_at is None
+
+
+def test_uv_message_none_when_empty_list():
+    """An empty uvMessage list normalizes to None rather than an empty string."""
+    current = _uv_payload({"uvMessage": []})
+    result = normalize_public_data(current, {})
+    assert result.uv_message is None
+
+
+def test_uv_message_none_when_not_a_list():
+    """A non-list uvMessage value normalizes to None."""
+    current = _uv_payload({"uvMessage": "not a list"})
+    result = normalize_public_data(current, {})
+    assert result.uv_message is None
+
+
+def test_uv_message_coerces_non_string_items():
+    """Non-string uvMessage items are coerced via str() before joining."""
+    current = _uv_payload({"uvMessage": ["Alert", 3, None]})
+    result = normalize_public_data(current, {})
+    assert result.uv_message == "Alert. 3. None"
+
+
+def test_uv_has_alert_none_when_not_bool():
+    """uv_has_alert is None when uvHasAlert is present but not a bool."""
+    current = _uv_payload({"uvHasAlert": "true"})
+    result = normalize_public_data(current, {})
+    assert result.uv_has_alert is None
+
+
+def test_uv_window_at_extracts_clock_token_from_in_season_string():
+    """A hypothetical in-season uvStartTime/uvEndTime carrying a clock token parses via best-effort extraction."""
+    current = _uv_payload(
+        {"uvStartTime": "10:00am Saturday", "uvEndTime": "4:00pm Saturday"},
+        issued_at="2026-01-10T06:00:00+13:00",
+    )
+    result = normalize_public_data(current, {})
+    assert result.uv_window_start_raw == "10:00am Saturday"
+    assert result.uv_window_end_raw == "4:00pm Saturday"
+    assert result.uv_window_start_at == "2026-01-10T10:00:00+13:00"
+    assert result.uv_window_end_at == "2026-01-10T16:00:00+13:00"
+
+
+# ---------------------------------------------------------------------------
+# Fire weather — season/danger detail
+# ---------------------------------------------------------------------------
+
+
+def _fire_days_payload(day0_fire, day1_fire=None) -> dict:
+    """Build a `current`-shaped payload with fireWeatherData on day 0 (and optionally day 1)."""
+    days = [{"fireWeatherData": day0_fire}]
+    if day1_fire is not None:
+        days.append({"fireWeatherData": day1_fire})
+    return {"layout": {"primary": {"slots": {"main": {"modules": [{"days": days}]}}}}}
+
+
+def test_fire_weather_full_payload():
+    """Season status/short/text and danger index/text come from day 0; forecast comes from day 1."""
+    day0_fire = {
+        "fireWeather": {
+            "season": {
+                "status": "Open",
+                "short": "Open except PCE",
+                "text": "Permits not required today.",
+            },
+            "danger": {
+                "dailyObservationIndex": 2,
+                "text": "Follow safety guidelines.",
+            },
+        }
+    }
+    day1_fire = {"fireWeather": {"danger": {"forecast": "Moderate"}}}
+    current = _fire_days_payload(day0_fire, day1_fire)
+    result = normalize_public_data(current, {})
+    assert result.fire_season_status == "open"
+    assert result.fire_season_short == "Open except PCE"
+    assert result.fire_season_text == "Permits not required today."
+    assert result.fire_danger_index == 2
+    assert isinstance(result.fire_danger_index, int)
+    assert result.fire_danger_text == "Follow safety guidelines."
+    assert result.fire_danger_forecast == "Moderate"
+
+
+def test_fire_weather_all_none_when_empty_list():
+    """Rural pages publish fireWeatherData as an empty list; every new fire_* field stays None."""
+    current = _fire_days_payload([], [])
+    result = normalize_public_data(current, {})
+    assert result.fire_season_status is None
+    assert result.fire_season_short is None
+    assert result.fire_season_text is None
+    assert result.fire_danger_index is None
+    assert result.fire_danger_text is None
+    assert result.fire_danger_forecast is None
+
+
+def test_fire_danger_forecast_none_with_only_one_day():
+    """fire_danger_forecast is None when there is no day 1 at all."""
+    current = _fire_days_payload({"fireWeather": {"season": {"status": "open"}}})
+    result = normalize_public_data(current, {})
+    assert result.fire_danger_forecast is None
+
+
+# ---------------------------------------------------------------------------
+# Rain windows — rain_next_8h_mm / rain_next_24h_mm / next_rain_at
+# ---------------------------------------------------------------------------
+
+
+def test_rain_windows_8h_and_24h_sums():
+    """30 future hourly entries starting at now's hour-floor produce correct rounded 8h/24h sums."""
+    now = datetime.fromisoformat("2026-07-16T06:15:00+12:00")
+    start = now.replace(minute=0, second=0, microsecond=0)
+    columns = [
+        _hourly_column((start + timedelta(hours=i)).isoformat(), 0.5) for i in range(30)
+    ]
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    result = normalize_public_data(current, {}, now=now)
+    assert result.rain_next_8h_mm == 4.0
+    assert result.rain_next_24h_mm == 12.0
+
+
+def test_rain_windows_none_when_fewer_than_8_future_hours():
+    """Fewer than 8 future hourly entries leaves both rain window sums None."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    columns = [
+        _hourly_column((now + timedelta(hours=i)).isoformat(), 1.0) for i in range(6)
+    ]
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    result = normalize_public_data(current, {}, now=now)
+    assert result.rain_next_8h_mm is None
+    assert result.rain_next_24h_mm is None
+
+
+def test_rain_windows_8h_set_24h_none_with_partial_coverage():
+    """Between 8 and 23 future hourly entries sets the 8h sum but leaves the 24h sum None."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    columns = [
+        _hourly_column((now + timedelta(hours=i)).isoformat(), 1.0) for i in range(10)
+    ]
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    result = normalize_public_data(current, {}, now=now)
+    assert result.rain_next_8h_mm == 8.0
+    assert result.rain_next_24h_mm is None
+
+
+def test_rain_windows_exclude_entries_before_now():
+    """Hourly entries earlier than now's hour-floor are excluded from the future window."""
+    now = datetime.fromisoformat("2026-07-16T06:30:00+12:00")
+    now_floor = now.replace(minute=0, second=0, microsecond=0)
+    past = [
+        _hourly_column((now - timedelta(hours=i + 1)).isoformat(), 100.0)
+        for i in range(3)
+    ]
+    future = [
+        _hourly_column((now_floor + timedelta(hours=i)).isoformat(), 1.0)
+        for i in range(8)
+    ]
+    columns = past + future
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    result = normalize_public_data(current, {}, now=now)
+    assert result.rain_next_8h_mm == 8.0
+
+
+def test_rain_windows_skip_malformed_datetime():
+    """A malformed hourly datetime is skipped, not counted toward the future window."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    columns = [_hourly_column("not-a-date", 5.0)] + [
+        _hourly_column((now + timedelta(hours=i)).isoformat(), 1.0) for i in range(8)
+    ]
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    result = normalize_public_data(current, {}, now=now)
+    assert result.rain_next_8h_mm == 8.0
+
+
+def test_next_rain_at_picks_first_rainy_future_hour():
+    """next_rain_at is the datetime of the first future hourly entry with rainfall greater than zero."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    columns = [
+        _hourly_column((now + timedelta(hours=0)).isoformat(), 0.0),
+        _hourly_column((now + timedelta(hours=1)).isoformat(), None),
+        _hourly_column((now + timedelta(hours=2)).isoformat(), 2.5),
+        _hourly_column((now + timedelta(hours=3)).isoformat(), 5.0),
+    ]
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    result = normalize_public_data(current, {}, now=now)
+    assert result.next_rain_at == (now + timedelta(hours=2)).isoformat()
+
+
+def test_next_rain_at_none_when_all_dry():
+    """next_rain_at is None when no future hourly entry has rainfall greater than zero."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    columns = [
+        _hourly_column((now + timedelta(hours=i)).isoformat(), 0.0) for i in range(5)
+    ]
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    result = normalize_public_data(current, {}, now=now)
+    assert result.next_rain_at is None
+
+
+# ---------------------------------------------------------------------------
+# Fixture regression — new fields must not crash against real payloads
+# ---------------------------------------------------------------------------
+
+
+def test_napier_fixture_new_fields_populate_without_crashing(napier):
+    """New fields normalize without crashing against the napier fixture.
+
+    The May fixture has sunProtection, riseSet, and a two-day fireWeatherData
+    block, so those fields should populate rather than stay None; the
+    rain-window fields may legitimately be None because the fixture's hourly
+    forecast predates whatever real clock the test runs under.
+    """
+    assert isinstance(napier.sunrise_at, str)
+    assert isinstance(napier.sunset_at, str)
+    assert isinstance(napier.moonrise_at, str)
+    assert isinstance(napier.moonset_at, str)
+    assert napier.uv_status_class == "good"
+    assert napier.uv_alert_level == "Low"
+    assert isinstance(napier.uv_message, str)
+    assert napier.uv_has_alert is True
+    # The fixture's UV window times are the "undefined undefined" placeholder.
+    assert napier.uv_window_start_raw is None
+    assert napier.uv_window_end_raw is None
+    assert napier.uv_window_start_at is None
+    assert napier.uv_window_end_at is None
+    assert napier.fire_season_status == "open"
+    assert napier.fire_danger_index == 2
+    assert napier.fire_danger_forecast == "Moderate"
+    assert napier.rain_next_8h_mm is None or isinstance(napier.rain_next_8h_mm, float)
+    assert napier.rain_next_24h_mm is None or isinstance(napier.rain_next_24h_mm, float)
+    assert napier.next_rain_at is None or isinstance(napier.next_rain_at, str)
+
+
+def test_kumeu_fixture_new_fields_none_for_seasonal_absence(kumeu):
+    """Kumeu's empty fireWeatherData and UV winter stub leave the seasonal new fields None."""
+    assert kumeu.fire_season_status is None
+    assert kumeu.fire_season_short is None
+    assert kumeu.fire_danger_index is None
+    assert kumeu.fire_danger_forecast is None
+    assert kumeu.uv_status_class is None
+    assert kumeu.uv_alert_level is None
+    assert kumeu.uv_message is None
+    assert kumeu.uv_has_alert is None
+    assert kumeu.uv_window_start_raw is None
+    assert kumeu.uv_window_end_raw is None
+    # Kumeu still has a riseSet module, so sunrise_at should populate.
+    assert isinstance(kumeu.sunrise_at, str)

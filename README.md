@@ -48,13 +48,13 @@ Earlier versions of this integration included an option to use the MetService mo
 | Today's High / Low | Observed or forecast high and low for today |
 | Relative Humidity | % |
 | Pressure | hPa |
-| Pressure Trend | Rising / Falling / Steady |
+| Pressure Trend | Enum: `rising` / `falling` / `stable` |
 | Wind Speed | km/h |
 | Wind Gust | km/h |
 | Wind Direction | Cardinal (e.g. SW) |
-| Wind Strength | Beaufort-scale description (e.g. "Fresh", "Near gale") |
+| Wind Strength | Enum: `calm` → `storm` (MetService's Beaufort-style scale) |
 | Rainfall | mm accumulated today |
-| UV Index | Low / Moderate / High / Very High / Extreme |
+| UV Index | Enum: `low` / `moderate` / `high` / `very_high` / `extreme`; advice + protection window as attributes |
 | Weather Description | Plain-English forecast text |
 
 **Sub-day forecast**
@@ -69,6 +69,9 @@ Earlier versions of this integration included an option to use the MetService mo
 | Tomorrow — High Temperature | |
 | Tomorrow — Low Temperature | |
 | Tomorrow — Description | |
+| Rain — Next 8 Hours | mm from the hourly forecast; **disabled by default** |
+| Rain — Next 24 Hours | mm from the hourly forecast; **disabled by default** |
+| Next Rain Expected | Timestamp of the first forecast hour with rain; **disabled by default** |
 
 **Seasonal / environmental**
 
@@ -78,25 +81,25 @@ Earlier versions of this integration included an option to use the MetService mo
 | Clothes Drying Time — Morning | Time window for drying |
 | Clothes Drying Time — Afternoon | Time window for drying |
 | Clothes Drying — Next Good Day | Day name when today is a washout |
-| Fire Season | Active / Inactive |
-| Fire Danger | Fire danger level |
-| Weather Warnings | Active warning text; "No warnings" when clear |
+| Fire Season | Enum: `open` / `restricted` / `prohibited` (FENZ) |
+| Fire Danger | Enum: `low` → `extreme` (NIWA index) |
+| Weather Warnings | Severity enum: `none` / `watch` / `warning` / `orange` / `red`; headline + structured list as attributes |
 
 **Sunrise / sunset / moon**
 
 | Sensor | Notes |
 |--------|-------|
-| Sunrise / Sunset | Today's times as local strings |
-| Moonrise / Moonset | Today's times as local strings |
-| Moon Phase | Next upcoming phase name |
+| Sunrise / Sunset | Timestamps (old `7:42am`-style text kept as `display` attribute) |
+| Moonrise / Moonset | Timestamps (`display` attribute as above) |
+| Moon Phase | Enum: `new` / `first_quarter` / `full` / `last_quarter` — the next principal phase event |
 | Next Moon Phase Date | HA timestamp for automations |
 
 **Marine *(optional — requires configuration)***
 
 | Sensor | Requires |
 |--------|---------|
-| Next High Tide | Tide station configured |
-| Next Low Tide | Tide station configured |
+| Next High Tide (+ height and day table attributes) | Tide station configured |
+| Next Low Tide (+ height and day table attributes) | Tide station configured |
 | Boating Conditions | Boating location configured |
 | Boating Forecast | Boating location configured |
 | Surf Conditions | Surf location configured |
@@ -193,6 +196,11 @@ A label used as the prefix for all entities created by this integration (e.g. `N
 
 #### Weather location
 The MetService location used to fetch weather data. Choose the town or city closest to you. Around 150 NZ towns and rural locations are available.
+
+#### Automatically remove sensors while MetService publishes no data *(optional)*
+Off by default. When enabled, seasonal sensors (UV, fire danger, clothes drying) are removed while
+MetService pauses the product server-side, and return automatically when data resumes. When disabled,
+they stay and read `unknown` off-season.
 
 #### Marine Region *(optional)*
 Select the marine region that covers your area to enable tide, boating, and surf sensors. The integration will then ask you to choose specific stations on the next screen. Choose **None — skip marine data** if you don't need any marine sensors.
