@@ -7,6 +7,7 @@ from custom_components.metservice_weather.coordinator import (
     WeatherUpdateCoordinator,
     WeatherUpdateCoordinatorConfig,
 )
+from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 from custom_components.metservice_weather.entity import (
     MetServiceEntity,
     _marine_device_name,
@@ -32,6 +33,54 @@ def _make_coordinator(
         surf_url=surf_url,
     )
     return WeatherUpdateCoordinator(hass, config)
+
+
+# ---------------------------------------------------------------------------
+# Test: location device naming — verbatim MetService label, not entry name
+# ---------------------------------------------------------------------------
+
+
+async def test_location_device_prefers_api_label(hass):
+    """The town device is named after the API's verbatim location label."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(location_name="Porirua")
+    ent = MetServiceEntity(coord)
+    assert ent.device_info["name"] == "Porirua"
+
+
+async def test_location_device_falls_back_to_locations_table(hass):
+    """Without data, the bundled LOCATIONS table names the device."""
+    coord = _make_coordinator(hass)
+    coord.data = None
+    ent = MetServiceEntity(coord)
+    assert ent.device_info["name"] == "Napier"
+
+
+async def test_location_device_falls_back_to_entry_name_for_unknown_path(hass):
+    """Unknown location path with no data: the typed entry name is the last resort."""
+    config = WeatherUpdateCoordinatorConfig(
+        api_url="https://www.metservice.com/publicData/webdata",
+        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
+        unit_system_api="m",
+        unit_system="metric",
+        location="/towns-cities/regions/nowhere/locations/atlantis",
+        location_name="My Custom Name",
+        tide_url="",
+        boating_url="",
+        surf_url="",
+    )
+    coord = WeatherUpdateCoordinator(hass, config)
+    coord.data = None
+    ent = MetServiceEntity(coord)
+    assert ent.device_info["name"] == "My Custom Name"
+
+
+async def test_marine_fallback_uses_resolved_location_label(hass):
+    """The '<location> Marine' fallback uses the resolved label, not the entry name."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(location_name="Porirua")
+    ent = MetServiceEntity(coord, device="marine")
+    assert ent.device_info["name"] == "Porirua Marine"
 
 
 # ---------------------------------------------------------------------------

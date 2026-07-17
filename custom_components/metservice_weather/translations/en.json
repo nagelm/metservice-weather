@@ -10,7 +10,7 @@
           "marine_region": "Marine Region"
         },
         "data_description": {
-          "name": "The prefix for all entities this integration creates — use your location name (e.g. \"Napier\") so entities read as \"Napier Temperature\". Add the integration again with a different name to cover more locations.",
+          "name": "Shown in the integrations list. The device and its entities are named after the selected weather location itself (e.g. \"Napier Temperature\"). Add the integration again to cover more locations.",
           "location": "The MetService town or rural location weather data is fetched for. Choose the one closest to you — around 150 locations are available.",
           "marine_region": "Optional. Select the coastal region nearest to you to enable tide times, boating conditions, and surf sensors. You will choose specific stations for each on the next screen. Choose \"None — skip marine data\" if you don't need any of these."
         },

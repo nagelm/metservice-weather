@@ -65,6 +65,10 @@ Repair issues now appear **only when your setup shows evidence of needing them**
 - A config entry still on the mobile API removed in v1.0.0 (or an unknown location) → reconfigure guidance.
 - Automations/scripts still reading the `forecast_hourly`/`forecast_daily` weather attributes removed after v0.9.x → pointer to `weather.get_forecasts` and the new rain sensors.
 
+#### Changed: the weather device is named after the selected location
+
+The town/rural device now carries the **MetService location's own label** (e.g. choosing Porirua names the device "Porirua"), instead of the free-text name typed at setup — that name remains the config entry's title in the integrations list. If you renamed the device yourself, your name still wins; clear the custom name (pencil icon on the device page) to adopt the location label. Entity IDs, unique IDs, and history are unchanged for existing installs.
+
 #### Added: marine data gets its own device
 
 Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically. Because these sensors move to their own device, their displayed friendly name changes too (e.g. "Auckland Next high tide" becomes "Auckland East Coast Next high tide"). entity_id, unique_id, and recorded history are unaffected — but update any notification template, dashboard label, or voice-assistant phrase that used the old friendly name.

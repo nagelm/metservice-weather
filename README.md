@@ -209,7 +209,7 @@ Setup takes at most two screens.
 ### Screen 1 — Setup
 
 #### Device name
-A label used as the prefix for all entities created by this integration (e.g. `Auckland`). Defaults to your Home Assistant location name. You can set up multiple instances with different names to get weather for more than one location — each instance creates its own independent set of entities.
+The label shown in the integrations list. The device itself — and therefore every entity name — is named after the **selected weather location** (e.g. choosing Porirua yields "Porirua Temperature"), so this field no longer needs to repeat the location. You can set up multiple instances to get weather for more than one location — each creates its own independent set of entities.
 
 #### Weather location
 The MetService location used to fetch weather data. Choose the town or city closest to you. Around 150 NZ towns and rural locations are available.

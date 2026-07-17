@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER
+from .const import DOMAIN, LOCATIONS, MANUFACTURER
 from .coordinator import WeatherUpdateCoordinator
 
 # MetService marine region slug -> official display label, captured from
@@ -65,6 +65,23 @@ def _marine_device_name(region_slug: str, location_name: str) -> str:
     return label if label else f"{location_name} Marine"
 
 
+def _location_device_name(coordinator: WeatherUpdateCoordinator) -> str:
+    """Verbatim MetService location label for the town/rural device.
+
+    The device is named for what it actually measures: the label MetService
+    itself serves for the configured page (e.g. "Porirua"), falling back to
+    the bundled LOCATIONS table, then to the user-typed entry name as a
+    last resort. The typed name remains the config entry's title.
+    """
+    data = coordinator.data
+    if data is not None and getattr(data, "location_name", None):
+        return data.location_name
+    for loc in LOCATIONS:
+        if loc.get("value") == coordinator.location:
+            return loc["label"]
+    return coordinator.location_name
+
+
 class MetServiceEntity(CoordinatorEntity[WeatherUpdateCoordinator]):
     """Base class providing shared DeviceInfo for all MetService entities."""
 
@@ -83,11 +100,12 @@ class MetServiceEntity(CoordinatorEntity[WeatherUpdateCoordinator]):
         linked under the location device via via_device.
         """
         super().__init__(coordinator)
+        location_label = _location_device_name(coordinator)
         if device == "marine":
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, f"{coordinator.location}_marine")},
                 name=_marine_device_name(
-                    coordinator.marine_region_slug, coordinator.location_name
+                    coordinator.marine_region_slug, location_label
                 ),
                 manufacturer=MANUFACTURER,
                 model="MetService Public API",
@@ -97,7 +115,7 @@ class MetServiceEntity(CoordinatorEntity[WeatherUpdateCoordinator]):
         else:
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, coordinator.location)},
-                name=coordinator.location_name,
+                name=location_label,
                 manufacturer=MANUFACTURER,
                 model="MetService Public API",
                 configuration_url="https://www.metservice.com",
