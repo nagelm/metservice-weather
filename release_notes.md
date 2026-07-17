@@ -30,7 +30,7 @@ The new `uv_risk` sensor's state is `low` / `moderate` / `high` / `very_high` / 
 
 #### New closed-vocabulary enum sensors (old text sensors deprecated)
 
-New sensors: Pressure Trend (`rising`/`falling`/`stable`), Wind Strength (`calm`→`storm`), Fire Season (FENZ `open`/`restricted`/`prohibited` — the descriptive text moved to attributes), Fire Danger (`low`→`extreme`, keyed to NIWA's own index), and Moon Phase (`new`/`first_quarter`/`full`/`last_quarter` — MetService publishes the *next* principal phase event) — enum sensors with translated states and validated vocabularies alongside the original text sensors, which are deprecated but unchanged. Any unexpected upstream value logs one warning and reads `unknown` instead of breaking.
+New sensors: Pressure tendency (`rising`/`falling`/`stable`), Wind strength (`calm`→`storm`), Fire season (FENZ `open`/`restricted`/`prohibited` — the descriptive text moved to attributes), Fire danger (`low`→`extreme`, keyed to NIWA's own index), and Next moon phase (`new`/`first_quarter`/`full`/`last_quarter` — MetService publishes the *next* principal phase event) — enum sensors with translated states and validated vocabularies alongside the original text sensors, which are deprecated but unchanged. Any unexpected upstream value logs one warning and reads `unknown` instead of breaking.
 
 #### New sunrise/sunset/moonrise/moonset timestamp sensors
 
@@ -38,7 +38,7 @@ New `*_time` sensors carry real timestamps usable in automation triggers and tem
 
 #### Added: opt-in forecast rain sensors
 
-Three new sensors, disabled by default (enable on the device page): **Rain — Next 8 Hours** (mm), **Rain — Next 24 Hours** (mm), and **Next Rain Expected** (timestamp of the first forecast hour with rain). These replace the `weather.get_forecasts` template dance for the most common rain automations.
+Three new sensors, disabled by default (enable on the device page): **Rain next 8 hours** (mm), **Rain next 24 hours** (mm), and **Next rain expected** (timestamp of the first forecast hour with rain). These replace the `weather.get_forecasts` template dance for the most common rain automations.
 
 #### Added: option to auto-remove sensors with no upstream data
 
@@ -59,15 +59,19 @@ Repair issues now appear **only when your setup shows evidence of needing them**
 
 #### Added: marine data gets its own device
 
-Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically. Because these sensors move to their own device, their displayed friendly name changes too (e.g. "Auckland Next High Tide" becomes "Auckland East Coast Next High Tide"). entity_id, unique_id, and recorded history are unaffected — but update any notification template, dashboard label, or voice-assistant phrase that used the old friendly name.
+Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically. Because these sensors move to their own device, their displayed friendly name changes too (e.g. "Auckland Next high tide" becomes "Auckland East Coast Next high tide"). entity_id, unique_id, and recorded history are unaffected — but update any notification template, dashboard label, or voice-assistant phrase that used the old friendly name.
 
 #### Added: tide detail attributes
 
-Next High/Low Tide sensors now carry a `height_m` attribute — the predicted height of the tide the sensor is counting down to.
+Next high/low tide sensors now carry a `height_m` attribute — the predicted height of the tide the sensor is counting down to.
 
 #### Added: daily rainfall totals for today and tomorrow
 
 The daily forecast now carries a real precipitation amount (mm) for today and tomorrow, aggregated from the hourly data: actual recorded rainfall for elapsed hours plus the forecast for the remainder of the day (matching MetService's own "total rainfall for today" figure). Later days keep the chance-of-rain percentage. Totals only appear when a day has near-complete hourly coverage, and each cycle cross-checks the sum against MetService's stated total in debug logging.
+
+#### Changed: sensor names follow Home Assistant naming guidelines
+
+All sensor display names now use HA's official sentence-case, measurement-first style (e.g. "Wind Speed" → "Wind speed", "Today's High Temperature" → "High temperature today", "Tomorrow — Condition" → "Condition tomorrow", "Temperature - Feels Like" → "Apparent temperature", "MetService Weather Warnings" → "Warnings"). Entity IDs, unique IDs, and recorded history are unchanged for existing installs — only the displayed friendly name changes (update any dashboard label, notification template, or voice phrase that used the old wording). Fresh installs additionally mint cleaner entity IDs from the new names. UI-renamed entities are unaffected (your custom name wins). Deprecated sensors keep their old names.
 
 #### Fixed / hardened
 

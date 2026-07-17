@@ -150,8 +150,8 @@ async def test_marine_sensor_composed_friendly_name_changes_from_location_device
 
     release_notes.md documents that moving tide/boating/surf sensors to
     their own marine device changes the displayed friendly name, e.g.
-    "Napier Next High Tide" becomes "Kapiti and Wellington ... Next High
-    Tide" — with has_entity_name composition, HA builds the shown name as
+    "Napier Next high tide" becomes "Kapiti and Wellington ... Next high
+    tide" — with has_entity_name composition, HA builds the shown name as
     f"{device_name} {entity_name}". This asserts that composition directly
     off device_info["name"] and the entity's own name, and contrasts it
     against what the same entity's composed name would have been under the
@@ -175,14 +175,14 @@ async def test_marine_sensor_composed_friendly_name_changes_from_location_device
     device_name = sensor.device_info["name"]
     entity_name = sensor.entity_description.name
     assert device_name == "Kapiti and Wellington"
-    assert entity_name == "Next High Tide"
+    assert entity_name == "Next high tide"
 
     composed = f"{device_name} {entity_name}"
-    assert composed == "Kapiti and Wellington Next High Tide"
+    assert composed == "Kapiti and Wellington Next high tide"
 
     # Contrast with the old composition under the pre-move location device
-    # (the release-notes "Napier Next High Tide" example).
+    # (the release-notes "Napier Next high tide" example).
     old_device_name = MetServiceEntity(coord).device_info["name"]
     assert old_device_name == "Napier"
-    assert f"{old_device_name} {entity_name}" == "Napier Next High Tide"
+    assert f"{old_device_name} {entity_name}" == "Napier Next high tide"
     assert composed != f"{old_device_name} {entity_name}"

@@ -153,19 +153,19 @@ def test_replacement_display_names_cover_every_replacement_key():
 def test_replacement_display_name_diverges_from_friendly_key_for_uv_risk():
     """_replacement_display_name uses the real sensor name, not _friendly_key's mechanical guess."""
     assert _friendly_key("uv_risk") == "UV Risk"
-    assert _replacement_display_name("uv_risk") == "UV Index"
+    assert _replacement_display_name("uv_risk") == "UV index"
 
 
 def test_replacement_display_name_diverges_from_friendly_key_for_warning_level():
-    """warning_level's real sensor name is "MetService Weather Warnings", not "Warning Level"."""
+    """warning_level's real sensor name is "Warnings", not "Warning Level"."""
     assert _friendly_key("warning_level") == "Warning Level"
-    assert _replacement_display_name("warning_level") == "MetService Weather Warnings"
+    assert _replacement_display_name("warning_level") == "Warnings"
 
 
 def test_replacement_display_name_moon_phase_replacement_is_next_moon_phase():
-    """moon_phase's replacement key (next_moon_phase) displays as "Next Moon Phase"."""
+    """moon_phase's replacement key (next_moon_phase) displays as "Next moon phase"."""
     assert DEPRECATED_SENSOR_REPLACEMENTS["moon_phase"] == "next_moon_phase"
-    assert _replacement_display_name("next_moon_phase") == "Next Moon Phase"
+    assert _replacement_display_name("next_moon_phase") == "Next moon phase"
 
 
 def test_replacement_display_name_falls_back_to_friendly_key_for_unmapped_key():
@@ -219,7 +219,7 @@ async def test_issue_created_when_deprecated_entity_referenced(hass):
     issue = ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
     assert issue is not None
     assert issue.translation_placeholders["entity_id"] == reg_entry.entity_id
-    assert issue.translation_placeholders["replacement_key"] == "UV Index"
+    assert issue.translation_placeholders["replacement_key"] == "UV index"
     assert "automation.check_uv" in issue.translation_placeholders["references"]
     assert issue.severity == ir.IssueSeverity.WARNING
     assert issue.is_fixable is False
@@ -253,10 +253,7 @@ async def test_issue_combines_automation_and_script_references(hass):
     assert issue is not None
     assert "automation.storm_alert" in issue.translation_placeholders["references"]
     assert "script.notify_warnings" in issue.translation_placeholders["references"]
-    assert (
-        issue.translation_placeholders["replacement_key"]
-        == "MetService Weather Warnings"
-    )
+    assert issue.translation_placeholders["replacement_key"] == "Warnings"
 
 
 async def test_issue_cleared_when_no_longer_referenced(hass):
@@ -651,7 +648,7 @@ async def test_removed_entity_issue_created_when_referenced(hass):
     assert issue is not None
     assert issue.translation_placeholders["entity_id"] == reg_entry.entity_id
     assert "automation.check_uv" in issue.translation_placeholders["references"]
-    assert issue.translation_placeholders["replacement"] == "UV Index"
+    assert issue.translation_placeholders["replacement"] == "UV index"
     assert issue.severity == ir.IssueSeverity.WARNING
     assert issue.is_fixable is False
     assert issue.data == {"entity_id": reg_entry.entity_id}

@@ -92,17 +92,17 @@ _MAX_LISTED_REFERENCES = 10
 # that successor's WeatherSensorEntityDescription in
 # weather_current_conditions_sensors.py. _friendly_key's mechanical
 # snake_case -> Title Case conversion diverges from several real display
-# names (e.g. uv_risk's sensor is named "UV Index", not "Uv Risk"; moon_phase's
-# replacement, next_moon_phase, is named "Next Moon Phase"), so this map is
+# names (e.g. uv_risk's sensor is named "UV index", not "Uv Risk"; moon_phase's
+# replacement, next_moon_phase, is named "Next moon phase"), so this map is
 # the source of truth for repair-issue replacement text.
 _REPLACEMENT_DISPLAY_NAMES: dict[str, str] = {
-    "uv_risk": "UV Index",
-    "warning_level": "MetService Weather Warnings",
-    "pressure_trend": "Pressure Tendency Trend",
-    "wind_strength_level": "Wind Strength",
-    "fire_season_status": "Fire Season",
-    "fire_danger_level": "Fire Danger",
-    "next_moon_phase": "Next Moon Phase",
+    "uv_risk": "UV index",
+    "warning_level": "Warnings",
+    "pressure_trend": "Pressure tendency",
+    "wind_strength_level": "Wind strength",
+    "fire_season_status": "Fire season",
+    "fire_danger_level": "Fire danger",
+    "next_moon_phase": "Next moon phase",
     "sunrise_at": "Sunrise",
     "sunset_at": "Sunset",
     "moonrise_at": "Moonrise",

@@ -1681,9 +1681,9 @@ def test_next_moon_phase_description_attrs_empty_when_state_none():
 
 
 def test_next_moon_phase_description_name_is_next_moon_phase():
-    """next_moon_phase's display name reads "Next Moon Phase", distinct from moon_phase_current's "Moon Phase"."""
+    """next_moon_phase's display name reads "Next moon phase", distinct from moon_phase_current's "Moon phase"."""
     desc = _desc("next_moon_phase")
-    assert desc.name == "Next Moon Phase"
+    assert desc.name == "Next moon phase"
 
 
 # ---------------------------------------------------------------------------
@@ -1694,7 +1694,7 @@ def test_next_moon_phase_description_name_is_next_moon_phase():
 def test_moon_phase_current_description_is_enum_with_eight_options():
     """moon_phase_current is an ENUM sensor with HA core's eight-phase vocabulary, enabled by default."""
     desc = _desc("moon_phase_current")
-    assert desc.name == "Moon Phase"
+    assert desc.name == "Moon phase"
     assert desc.translation_key == "moon_phase_current"
     assert desc.device_class == SensorDeviceClass.ENUM
     assert desc.options == [
@@ -2036,7 +2036,7 @@ def test_new_fork_keys_are_enabled_and_visible_by_default():
         desc = _desc(key)
         if key == "next_moon_phase":
             # Opt-in by user request: superseded as a default by the
-            # current-phase Moon Phase sensor (moon_phase_current).
+            # current-phase Moon phase sensor (moon_phase_current).
             assert desc.entity_registry_enabled_default is False, key
         else:
             assert desc.entity_registry_enabled_default is True, key
@@ -2044,7 +2044,7 @@ def test_new_fork_keys_are_enabled_and_visible_by_default():
 
 
 def test_next_moon_sensors_are_opt_in_but_visible():
-    """Next Moon Phase and Next Moon Phase Date are disabled by default, not hidden."""
+    """Next moon phase and Next moon phase date are disabled by default, not hidden."""
     for key in ("next_moon_phase", "moon_phase_date"):
         desc = _desc(key)
         assert desc.entity_registry_enabled_default is False, key

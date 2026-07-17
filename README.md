@@ -42,46 +42,46 @@ Earlier versions of this integration included an option to use the MetService mo
 | Sensor | Notes |
 |--------|-------|
 | Temperature | Current observed temperature |
-| Temperature — Feels Like | Apparent temperature |
-| Today's High / Low | Observed or forecast high and low for today |
-| Relative Humidity | % |
+| Apparent temperature | MetService's felt temperature |
+| High / Low temperature today | Observed or forecast high and low for today |
+| Relative humidity | % |
 | Pressure | hPa |
-| Pressure Trend | Enum: `rising` / `falling` / `stable` |
-| Wind Speed | km/h |
-| Wind Gust | km/h |
-| Wind Direction | Cardinal (e.g. SW) |
-| Wind Strength | Enum: `calm` → `storm` (MetService's Beaufort-style scale) |
+| Pressure tendency | Enum: `rising` / `falling` / `stable` |
+| Wind speed | km/h |
+| Wind gust | km/h |
+| Wind direction | Cardinal (e.g. SW) |
+| Wind strength | Enum: `calm` → `storm` (MetService's Beaufort-style scale) |
 | Rainfall | mm accumulated today |
-| UV Index | Enum: `low` / `moderate` / `high` / `very_high` / `extreme`; advice + protection window as attributes |
-| Weather Description | Plain-English forecast text |
+| UV index | Enum: `low` / `moderate` / `high` / `very_high` / `extreme`; advice + protection window as attributes |
+| Weather description | Plain-English forecast text |
 
 **Sub-day forecast**
 
 | Sensor | Notes |
 |--------|-------|
-| Today — Morning Condition | |
-| Today — Afternoon Condition | |
-| Today — Evening Condition | |
-| Today — Overnight Condition | |
-| Tomorrow — Condition | |
-| Tomorrow — High Temperature | |
-| Tomorrow — Low Temperature | |
-| Tomorrow — Description | |
-| Rain — Next 8 Hours | mm from the hourly forecast; **disabled by default** |
-| Rain — Next 24 Hours | mm from the hourly forecast; **disabled by default** |
-| Next Rain Expected | Timestamp of the first forecast hour with rain; **disabled by default** |
+| Condition morning | |
+| Condition afternoon | |
+| Condition evening | |
+| Condition overnight | |
+| Condition tomorrow | |
+| High temperature tomorrow | |
+| Low temperature tomorrow | |
+| Weather description tomorrow | |
+| Rain next 8 hours | mm from the hourly forecast; **disabled by default** |
+| Rain next 24 hours | mm from the hourly forecast; **disabled by default** |
+| Next rain expected | Timestamp of the first forecast hour with rain; **disabled by default** |
 
 **Seasonal / environmental**
 
 | Sensor | Notes |
 |--------|-------|
 | Pollen | Always (see seasonal notes) |
-| Clothes Drying Time — Morning | Time window for drying |
-| Clothes Drying Time — Afternoon | Time window for drying |
-| Clothes Drying — Next Good Day | Day name when today is a washout |
-| Fire Season | Enum: `open` / `restricted` / `prohibited` (FENZ) |
-| Fire Danger | Enum: `low` → `extreme` (NIWA index) |
-| Weather Warnings | Severity enum: `none` / `watch` / `warning` / `orange` / `red`; headline + structured list as attributes |
+| Clothes drying morning | Time window for drying |
+| Clothes drying afternoon | Time window for drying |
+| Clothes drying next good day | Day name when today is a washout |
+| Fire season | Enum: `open` / `restricted` / `prohibited` (FENZ) |
+| Fire danger | Enum: `low` → `extreme` (NIWA index) |
+| Warnings | Severity enum: `none` / `watch` / `warning` / `orange` / `red`; headline + structured list as attributes |
 
 **Sunrise / sunset / moon**
 
@@ -89,26 +89,26 @@ Earlier versions of this integration included an option to use the MetService mo
 |--------|-------|
 | Sunrise / Sunset | Timestamps (old `7:42am`-style text kept as `display` attribute) |
 | Moonrise / Moonset | Timestamps (`display` attribute as above) |
-| Moon Phase | Enum: `new` / `first_quarter` / `full` / `last_quarter` — the next principal phase event |
-| Next Moon Phase Date | HA timestamp for automations |
+| Next moon phase | Enum: `new` / `first_quarter` / `full` / `last_quarter` — the next principal phase event |
+| Next moon phase date | HA timestamp for automations |
 
 **Marine *(optional — requires configuration)***
 
 | Sensor | Requires |
 |--------|---------|
-| Next High Tide (+ height and day table attributes) | Tide station configured |
-| Next Low Tide (+ height and day table attributes) | Tide station configured |
-| Boating Conditions | Boating location configured |
-| Boating Forecast | Boating location configured |
-| Surf Conditions | Surf location configured |
-| Surf Rating | Surf location configured |
-| Surf Wave Height | Surf location configured |
-| Surf Set Face | Surf location configured |
-| Surf Swell Direction | Surf location configured |
-| Surf Swell Height | Surf location configured |
-| Surf Wind Direction | Surf location configured |
-| Surf Wind Speed / Gust | Surf location configured |
-| Surf Period | Surf location configured |
+| Next high tide (+ height and day table attributes) | Tide station configured |
+| Next low tide (+ height and day table attributes) | Tide station configured |
+| Boating conditions | Boating location configured |
+| Boating forecast | Boating location configured |
+| Surf conditions | Surf location configured |
+| Surf rating | Surf location configured |
+| Surf wave height | Surf location configured |
+| Surf set face | Surf location configured |
+| Surf swell direction | Surf location configured |
+| Surf swell height | Surf location configured |
+| Surf wind direction | Surf location configured |
+| Surf wind speed / gust | Surf location configured |
+| Surf period | Surf location configured |
 
 ### Seasonal sensors — `unknown` off-season is normal
 
@@ -119,8 +119,8 @@ not a bug:
 
 | Sensor | Behaviour |
 |---|---|
-| UV Index | Suspended over winter — the API replaces the sun-protection data with an explicit end-of-season stub |
-| Fire Danger / Fire Season | Published only while a fire season is declared (varies by district); off-season the API sends no fire data |
+| UV index | Suspended over winter — the API replaces the sun-protection data with an explicit end-of-season stub |
+| Fire danger / Fire season | Published only while a fire season is declared (varies by district); off-season the API sends no fire data |
 
 Two related products that do **not** go unknown, but change character with the
 seasons:
@@ -136,14 +136,14 @@ sitting permanently unknown.
 
 ### Surfacing attribute detail on dashboards
 
-Enum sensors like Weather Warnings carry their detail in attributes rather than
+Enum sensors like Warnings carry their detail in attributes rather than
 the state itself — those are visible via the entity's more-info dialog, and a
 tile card can surface them directly:
 
 ```yaml
 type: tile
 entity: sensor.<device>_weather_warning_level   # entity id may vary; check yours
-name: Weather warnings
+name: Warnings
 state_content:
   - state
   - headline
@@ -227,8 +227,8 @@ Choose a specific station for each marine service you want. Each selector includ
 
 | Field | Sensors enabled |
 |-------|----------------|
-| Tide station | Next High Tide, Next Low Tide |
-| Boating location | Boating Conditions, Boating Forecast |
+| Tide station | Next high tide, Next low tide |
+| Boating location | Boating conditions, Boating forecast |
 | Surf location | 10 surf sensors (conditions, rating, swell, wind, period) |
 
 Both lists are fetched live from MetService when this screen loads.

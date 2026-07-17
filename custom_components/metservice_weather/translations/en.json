@@ -54,19 +54,19 @@
   "entity": {
     "sensor": {
       "valid_time_local": {
-        "name": "Forecast Description Updated Time"
+        "name": "Forecast issued"
       },
       "weather_description": {
-        "name": "Weather Description"
+        "name": "Weather description"
       },
       "relative_humidity": {
-        "name": "Relative Humidity"
+        "name": "Relative humidity"
       },
       "uv_index": {
         "name": "UV Index (deprecated)"
       },
       "uv_risk": {
-        "name": "UV Index",
+        "name": "UV index",
         "state": {
           "low": "Low",
           "moderate": "Moderate",
@@ -96,10 +96,10 @@
         "name": "UV Alert"
       },
       "wind_direction": {
-        "name": "Wind Direction"
+        "name": "Wind direction"
       },
       "temperature_feels_like": {
-        "name": "Temperature - Feels Like"
+        "name": "Apparent temperature"
       },
       "temperature": {
         "name": "Temperature"
@@ -108,28 +108,28 @@
         "name": "Pressure"
       },
       "wind_gust": {
-        "name": "Wind Gust"
+        "name": "Wind gust"
       },
       "wind_speed": {
-        "name": "Wind Speed"
+        "name": "Wind speed"
       },
       "rainfall": {
         "name": "Rainfall"
       },
       "rain_next_8_hours": {
-        "name": "Rain — Next 8 Hours"
+        "name": "Rain next 8 hours"
       },
       "rain_next_24_hours": {
-        "name": "Rain — Next 24 Hours"
+        "name": "Rain next 24 hours"
       },
       "next_rain_at": {
-        "name": "Next Rain Expected"
+        "name": "Next rain expected"
       },
       "pressure_tendency_trend": {
         "name": "Pressure Tendency Trend (deprecated)"
       },
       "pressure_trend": {
-        "name": "Pressure Tendency Trend",
+        "name": "Pressure tendency",
         "state": {
           "rising": "Rising",
           "falling": "Falling",
@@ -169,7 +169,7 @@
         "name": "MetService Weather Warnings (deprecated)"
       },
       "warning_level": {
-        "name": "MetService Weather Warnings",
+        "name": "Warnings",
         "state": {
           "none": "None",
           "watch": "Watch",
@@ -193,7 +193,7 @@
         "name": "Fire Season (deprecated)"
       },
       "fire_season_status": {
-        "name": "Fire Season",
+        "name": "Fire season",
         "state": {
           "open": "Open",
           "restricted": "Restricted",
@@ -212,7 +212,7 @@
         "name": "Fire Danger (deprecated)"
       },
       "fire_danger_level": {
-        "name": "Fire Danger",
+        "name": "Fire danger",
         "state": {
           "low": "Low",
           "moderate": "Moderate",
@@ -233,16 +233,16 @@
         }
       },
       "drying_index_morning": {
-        "name": "Clothes Drying Time - Morning"
+        "name": "Clothes drying morning"
       },
       "drying_index_afternoon": {
-        "name": "Clothes Drying Time - Afternoon"
+        "name": "Clothes drying afternoon"
       },
       "drying_next_good_day": {
-        "name": "Clothes Drying - Next Good Day"
+        "name": "Clothes drying next good day"
       },
       "tides_high": {
-        "name": "Next High Tide",
+        "name": "Next high tide",
         "state_attributes": {
           "height_m": {
             "name": "Tide height (m)"
@@ -250,7 +250,7 @@
         }
       },
       "tides_low": {
-        "name": "Next Low Tide",
+        "name": "Next low tide",
         "state_attributes": {
           "height_m": {
             "name": "Tide height (m)"
@@ -258,46 +258,46 @@
         }
       },
       "boating_status": {
-        "name": "Boating Conditions"
+        "name": "Boating conditions"
       },
       "boating_forecast": {
-        "name": "Boating Forecast"
+        "name": "Boating forecast"
       },
       "surf_conditions": {
-        "name": "Surf Conditions"
+        "name": "Surf conditions"
       },
       "surf_rating": {
-        "name": "Surf Rating"
+        "name": "Surf rating"
       },
       "surf_wave_height": {
-        "name": "Surf Wave Height"
+        "name": "Surf wave height"
       },
       "surf_set_face": {
-        "name": "Surf Set Face"
+        "name": "Surf set face"
       },
       "surf_swell_direction": {
-        "name": "Surf Swell Direction"
+        "name": "Surf swell direction"
       },
       "surf_swell_height": {
-        "name": "Surf Swell Height"
+        "name": "Surf swell height"
       },
       "surf_wind_direction": {
-        "name": "Surf Wind Direction"
+        "name": "Surf wind direction"
       },
       "surf_wind_speed": {
-        "name": "Surf Wind Speed"
+        "name": "Surf wind speed"
       },
       "surf_wind_gust": {
-        "name": "Surf Wind Gust"
+        "name": "Surf wind gust"
       },
       "surf_period": {
-        "name": "Surf Period"
+        "name": "Surf period"
       },
       "wind_strength": {
         "name": "Wind Strength (deprecated)"
       },
       "wind_strength_level": {
-        "name": "Wind Strength",
+        "name": "Wind strength",
         "state": {
           "calm": "Calm",
           "light_winds": "Light winds",
@@ -310,34 +310,34 @@
         }
       },
       "temperature_today_high": {
-        "name": "Today's High Temperature"
+        "name": "High temperature today"
       },
       "temperature_today_low": {
-        "name": "Today's Low Temperature"
+        "name": "Low temperature today"
       },
       "tomorrow_condition": {
-        "name": "Tomorrow — Condition"
+        "name": "Condition tomorrow"
       },
       "tomorrow_temp_high": {
-        "name": "Tomorrow — High Temperature"
+        "name": "High temperature tomorrow"
       },
       "tomorrow_temp_low": {
-        "name": "Tomorrow — Low Temperature"
+        "name": "Low temperature tomorrow"
       },
       "tomorrow_description": {
-        "name": "Tomorrow — Description"
+        "name": "Weather description tomorrow"
       },
       "breakdown_morning": {
-        "name": "Today — Morning Condition"
+        "name": "Condition morning"
       },
       "breakdown_afternoon": {
-        "name": "Today — Afternoon Condition"
+        "name": "Condition afternoon"
       },
       "breakdown_evening": {
-        "name": "Today — Evening Condition"
+        "name": "Condition evening"
       },
       "breakdown_overnight": {
-        "name": "Today — Overnight Condition"
+        "name": "Condition overnight"
       },
       "sunrise": {
         "name": "Sunrise (deprecated)"
@@ -387,7 +387,7 @@
         "name": "Moon Phase (deprecated)"
       },
       "next_moon_phase": {
-        "name": "Next Moon Phase",
+        "name": "Next moon phase",
         "state": {
           "new": "New",
           "first_quarter": "First quarter",
@@ -396,7 +396,7 @@
         }
       },
       "moon_phase_current": {
-        "name": "Moon Phase",
+        "name": "Moon phase",
         "state": {
           "new_moon": "New Moon",
           "waxing_crescent": "Waxing Crescent",
@@ -409,7 +409,7 @@
         }
       },
       "moon_phase_date": {
-        "name": "Next Moon Phase Date"
+        "name": "Next moon phase date"
       }
     }
   },
@@ -432,7 +432,7 @@
     },
     "forecast_attributes_removed": {
       "title": "Removed forecast_hourly/forecast_daily attributes are still read",
-      "description": "The following automations/scripts still read the forecast_hourly or forecast_daily weather-entity attributes, which were removed: {references}. Forecasts now come from the weather.get_forecasts action (Home Assistant's 2024.4+ direction) — or use the opt-in Rain — Next 8 Hours / Rain — Next 24 Hours sensors as ready-made replacements."
+      "description": "The following automations/scripts still read the forecast_hourly or forecast_daily weather-entity attributes, which were removed: {references}. Forecasts now come from the weather.get_forecasts action (Home Assistant's 2024.4+ direction) — or use the opt-in Rain next 8 hours / Rain next 24 hours sensors as ready-made replacements."
     },
     "marine_device_move": {
       "title": "Marine sensors moved to a new device",
