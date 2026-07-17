@@ -134,6 +134,24 @@ Sensors a **location can never provide** (e.g. wind/temperature observations for
 rural locations without a weather station) are not created at all, rather than
 sitting permanently unknown.
 
+### Surfacing attribute detail on dashboards
+
+Enum sensors like Weather Warnings carry their detail in attributes rather than
+the state itself — those are visible via the entity's more-info dialog, and a
+tile card can surface them directly:
+
+```yaml
+type: tile
+entity: sensor.<device>_weather_warning_level   # entity id may vary; check yours
+name: Weather warnings
+state_content:
+  - state
+  - headline
+```
+
+The same pattern works for Pollen (`level_label`) and the tide sensors
+(`height_m`) — swap `headline` in `state_content` for the attribute you want.
+
 ### Weather entity
 
 A full Home Assistant weather entity with:

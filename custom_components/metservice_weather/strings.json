@@ -73,6 +73,29 @@
           "high": "High",
           "very_high": "Very high",
           "extreme": "Extreme"
+        },
+        "state_attributes": {
+          "level_label": {
+            "name": "Level label"
+          },
+          "status_class": {
+            "name": "Status class"
+          },
+          "advice": {
+            "name": "Sun protection advice"
+          },
+          "protection_window_start": {
+            "name": "Protection window start"
+          },
+          "protection_window_end": {
+            "name": "Protection window end"
+          },
+          "has_alert": {
+            "name": "Alert active"
+          },
+          "attribution": {
+            "name": "Attribution"
+          }
         }
       },
       "uv_alert": {
@@ -126,6 +149,17 @@
           "low": "Low",
           "moderate": "Moderate",
           "high": "High"
+        },
+        "state_attributes": {
+          "level_label": {
+            "name": "Level label"
+          },
+          "active_allergens": {
+            "name": "Active allergens"
+          },
+          "imminent_allergens": {
+            "name": "Imminent allergens"
+          }
         }
       },
       "pollen_levels": {
@@ -145,6 +179,17 @@
           "warning": "Warning",
           "orange": "Orange",
           "red": "Red"
+        },
+        "state_attributes": {
+          "headline": {
+            "name": "Headline"
+          },
+          "count": {
+            "name": "Active warning count"
+          },
+          "warnings": {
+            "name": "Active warnings"
+          }
         }
       },
       "fire_season": {
@@ -156,6 +201,14 @@
           "open": "Open",
           "restricted": "Restricted",
           "prohibited": "Prohibited"
+        },
+        "state_attributes": {
+          "scope": {
+            "name": "Scope"
+          },
+          "detail": {
+            "name": "Detail"
+          }
         }
       },
       "fire_danger": {
@@ -169,6 +222,20 @@
           "high": "High",
           "very_high": "Very high",
           "extreme": "Extreme"
+        },
+        "state_attributes": {
+          "label": {
+            "name": "Label"
+          },
+          "index": {
+            "name": "Danger index"
+          },
+          "guidance": {
+            "name": "Guidance"
+          },
+          "tomorrow": {
+            "name": "Tomorrow's outlook"
+          }
         }
       },
       "drying_index_morning": {
@@ -181,10 +248,26 @@
         "name": "Clothes Drying - Next Good Day"
       },
       "tides_high": {
-        "name": "Next High Tide"
+        "name": "Next High Tide",
+        "state_attributes": {
+          "height_m": {
+            "name": "Tide height (m)"
+          },
+          "tide_table": {
+            "name": "Today's tide table"
+          }
+        }
       },
       "tides_low": {
-        "name": "Next Low Tide"
+        "name": "Next Low Tide",
+        "state_attributes": {
+          "height_m": {
+            "name": "Tide height (m)"
+          },
+          "tide_table": {
+            "name": "Today's tide table"
+          }
+        }
       },
       "boating_status": {
         "name": "Boating Conditions"
@@ -272,25 +355,45 @@
         "name": "Sunrise (deprecated)"
       },
       "sunrise_at": {
-        "name": "Sunrise"
+        "name": "Sunrise",
+        "state_attributes": {
+          "display": {
+            "name": "Local time text"
+          }
+        }
       },
       "sunset": {
         "name": "Sunset (deprecated)"
       },
       "sunset_at": {
-        "name": "Sunset"
+        "name": "Sunset",
+        "state_attributes": {
+          "display": {
+            "name": "Local time text"
+          }
+        }
       },
       "moonrise": {
         "name": "Moonrise (deprecated)"
       },
       "moonrise_at": {
-        "name": "Moonrise"
+        "name": "Moonrise",
+        "state_attributes": {
+          "display": {
+            "name": "Local time text"
+          }
+        }
       },
       "moonset": {
         "name": "Moonset (deprecated)"
       },
       "moonset_at": {
-        "name": "Moonset"
+        "name": "Moonset",
+        "state_attributes": {
+          "display": {
+            "name": "Local time text"
+          }
+        }
       },
       "moon_phase": {
         "name": "Moon Phase (deprecated)"
@@ -302,6 +405,14 @@
           "first_quarter": "First quarter",
           "full": "Full",
           "last_quarter": "Last quarter"
+        },
+        "state_attributes": {
+          "raw_phase": {
+            "name": "Raw phase"
+          },
+          "label": {
+            "name": "Label"
+          }
         }
       },
       "moon_phase_current": {
