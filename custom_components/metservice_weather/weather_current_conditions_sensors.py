@@ -360,7 +360,6 @@ def _fire_danger_state(index: int | None, label: str | None) -> str | None:
 # Moon phase
 # ---------------------------------------------------------------------------
 
-_MOON_PHASE_ENUM_OPTIONS = ["new", "first_quarter", "full", "last_quarter"]
 _MOON_PHASE_ENUM_MAP: dict[str, str] = {
     "NEW": "new",
     "FIRST": "first_quarter",
@@ -1195,7 +1194,7 @@ current_condition_sensor_descriptions_public = [
         ),
         attr_fn=lambda data: {"display": data.moonset} if data.moonset else {},
     ),
-    # Deprecated — superseded by next_moon_phase; keeps its v2026.7.0 behaviour for existing installs.
+    # Deprecated — superseded by moon_phase_current; keeps its v2026.7.0 behaviour for existing installs.
     WeatherSensorEntityDescription(
         key="moon_phase",
         translation_key="moon_phase",
@@ -1212,31 +1211,36 @@ current_condition_sensor_descriptions_public = [
         attr_fn=lambda data: {"raw_phase": data.moon_phase} if data.moon_phase else {},
     ),
     WeatherSensorEntityDescription(
-        key="next_moon_phase",
-        # Opt-in: superseded as a default by the current-phase Moon phase
-        # sensor; enable on the device page if the next-event view is wanted.
-        entity_registry_enabled_default=False,
-        translation_key="next_moon_phase",
-        name="Next moon phase",
-        device_class=SensorDeviceClass.ENUM,
-        options=_MOON_PHASE_ENUM_OPTIONS,
-        value_fn=lambda data, _: _moon_phase_enum_state(data.moon_phase),
-    ),
-    WeatherSensorEntityDescription(
         key="moon_phase_current",
         translation_key="moon_phase_current",
         name="Moon phase",
         device_class=SensorDeviceClass.ENUM,
         options=_MOON_PHASE_CURRENT_OPTIONS,
         value_fn=lambda data, _: data.moon_phase_current,
+        # The state is derived from MetService's next principal-phase event,
+        # so that event (token + timestamp) rides along as explanatory
+        # attributes; sparse when the upstream record is absent/unmapped.
+        attr_fn=lambda data: {
+            **(
+                {"next_phase": _moon_phase_enum_state(data.moon_phase)}
+                if _moon_phase_enum_state(data.moon_phase) is not None
+                else {}
+            ),
+            **(
+                {"next_phase_at": data.moon_phase_date}
+                if isinstance(data.moon_phase_date, str)
+                else {}
+            ),
+        },
     ),
+    # Deprecated — superseded by moon_phase_current's next_phase_at attribute;
+    # keeps its v2026.7.0 behaviour for existing installs.
     WeatherSensorEntityDescription(
         key="moon_phase_date",
-        # Opt-in: superseded as a default by the current-phase Moon phase
-        # sensor; enable on the device page if the next-event view is wanted.
-        entity_registry_enabled_default=False,
         translation_key="moon_phase_date",
-        name="Next moon phase date",
+        name="Next Moon Phase Date (deprecated)",
+        entity_registry_enabled_default=False,
+        entity_registry_visible_default=False,
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
             datetime.datetime.fromisoformat(data.moon_phase_date)

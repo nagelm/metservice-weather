@@ -31,7 +31,7 @@ The new `uv_risk` sensor's state is `low` / `moderate` / `high` / `very_high` / 
 
 #### New closed-vocabulary enum sensors (old text sensors deprecated)
 
-New sensors: Pressure tendency (`rising`/`falling`/`stable`), Wind strength (`calm`→`storm`), Fire season (FENZ `open`/`restricted`/`prohibited` — the descriptive text moved to attributes), Fire danger (`low`→`extreme`, keyed to NIWA's own index), and Next moon phase (`new`/`first_quarter`/`full`/`last_quarter` — MetService publishes the *next* principal phase event) — enum sensors with translated states and validated vocabularies alongside the original text sensors, which are deprecated but unchanged. Any unexpected upstream value logs one warning and reads `unknown` instead of breaking.
+New sensors: Pressure tendency (`rising`/`falling`/`stable`), Wind strength (`calm`→`storm`), Fire season (FENZ `open`/`restricted`/`prohibited` — the descriptive text moved to attributes), Fire danger (`low`→`extreme`, keyed to NIWA's own index), and Moon phase (all eight octants, `new_moon`→`waning_crescent`, derived from MetService's next principal-phase event — which rides along as `next_phase` + `next_phase_at` attributes) — enum sensors with translated states and validated vocabularies alongside the original text sensors, which are deprecated but unchanged. The old Next Moon Phase Date sensor is deprecated with the rest (its timestamp now lives in `next_phase_at`). Any unexpected upstream value logs one warning and reads `unknown` instead of breaking.
 
 #### New sunrise/sunset/moonrise/moonset timestamp sensors
 

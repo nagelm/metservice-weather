@@ -403,30 +403,29 @@
       "moon_phase": {
         "name": "Moon Phase (deprecated)"
       },
-      "next_moon_phase": {
-        "name": "Next moon phase",
-        "state": {
-          "new": "New",
-          "first_quarter": "First quarter",
-          "full": "Full",
-          "last_quarter": "Last quarter"
-        }
-      },
       "moon_phase_current": {
         "name": "Moon phase",
         "state": {
-          "new_moon": "New Moon",
-          "waxing_crescent": "Waxing Crescent",
-          "first_quarter": "First Quarter",
-          "waxing_gibbous": "Waxing Gibbous",
-          "full_moon": "Full Moon",
-          "waning_gibbous": "Waning Gibbous",
-          "last_quarter": "Last Quarter",
-          "waning_crescent": "Waning Crescent"
+          "new_moon": "New moon",
+          "waxing_crescent": "Waxing crescent",
+          "first_quarter": "First quarter",
+          "waxing_gibbous": "Waxing gibbous",
+          "full_moon": "Full moon",
+          "waning_gibbous": "Waning gibbous",
+          "last_quarter": "Last quarter",
+          "waning_crescent": "Waning crescent"
+        },
+        "state_attributes": {
+          "next_phase": {
+            "name": "Next phase"
+          },
+          "next_phase_at": {
+            "name": "Next phase date"
+          }
         }
       },
       "moon_phase_date": {
-        "name": "Next moon phase date"
+        "name": "Next Moon Phase Date (deprecated)"
       }
     }
   },

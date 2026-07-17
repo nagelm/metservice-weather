@@ -1702,28 +1702,38 @@ def test_moon_phase_enum_unknown_warns_once(caplog):
     assert len(matches) == 1
 
 
-def test_next_moon_phase_description_value_and_attrs():
-    """value_fn maps the raw phase token; no attributes (state carries it all)."""
-    desc = _desc("next_moon_phase")
-    assert desc.device_class == SensorDeviceClass.ENUM
-    assert desc.options == ["new", "first_quarter", "full", "last_quarter"]
-    data = MetServicePublicData(moon_phase="FULL")
-    assert desc.value_fn(data, "metric") == "full"
-    assert desc.attr_fn(data) == {}
+def test_next_moon_phase_sensor_is_removed():
+    """The prerelease-only next_moon_phase sensor is gone.
+
+    Its data lives on moon_phase_current's next_phase/next_phase_at
+    attributes instead.
+    """
+    keys = {d.key for d in current_condition_sensor_descriptions_public}
+    assert "next_moon_phase" not in keys
 
 
-def test_next_moon_phase_description_attrs_empty_when_state_none():
-    """attr_fn returns {} when the moon phase token didn't map."""
-    desc = _desc("next_moon_phase")
-    data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
-    assert desc.attr_fn(data) == {}
+def test_moon_phase_current_attrs_carry_next_event():
+    """moon_phase_current carries the next principal event as flat attributes."""
+    desc = _desc("moon_phase_current")
+    data = MetServicePublicData(
+        moon_phase_current="waxing_crescent",
+        moon_phase="FIRST",
+        moon_phase_date="2026-07-21T22:55:00+12:00",
+    )
+    assert desc.attr_fn(data) == {
+        "next_phase": "first_quarter",
+        "next_phase_at": "2026-07-21T22:55:00+12:00",
+    }
 
 
-def test_next_moon_phase_description_name_is_next_moon_phase():
-    """next_moon_phase's display name reads "Next moon phase", distinct from moon_phase_current's "Moon phase"."""
-    desc = _desc("next_moon_phase")
-    assert desc.name == "Next moon phase"
+def test_moon_phase_current_attrs_sparse_when_upstream_missing():
+    """Attributes are omitted individually when their upstream field is absent."""
+    desc = _desc("moon_phase_current")
+    assert desc.attr_fn(MetServicePublicData()) == {}
+    only_date = MetServicePublicData(moon_phase_date="2026-07-21T22:55:00+12:00")
+    assert desc.attr_fn(only_date) == {"next_phase_at": "2026-07-21T22:55:00+12:00"}
+    only_phase = MetServicePublicData(moon_phase="FULL")
+    assert desc.attr_fn(only_phase) == {"next_phase": "full"}
 
 
 # ---------------------------------------------------------------------------
@@ -2123,6 +2133,7 @@ _DEPRECATED_FORK_KEYS = {
     "moonset",
     "pollen_levels",
     "pollen_type",
+    "moon_phase_date",
 }
 
 _NEW_FORK_KEYS = {
@@ -2132,7 +2143,6 @@ _NEW_FORK_KEYS = {
     "wind_strength_level",
     "fire_season_status",
     "fire_danger_level",
-    "next_moon_phase",
     "sunrise_at",
     "sunset_at",
     "moonrise_at",
@@ -2154,20 +2164,7 @@ def test_new_fork_keys_are_enabled_and_visible_by_default():
     """Every replacement sensor introduced by the fork is enabled and visible by default."""
     for key in _NEW_FORK_KEYS:
         desc = _desc(key)
-        if key == "next_moon_phase":
-            # Opt-in by user request: superseded as a default by the
-            # current-phase Moon phase sensor (moon_phase_current).
-            assert desc.entity_registry_enabled_default is False, key
-        else:
-            assert desc.entity_registry_enabled_default is True, key
-        assert desc.entity_registry_visible_default is True, key
-
-
-def test_next_moon_sensors_are_opt_in_but_visible():
-    """Next moon phase and Next moon phase date are disabled by default, not hidden."""
-    for key in ("next_moon_phase", "moon_phase_date"):
-        desc = _desc(key)
-        assert desc.entity_registry_enabled_default is False, key
+        assert desc.entity_registry_enabled_default is True, key
         assert desc.entity_registry_visible_default is True, key
 
 

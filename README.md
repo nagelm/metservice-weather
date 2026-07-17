@@ -90,8 +90,7 @@ Earlier versions of this integration included an option to use the MetService mo
 |--------|-------|
 | Sunrise / Sunset | Timestamps (old `7:42am`-style text kept as `display` attribute) |
 | Moonrise / Moonset | Timestamps (`display` attribute as above) |
-| Next moon phase | Enum: `new` / `first_quarter` / `full` / `last_quarter` — the next principal phase event |
-| Next moon phase date | HA timestamp for automations |
+| Moon phase | Enum, all eight octants (`new_moon` → `waning_crescent`); the next principal event rides along as `next_phase` + `next_phase_at` attributes |
 
 **Marine *(optional — requires configuration)***
 

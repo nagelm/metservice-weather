@@ -206,15 +206,6 @@
       "moon_phase": {
         "default": "mdi:moon-new"
       },
-      "next_moon_phase": {
-        "default": "mdi:moon-new",
-        "state": {
-          "new": "mdi:moon-new",
-          "first_quarter": "mdi:moon-first-quarter",
-          "full": "mdi:moon-full",
-          "last_quarter": "mdi:moon-last-quarter"
-        }
-      },
       "moon_phase_current": {
         "default": "mdi:moon-waxing-crescent",
         "state": {

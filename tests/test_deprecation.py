@@ -142,7 +142,7 @@ def _issue_id(entry: MockConfigEntry, old_key: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_deprecated_sensor_replacements_covers_all_thirteen_old_keys():
+def test_deprecated_sensor_replacements_covers_all_fourteen_old_keys():
     """Every OLD key from the fork table is mapped, pollen_levels/pollen_type -> pollen."""
     assert set(DEPRECATED_SENSOR_REPLACEMENTS) == {
         "uvIndex",
@@ -152,6 +152,7 @@ def test_deprecated_sensor_replacements_covers_all_thirteen_old_keys():
         "fire_season",
         "fire_danger",
         "moon_phase",
+        "moon_phase_date",
         "sunrise",
         "sunset",
         "moonrise",
@@ -195,10 +196,11 @@ def test_replacement_display_name_diverges_from_friendly_key_for_warning_level()
     assert _replacement_display_name("warning_level") == "Warnings"
 
 
-def test_replacement_display_name_moon_phase_replacement_is_next_moon_phase():
-    """moon_phase's replacement key (next_moon_phase) displays as "Next moon phase"."""
-    assert DEPRECATED_SENSOR_REPLACEMENTS["moon_phase"] == "next_moon_phase"
-    assert _replacement_display_name("next_moon_phase") == "Next moon phase"
+def test_replacement_display_name_moon_sensors_map_to_moon_phase_current():
+    """Both deprecated moon sensors replace to moon_phase_current ("Moon phase")."""
+    assert DEPRECATED_SENSOR_REPLACEMENTS["moon_phase"] == "moon_phase_current"
+    assert DEPRECATED_SENSOR_REPLACEMENTS["moon_phase_date"] == "moon_phase_current"
+    assert _replacement_display_name("moon_phase_current") == "Moon phase"
 
 
 def test_replacement_display_name_falls_back_to_friendly_key_for_unmapped_key():
