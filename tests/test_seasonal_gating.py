@@ -120,6 +120,71 @@ async def _async_setup_full(
 
 
 # ---------------------------------------------------------------------------
+# (regression) option ON, row previously DELETED by the old remove-outright
+# behaviour — HA restores the deleted snapshot's enabled/visible flags over
+# async_get_or_create's creation kwargs, so the disable must be applied
+# explicitly after creation. This is the exact upgrade path of any install
+# that ever ran the option under its old semantics.
+# ---------------------------------------------------------------------------
+
+
+async def test_option_on_row_recreated_from_deleted_snapshot_ends_disabled(hass):
+    """A row restored from a deleted (enabled) snapshot still ends disabled+hidden+stamped."""
+    entry = _make_entry(auto_hide_seasonal=True)
+    ent_reg = er.async_get(hass)
+    unique_id = f"{LOCATION}_drying_index_morning".lower()
+
+    # Simulate the old behaviour: the row existed enabled+visible, then was
+    # removed — leaving a deleted snapshot that async_get_or_create will
+    # restore (flags included) when the unique_id comes back.
+    pre = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, unique_id, suggested_object_id="napier_drying_morning"
+    )
+    assert pre.disabled_by is None
+    ent_reg.async_remove(pre.entity_id)
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id) is None
+
+    await _async_setup_full(hass, entry, MetServicePublicData())
+
+    entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
+    assert entity_id is not None
+    reg_entry = ent_reg.async_get(entity_id)
+    assert reg_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+    assert reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION
+    assert reg_entry.options.get(DOMAIN, {}).get("seasonal_disabled") is True
+    assert hass.states.get(entity_id) is None
+
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_option_on_user_disabled_deleted_snapshot_stays_user_owned(hass):
+    """A deleted snapshot restored with USER-set flags is respected, not stamped."""
+    entry = _make_entry(auto_hide_seasonal=True)
+    ent_reg = er.async_get(hass)
+    unique_id = f"{LOCATION}_drying_index_morning".lower()
+
+    pre = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, unique_id, suggested_object_id="napier_drying_morning"
+    )
+    ent_reg.async_update_entity(
+        pre.entity_id, disabled_by=er.RegistryEntryDisabler.USER
+    )
+    ent_reg.async_remove(pre.entity_id)
+
+    await _async_setup_full(hass, entry, MetServicePublicData())
+
+    entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
+    assert entity_id is not None
+    reg_entry = ent_reg.async_get(entity_id)
+    assert reg_entry.disabled_by == er.RegistryEntryDisabler.USER
+    assert not (reg_entry.options.get(DOMAIN) or {}).get("seasonal_disabled")
+
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+# ---------------------------------------------------------------------------
 # Sanity: exactly the nine documented descriptions are marked seasonal
 # ---------------------------------------------------------------------------
 

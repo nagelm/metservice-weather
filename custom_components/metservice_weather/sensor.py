@@ -71,15 +71,22 @@ def _async_apply_seasonal_disable(
 ) -> None:
     """Disable + hide a dataless seasonal sensor's registry row, stamping it as ours.
 
-    Pre-creates the row born disabled+hidden when none exists yet (a fresh
-    install, or one whose row a pre-2026.8 install's old remove-outright
-    behaviour deleted). An existing row is only touched when disabled_by is
-    None — anything already disabled (by the user, by this same stamp from
-    a prior run, or by an unrelated mechanism such as the deprecation
-    sweep) is left exactly as-is; hidden_by is likewise only set when it's
-    still None, so a user's own unhide is never silently re-applied.
+    Pre-creates the row when none exists yet (a fresh install, or one whose
+    row a pre-2026.8 install's old remove-outright behaviour deleted).
+    Creation kwargs alone are NOT trusted for the disable: when a deleted
+    snapshot exists for the unique_id, async_get_or_create restores the
+    snapshot's old disabled_by/hidden_by over whatever creation passes —
+    exactly the upgrade path from the old remove-outright behaviour — so a
+    just-created row is always brought to disabled+hidden explicitly here.
+
+    Ownership rules are unchanged: USER-set flags (including ones restored
+    from a deleted snapshot) always win, and a PRE-EXISTING row that is
+    already disabled by anything (the user, this stamp from a prior run, or
+    an unrelated mechanism such as the deprecation sweep) is left as-is;
+    hidden_by is likewise only set while still None.
     """
     entity_id = ent_reg.async_get_entity_id(SENSOR_DOMAIN, DOMAIN, unique_id)
+    created = False
     if entity_id is None:
         reg_entry = ent_reg.async_get_or_create(
             SENSOR_DOMAIN,
@@ -89,21 +96,27 @@ def _async_apply_seasonal_disable(
             disabled_by=er.RegistryEntryDisabler.INTEGRATION,
             hidden_by=er.RegistryEntryHider.INTEGRATION,
         )
-        async_merge_entity_options(
-            ent_reg, reg_entry.entity_id, updates={_SEASONAL_STAMP_KEY: True}
-        )
-        return
+        entity_id = reg_entry.entity_id
+        created = True
 
     reg_entry = ent_reg.async_get(entity_id)
-    if reg_entry is None or reg_entry.disabled_by is not None:
+    if reg_entry is None:
+        return
+    if (
+        reg_entry.disabled_by == er.RegistryEntryDisabler.USER
+        or reg_entry.hidden_by == er.RegistryEntryHider.USER
+    ):
+        return
+    if not created and reg_entry.disabled_by is not None:
         return
 
-    update_kwargs: dict[str, Any] = {
-        "disabled_by": er.RegistryEntryDisabler.INTEGRATION
-    }
+    update_kwargs: dict[str, Any] = {}
+    if reg_entry.disabled_by is None:
+        update_kwargs["disabled_by"] = er.RegistryEntryDisabler.INTEGRATION
     if reg_entry.hidden_by is None:
         update_kwargs["hidden_by"] = er.RegistryEntryHider.INTEGRATION
-    ent_reg.async_update_entity(entity_id, **update_kwargs)
+    if update_kwargs:
+        ent_reg.async_update_entity(entity_id, **update_kwargs)
     async_merge_entity_options(ent_reg, entity_id, updates={_SEASONAL_STAMP_KEY: True})
 
 
