@@ -63,7 +63,7 @@ Tide, boating, and surf sensors now group under a separate device named after yo
 
 #### Added: tide detail attributes
 
-Next High/Low Tide sensors now carry `height_m` and a full-day `tide_table` attribute (type, time, height per entry).
+Next High/Low Tide sensors now carry a `height_m` attribute — the predicted height of the tide the sensor is counting down to.
 
 #### Added: daily rainfall totals for today and tomorrow
 

@@ -89,19 +89,9 @@ def _next_tide_time(data: list | None, tide_type: str) -> datetime.datetime | No
 
 
 def _tide_attrs(data: Any, tide_type: str) -> dict[str, StateType]:
-    """Return height_m and the full tide table for the entry value_fn selected."""
-    tides = data.tides
-    if not isinstance(tides, list):
-        return {}
-    entry = _next_tide_entry(tides, tide_type)
-    return {
-        "height_m": _safe_float(entry.get("height")) if entry else None,
-        "tide_table": [
-            {"type": t.get("type"), "time": t.get("time"), "height": t.get("height")}
-            for t in tides
-            if isinstance(t, dict)
-        ],
-    }
+    """Return height_m for the tide entry the value_fn selected."""
+    entry = _next_tide_entry(data.tides, tide_type)
+    return {"height_m": _safe_float(entry.get("height"))} if entry else {}
 
 
 def _warning_severity(name: str) -> int:
@@ -283,6 +273,7 @@ _FIRE_DANGER_INDEX_MAP: dict[int, str] = {
 }
 _FIRE_DANGER_OPTIONS = ["low", "moderate", "high", "very_high", "extreme"]
 _UNKNOWN_FIRE_DANGER_LOGGED: set[str] = set()
+_FIRE_DANGER_LABEL_DRIFT_LOGGED: set[str] = set()
 
 
 def _fire_danger_state(index: int | None, label: str | None) -> str | None:
@@ -290,6 +281,23 @@ def _fire_danger_state(index: int | None, label: str | None) -> str | None:
     if index is not None:
         mapped = _FIRE_DANGER_INDEX_MAP.get(index)
         if mapped is not None:
+            # The state comes from the index; the label is expected to mirror
+            # it. If NIWA ever pairs a richer wording with a known index the
+            # enum would silently drop it — warn so it gets reported instead.
+            if (
+                label
+                and label.strip().lower().replace(" ", "_") != mapped
+                and label not in _FIRE_DANGER_LABEL_DRIFT_LOGGED
+            ):
+                _FIRE_DANGER_LABEL_DRIFT_LOGGED.add(label)
+                _LOGGER.warning(
+                    "MetService fire danger label %r doesn't match its index "
+                    "%s (%s) — please report at "
+                    "https://github.com/nagelm/metservice-weather/issues",
+                    label,
+                    index,
+                    mapped,
+                )
             return mapped
         _warn_once(_UNKNOWN_FIRE_DANGER_LOGGED, "fire danger index", str(index))
         return None
@@ -418,7 +426,7 @@ current_condition_sensor_descriptions_public = [
         ),
         attr_fn=lambda data: (
             {"full_description": data.forecast_text}
-            if isinstance(data.forecast_text, str) and data.forecast_text
+            if isinstance(data.forecast_text, str) and len(data.forecast_text) > 255
             else {}
         ),
     ),
@@ -715,7 +723,6 @@ current_condition_sensor_descriptions_public = [
         ),
         attr_fn=lambda data: (
             {
-                "label": data.fire_danger,
                 "index": data.fire_danger_index,
                 "guidance": data.fire_danger_text,
                 "tomorrow": data.fire_danger_forecast,
@@ -1144,14 +1151,6 @@ current_condition_sensor_descriptions_public = [
         device_class=SensorDeviceClass.ENUM,
         options=_MOON_PHASE_ENUM_OPTIONS,
         value_fn=lambda data, _: _moon_phase_enum_state(data.moon_phase),
-        attr_fn=lambda data: (
-            {
-                "raw_phase": data.moon_phase,
-                "label": _MOON_PHASE_NAMES.get(data.moon_phase, data.moon_phase),
-            }
-            if _moon_phase_enum_state(data.moon_phase) is not None
-            else {}
-        ),
     ),
     WeatherSensorEntityDescription(
         key="moon_phase_current",

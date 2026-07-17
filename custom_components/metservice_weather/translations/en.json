@@ -221,9 +221,6 @@
           "extreme": "Extreme"
         },
         "state_attributes": {
-          "label": {
-            "name": "Label"
-          },
           "index": {
             "name": "Danger index"
           },
@@ -249,9 +246,6 @@
         "state_attributes": {
           "height_m": {
             "name": "Tide height (m)"
-          },
-          "tide_table": {
-            "name": "Today's tide table"
           }
         }
       },
@@ -260,9 +254,6 @@
         "state_attributes": {
           "height_m": {
             "name": "Tide height (m)"
-          },
-          "tide_table": {
-            "name": "Today's tide table"
           }
         }
       },
@@ -402,14 +393,6 @@
           "first_quarter": "First quarter",
           "full": "Full",
           "last_quarter": "Last quarter"
-        },
-        "state_attributes": {
-          "raw_phase": {
-            "name": "Raw phase"
-          },
-          "label": {
-            "name": "Label"
-          }
         }
       },
       "moon_phase_current": {

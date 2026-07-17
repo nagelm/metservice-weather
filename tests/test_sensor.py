@@ -33,6 +33,7 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     _UNKNOWN_WIND_STRENGTH_LOGGED,
     _UNKNOWN_FIRE_SEASON_LOGGED,
     _UNKNOWN_FIRE_DANGER_LOGGED,
+    _FIRE_DANGER_LABEL_DRIFT_LOGGED,
     _UNKNOWN_MOON_PHASE_LOGGED,
     current_condition_sensor_descriptions_public,
 )
@@ -1560,6 +1561,29 @@ def test_fire_danger_unknown_label_warns_once(caplog):
     assert len(matches) == 1
 
 
+def test_fire_danger_label_drift_warns_once(caplog):
+    """A label that doesn't match its index's band warns once per runtime.
+
+    The state comes from the index, so a richer label (e.g. "Very High" on
+    index 3) would be silently collapsed to the enum — the tripwire warning
+    is the only trace of it.
+    """
+    _FIRE_DANGER_LABEL_DRIFT_LOGGED.clear()
+    with caplog.at_level(logging.WARNING):
+        assert _fire_danger_state(3, "Very High") == "high"
+        assert _fire_danger_state(3, "Very High") == "high"
+    matches = [r for r in caplog.records if "Very High" in r.getMessage()]
+    assert len(matches) == 1
+
+
+def test_fire_danger_matching_label_does_not_warn(caplog):
+    """A label matching its index's band produces no drift warning."""
+    _FIRE_DANGER_LABEL_DRIFT_LOGGED.clear()
+    with caplog.at_level(logging.WARNING):
+        assert _fire_danger_state(3, "High") == "high"
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
 def test_fire_danger_level_description_value_and_attrs():
     """value_fn/attr_fn read fire_danger_index/fire_danger plus guidance fields."""
     desc = _desc("fire_danger_level")
@@ -1574,7 +1598,6 @@ def test_fire_danger_level_description_value_and_attrs():
     )
     assert desc.value_fn(data, "metric") == "high"
     assert desc.attr_fn(data) == {
-        "label": "High",
         "index": 3,
         "guidance": "Extreme caution.",
         "tomorrow": "Very High",
@@ -1640,13 +1663,13 @@ def test_moon_phase_enum_unknown_warns_once(caplog):
 
 
 def test_next_moon_phase_description_value_and_attrs():
-    """value_fn/attr_fn read the raw phase token and surface the display label."""
+    """value_fn maps the raw phase token; no attributes (state carries it all)."""
     desc = _desc("next_moon_phase")
     assert desc.device_class == SensorDeviceClass.ENUM
     assert desc.options == ["new", "first_quarter", "full", "last_quarter"]
     data = MetServicePublicData(moon_phase="FULL")
     assert desc.value_fn(data, "metric") == "full"
-    assert desc.attr_fn(data) == {"raw_phase": "FULL", "label": "Full Moon"}
+    assert desc.attr_fn(data) == {}
 
 
 def test_next_moon_phase_description_attrs_empty_when_state_none():
@@ -1877,12 +1900,12 @@ def test_deprecated_moonset_plain_string_state_no_device_class():
 
 
 # ---------------------------------------------------------------------------
-# Test: tide attribute helpers (height_m + tide_table)
+# Test: tide attribute helpers (height_m)
 # ---------------------------------------------------------------------------
 
 
-def test_tide_attrs_height_and_table():
-    """height_m and tide_table are populated from the same upcoming entry."""
+def test_tide_attrs_height_from_upcoming_entry():
+    """height_m comes from the same upcoming entry the value_fn selects."""
     future1 = (
         datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
     ).isoformat()
@@ -1894,30 +1917,44 @@ def test_tide_attrs_height_and_table():
         {"type": "LOW", "time": future2, "height": "0.4"},
     ]
     data = MetServicePublicData(tides=tides)
-    attrs = _tide_attrs(data, "HIGH")
-    assert attrs["height_m"] == 1.8
-    assert attrs["tide_table"] == [
-        {"type": "HIGH", "time": future1, "height": "1.8"},
-        {"type": "LOW", "time": future2, "height": "0.4"},
-    ]
+    assert _tide_attrs(data, "HIGH") == {"height_m": 1.8}
+    assert _tide_attrs(data, "LOW") == {"height_m": 0.4}
 
 
-def test_tide_attrs_height_none_when_no_upcoming_entry():
-    """height_m is None (table still populated) when every matching tide is past."""
+def test_tide_attrs_empty_when_no_upcoming_entry():
+    """attr_fn returns {} when every matching tide is in the past."""
     past = (
         datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
     ).isoformat()
     tides = [{"type": "HIGH", "time": past, "height": "1.8"}]
     data = MetServicePublicData(tides=tides)
-    attrs = _tide_attrs(data, "HIGH")
-    assert attrs["height_m"] is None
-    assert attrs["tide_table"] == tides
+    assert _tide_attrs(data, "HIGH") == {}
 
 
 def test_tide_attrs_empty_when_tides_not_a_list():
     """attr_fn returns {} when tides is None (no marine location configured)."""
     data = MetServicePublicData(tides=None)
     assert _tide_attrs(data, "HIGH") == {}
+
+
+# ---------------------------------------------------------------------------
+# Test: weather description full_description attribute gating
+# ---------------------------------------------------------------------------
+
+
+def test_weather_description_full_attr_only_when_truncated():
+    """full_description appears only when the state was actually truncated."""
+    desc = _desc("wxPhraseLong")
+    short = "Fine, light winds."
+    long = "x" * 300
+    assert desc.value_fn(MetServicePublicData(forecast_text=short), "metric") == short
+    assert desc.attr_fn(MetServicePublicData(forecast_text=short)) == {}
+    truncated = desc.value_fn(MetServicePublicData(forecast_text=long), "metric")
+    assert len(truncated) == 255
+    assert truncated.endswith("...")
+    assert desc.attr_fn(MetServicePublicData(forecast_text=long)) == {
+        "full_description": long
+    }
 
 
 def test_tides_high_description_attrs_match_value_fn_selection():
