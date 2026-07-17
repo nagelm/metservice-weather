@@ -1,104 +1,44 @@
 ## v2026.7.1
 
-### Sensor behaviour hardening
+> **If HACS fails to download this update** with an error mentioning `custom_components/None/manifest.json`, HACS is holding stale repository data. Fix: Settings → Devices & services → HACS → ⋮ → **Reload** (or restart Home Assistant), then retry the download.
 
-Every sensor's real-world behaviour was reviewed against recorded history; this release fixes what that review surfaced.
+A major quality release with **zero breaking changes by design**: every sensor whose behaviour changed was forked — your existing sensor keeps working unchanged, and an improved sibling arrives alongside it. Entity IDs, unique IDs, and recorded history are untouched throughout.
 
-#### New Pollen sensor (old sensors deprecated, not removed)
+### What may need your attention
 
-MetService's allergen page serves several concurrent status blocks — e.g. mid-July: `Imminent` (wattle, pine — season approaching) alongside `Low` (cypress, hazelnut — currently in the air). The old sensors flattened this to whichever block came first, mixing a *forecast notice* into what looked like an exposure level.
+**Displayed names changed (entity IDs did not).** All sensor names now follow Home Assistant's naming guidelines — sentence case, measurement first: "Wind Speed" → "Wind speed", "Today's High Temperature" → "High temperature today", "Temperature - Feels Like" → "Temperature feel", "MetService Weather Warnings" → "Warnings". One rename corrects a wrong claim: "Rainfall" → **"Rain last hour"**, because the station value is a trailing-hour figure, not a daily total. The weather device itself is now named after your **selected MetService location** (e.g. "Porirua") rather than the free-text name typed at setup, and marine sensors sit on their own device named after the marine region. Net effect: if a dashboard label, notification template, or voice phrase matches on a *friendly name*, update it to the new wording — anything using entity IDs is unaffected, and entities or devices you renamed yourself keep your names.
 
-The new `sensor.<device>_pollen`:
+**14 old sensors are deprecated — kept working, tidied automatically.** The forked originals (old UV Index, Weather Warnings, Pressure Tendency Trend, Wind Strength, Fire Season/Danger, Moon Phase, Next Moon Phase Date, sunrise/sunset/moonrise/moonset strings, Pollen Levels/Type) remain exactly as they were, and on upgrade each is checked against a thorough usage scan (automations, scripts, scenes, groups, dashboards, helpers, voice exposure, HomeKit). In use somewhere → it's *hidden* but keeps working, with a repair naming exactly where it's used and the replacement to migrate to. Used by nothing → it's *disabled* (one toggle on the device page reverses this; history is kept). Your own enable/hide choices are never overridden, and a one-time notice summarizes what happened. **The deprecated set is removed in version 2026.9.0** — migrate before then.
 
-- **State** = the current exposure level: `none` / `low` / `moderate` / `high`, keyed to MetService's own severity taxonomy (never `Imminent` — that's an outlook, not a level)
-- **`low_allergens`** / **`moderate_allergens`** / **`high_allergens`** attributes list what's in the air at each level (comma-separated strings, so they render on tile cards via `state_content`; empty levels are omitted)
-- **`imminent_allergens`** attribute lists species whose season is about to start
+**Marine sensors moved to their own device.** Entity IDs and history re-home automatically, but a *device-based* automation trigger/condition targeting the old town device no longer covers tide/boating/surf — a repair flags this if it affects you; re-point it at the new marine device.
 
-`sensor.<device>_pollen_levels` and `sensor.<device>_pollen_type` are **deprecated but keep working** — existing installs keep them; new installs get them disabled and hidden. An automation watching `imminent_allergens` is the new way to get a "pollen season starting" alert.
+**Upgrading from v0.9.x?** The `forecast_hourly`/`forecast_daily` weather-entity attributes are long gone — use the `weather.get_forecasts` action or the new rain sensors; repairs guide you through this and any leftover mobile-API configuration.
 
-#### New Weather Warning Level sensor (severity enum)
+### New
 
-A new `warning_level` sensor is an enum keyed to severity; the existing Weather Warnings sensor is deprecated but keeps working (its state is the headline text — the old truncation bug stays fixed):
+- **Warnings** severity enum (`none`/`watch`/`warning`/`orange`/`red`) with `headline` + `count`; opt-in **Warning details** sensor carries every active warning's full text for notification automations (kept out of the database)
+- **UV index** on NIWA's five-band scale, with sun-protection `advice` and protection-window times in season
+- **Pollen** exposure enum with per-level allergen attributes and `imminent_allergens` for season-approaching alerts
+- **Enum sensors** with validated vocabularies: Pressure tendency, Wind strength, Fire season, Fire danger — unexpected upstream values log once and read `unknown` instead of breaking automations
+- **Moon phase** across all eight octants with per-phase icons; the next principal event rides along as `next_phase` + `next_phase_at` attributes
+- **Sunrise / Sunset / Moonrise / Moonset** as real timestamps (the old `7:42am` text kept as a `display` attribute)
+- **Opt-in rain sensors**: Rain next 8 hours, Rain next 24 hours, and Next rain expected — which searches the *full* 7-day forecast (first rainy hour, else first rainy day) and reports an explicit `no_rain_expected` outlook with its horizon when the whole week is dry
+- **Tides**: `height_m` on the next high/low tide sensors, plus an opt-in **Tide direction** sensor (`rising`/`falling`) carrying the day's tide table (kept out of the database)
+- **Daily forecast rain totals**: real mm amounts for today and tomorrow, aggregated from hourly data
+- **Optional seasonal tidy-up**: a setup toggle that disables and hides seasonal sensors (UV, fire, drying) while MetService pauses them off-season — history and settings kept, re-enabled automatically when data resumes; off by default
+- **Repairs** (Settings → Repairs) appear only when your setup shows evidence of needing them, and clear themselves once resolved
 
-- **State**: `none` / `watch` / `warning` / `orange` / `red` — the most severe active warning's level, so numeric-style "at least orange" automation conditions work.
-- **Attributes**: `headline` (most severe warning's name, e.g. `Strong Wind Warning - Orange (+1 more)`) and `count` — flat values that render everywhere, per HA's attribute guidance.
-- **Warning details** — a companion sensor, disabled by default (enable it on the device page): state is the active warning count and its `active_warnings` attribute carries the full structured list (`name`, `text`, `threat_period`, no truncation) for notification automations. The list is deliberately excluded from the recorder, so enabling it costs no database growth.
-- Existing automations on the old sensor keep working; when migrating, `state != "No warnings"` becomes `state != "none"` on the new sensor.
+### Fixed
 
-#### New UV Risk sensor (5-level enum; UV Index deprecated)
+- Rural locations (no weather station) now show current temperature, wind speed, and bearing on the weather entity via the current-hour forecast
+- Stale duplicate weather entities from the old entity-ID collision are pruned on upgrade
+- Unknown MetService condition tokens fall back sanely instead of passing invalid conditions to the weather card
+- Moon phase timestamps no longer flip-flop from MetService's per-request jitter
+- A warning payload missing a field no longer aborts the whole data update
 
-The new `uv_risk` sensor's state is `low` / `moderate` / `high` / `very_high` / `extreme` (NIWA's alert scale — a closed vocabulary, so ad-hoc wording changes can't break automations). New attributes: `status_class`, `advice` (the sun-protection message), `protection_window_start` / `protection_window_end` (populated in season), and `has_alert`. Off-season the sensor reads `unknown` as before.
+### Housekeeping
 
-#### New closed-vocabulary enum sensors (old text sensors deprecated)
-
-New sensors: Pressure tendency (`rising`/`falling`/`stable`), Wind strength (`calm`→`storm`), Fire season (FENZ `open`/`restricted`/`prohibited` — the descriptive text moved to attributes), Fire danger (`low`→`extreme`, keyed to NIWA's own index), and Moon phase (all eight octants, `new_moon`→`waning_crescent`, derived from MetService's next principal-phase event — which rides along as `next_phase` + `next_phase_at` attributes) — enum sensors with translated states and validated vocabularies alongside the original text sensors, which are deprecated but unchanged. The old Next Moon Phase Date sensor is deprecated with the rest (its timestamp now lives in `next_phase_at`). Any unexpected upstream value logs one warning and reads `unknown` instead of breaking.
-
-#### New sunrise/sunset/moonrise/moonset timestamp sensors
-
-New `*_time` sensors carry real timestamps usable in automation triggers and templates (with the `7:42am`-style text as a `display` attribute). The original string sensors are deprecated but unchanged.
-
-#### Added: opt-in forecast rain sensors
-
-Three new sensors, disabled by default (enable on the device page): **Rain next 8 hours** (mm), **Rain next 24 hours** (mm), and **Next rain expected**. These replace the `weather.get_forecasts` template dance for the most common rain automations.
-
-Next rain expected searches the full forecast, not just the hourly series: the first rainy hour when one is in reach (`precision: hour`), otherwise the first daily-forecast day MetService draws with a precipitation icon (`precision: day`, timestamped midday). When the entire 7-day horizon is dry the state is unknown **with `outlook: no_rain_expected` and a `forecast_horizon` attribute** — an explicit "no rain through <date>" claim, distinguishable from missing data (which carries no attributes).
-
-#### Added: option to auto-disable sensors with no upstream data
-
-A new setup/reconfigure toggle ("Automatically disable sensors while MetService publishes no data", default off) disables and hides seasonal sensors (UV, fire danger, clothes drying) while MetService pauses the product, instead of removing them. Their history and settings are kept, and they're re-enabled automatically — no restart — when data resumes; turning the toggle back off restores everything in one restart too. Leave it off to keep today's behaviour (sensors stay visible and read `unknown` off-season).
-
-Installs that already had the option turned on under its earlier remove-outright behaviour will have their seasonal sensors' registry rows re-created — born disabled and hidden — the first time they update.
-
-#### Zero breaking changes: deprecation instead of removal
-
-Every sensor whose format changed is **forked, not broken**: your existing sensors keep their exact previous behaviour, and the new enum/timestamp versions arrive as separate entities (enabled for everyone; the deprecated originals are hidden and disabled only for fresh installs). On upgrade, each deprecated sensor is checked against a thorough usage scan — automations, scripts, scenes, groups, **dashboards**, helper chains (derivative/utility meter/statistics/…), voice-assistant exposure, and HomeKit:
-
-- **In use somewhere** → the sensor is *hidden* but keeps working and recording — everything referencing it is unaffected, and a repair names exactly where it's used.
-- **Nothing uses it** → the sensor is *disabled* (reversible in one toggle on the device page; its history is kept).
-
-Your choices always win: sensors you've manually hidden, un-hidden, enabled, or disabled are never touched again, and nothing is ever auto-re-enabled. A one-time notice summarizes what was disabled or hidden. Removal of the deprecated set is planned for version 2026.9.0.
-
-#### Added: Repairs guidance (Settings → Repairs)
-
-Repair issues now appear **only when your setup shows evidence of needing them**, and clear themselves once fixed:
-
-- A deprecated sensor still in use → migration notice naming where it's used (automation, dashboard, helper, …) and the replacement.
-- An entity removed on upgrade that your automations still referenced → removal notice with a suggested replacement.
-- A config entry still on the mobile API removed in v1.0.0 (or an unknown location) → reconfigure guidance.
-- Automations/scripts still reading the `forecast_hourly`/`forecast_daily` weather attributes removed after v0.9.x → pointer to `weather.get_forecasts` and the new rain sensors.
-
-#### Changed: the weather device is named after the selected location
-
-The town/rural device now carries the **MetService location's own label** (e.g. choosing Porirua names the device "Porirua"), instead of the free-text name typed at setup — that name remains the config entry's title in the integrations list. If you renamed the device yourself, your name still wins; clear the custom name (pencil icon on the device page) to adopt the location label. Entity IDs, unique IDs, and history are unchanged for existing installs.
-
-#### Added: marine data gets its own device
-
-Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically. Because these sensors move to their own device, their displayed friendly name changes too (e.g. "Auckland Next high tide" becomes "Auckland East Coast Next high tide"). entity_id, unique_id, and recorded history are unaffected — but update any notification template, dashboard label, or voice-assistant phrase that used the old friendly name.
-
-#### Added: tide detail attributes and Tide direction sensor
-
-Next high/low tide sensors now carry a `height_m` attribute — the predicted height of the tide the sensor is counting down to. A new **Tide direction** sensor (marine device, disabled by default) reads `rising` / `falling` from the next upcoming event and carries the full-day `tide_table` attribute (`type`, `time`, `height` per entry); the table is excluded from the recorder, so enabling it costs no database growth.
-
-#### Added: daily rainfall totals for today and tomorrow
-
-The daily forecast now carries a real precipitation amount (mm) for today and tomorrow, aggregated from the hourly data: actual recorded rainfall for elapsed hours plus the forecast for the remainder of the day (matching MetService's own "total rainfall for today" figure). Later days keep the chance-of-rain percentage. Totals only appear when a day has near-complete hourly coverage, and each cycle cross-checks the sum against MetService's stated total in debug logging.
-
-#### Changed: sensor names follow Home Assistant naming guidelines
-
-All sensor display names now use HA's official sentence-case, measurement-first style (e.g. "Wind Speed" → "Wind speed", "Today's High Temperature" → "High temperature today", "Tomorrow — Condition" → "Condition tomorrow", "Temperature - Feels Like" → "Temperature feel", "MetService Weather Warnings" → "Warnings"). One rename is a correction, not just style: "Rainfall" → **"Rain last hour"** — the station value is a trailing-hour figure that rises and falls with the rain (verified against recorded history), not the daily total the old name implied. Entity IDs, unique IDs, and recorded history are unchanged for existing installs — only the displayed friendly name changes (update any dashboard label, notification template, or voice phrase that used the old wording). Fresh installs additionally mint cleaner entity IDs from the new names. UI-renamed entities are unaffected (your custom name wins). Deprecated sensors keep their old names.
-
-#### Fixed / hardened
-
-- **Rural weather entities now show current temperature and wind**: locations without a weather station (most rural pages) previously had no `temperature`, `wind_speed`, or `wind_bearing` on the weather entity at all. These now fall back to the forecast for the current hour — the same stand-in MetService's own site uses. Stations that briefly drop an observation get the same fallback instead of a blank. Humidity and pressure have no hourly forecast source and remain unavailable without a station.
-- **Stale duplicate weather entities are cleaned up on upgrade**: installs dating back to the old entity-ID collision (e.g. a leftover `weather.<name>_<name>_forecast` stuck permanently `unavailable`) had that orphan restored on every restart. The weather platform now prunes stale registry entries at setup, as the sensor platform already did.
-- **Unknown condition tokens can no longer break the weather card**: unmapped MetService condition tokens (e.g. unseen night variants) now fall back to their day equivalent, or report as unknown with a logged warning — previously they passed through as invalid Home Assistant conditions.
-- **Moon phase date no longer flip-flops**: MetService recomputes the phase time per request with second-level jitter (observed: the same event served 19 s apart), causing spurious state changes. Timestamps are now rounded to 5 minutes, so the sensor changes only when the actual phase event advances.
-- **Diagnostic logging for observation dropouts**: when a station value (temperature, wind, …) goes missing for a polling cycle, debug logging now records the raw upstream payload — distinguishing MetService outages from ingestion problems. Enable with `logger: logs: custom_components.metservice_weather: debug`.
-- A warning payload missing a field no longer aborts the whole data update.
-
-#### Documentation
-
-- README now explains seasonal products: UV and fire danger are stripped server-side off-season (`unknown` in winter is expected); pollen runs year-round and reads `Imminent` pre-season with the upcoming allergens.
+Attribute schemas were flattened and de-duplicated per HA guidance, attribute names are translated, and the docs were refreshed — including an explanation of seasonal products (UV/fire read `unknown` off-season by design).
 
 ---
 
