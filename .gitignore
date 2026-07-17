@@ -23,6 +23,7 @@ dev_credentials.md
 *.credentials.md
 .env
 secrets.yaml
+dev-notes.local.md
 
 # local tooling project files
 .devtools/
