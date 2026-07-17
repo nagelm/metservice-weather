@@ -47,13 +47,18 @@ A new setup/reconfigure toggle ("Automatically remove sensors while MetService p
 
 #### Zero breaking changes: deprecation instead of removal
 
-Every sensor whose format changed is **forked, not broken**: your existing sensors keep their exact previous behaviour, and the new enum/timestamp versions arrive as separate entities (enabled for everyone; the deprecated originals are hidden and disabled only for fresh installs). Deprecated sensors that nothing in your automations or scripts references are auto-hidden (still working, still recording — un-hide per entity in the UI; a one-time dismissible notice lists them). Removal of the deprecated set is planned for version 2026.9.0.
+Every sensor whose format changed is **forked, not broken**: your existing sensors keep their exact previous behaviour, and the new enum/timestamp versions arrive as separate entities (enabled for everyone; the deprecated originals are hidden and disabled only for fresh installs). On upgrade, each deprecated sensor is checked against a thorough usage scan — automations, scripts, scenes, groups, **dashboards**, helper chains (derivative/utility meter/statistics/…), voice-assistant exposure, and HomeKit:
+
+- **In use somewhere** → the sensor is *hidden* but keeps working and recording — everything referencing it is unaffected, and a repair names exactly where it's used.
+- **Nothing uses it** → the sensor is *disabled* (reversible in one toggle on the device page; its history is kept).
+
+Your choices always win: sensors you've manually hidden, un-hidden, enabled, or disabled are never touched again, and nothing is ever auto-re-enabled. A one-time notice summarizes what was disabled or hidden. Removal of the deprecated set is planned for version 2026.9.0.
 
 #### Added: Repairs guidance (Settings → Repairs)
 
 Repair issues now appear **only when your setup shows evidence of needing them**, and clear themselves once fixed:
 
-- A deprecated sensor still referenced by your automations/scripts → migration notice naming them and the replacement.
+- A deprecated sensor still in use → migration notice naming where it's used (automation, dashboard, helper, …) and the replacement.
 - An entity removed on upgrade that your automations still referenced → removal notice with a suggested replacement.
 - A config entry still on the mobile API removed in v1.0.0 (or an unknown location) → reconfigure guidance.
 - Automations/scripts still reading the `forecast_hourly`/`forecast_daily` weather attributes removed after v0.9.x → pointer to `weather.get_forecasts` and the new rain sensors.
@@ -72,7 +77,7 @@ The daily forecast now carries a real precipitation amount (mm) for today and to
 
 #### Changed: sensor names follow Home Assistant naming guidelines
 
-All sensor display names now use HA's official sentence-case, measurement-first style (e.g. "Wind Speed" → "Wind speed", "Today's High Temperature" → "High temperature today", "Tomorrow — Condition" → "Condition tomorrow", "Temperature - Feels Like" → "Apparent temperature", "MetService Weather Warnings" → "Warnings"). Entity IDs, unique IDs, and recorded history are unchanged for existing installs — only the displayed friendly name changes (update any dashboard label, notification template, or voice phrase that used the old wording). Fresh installs additionally mint cleaner entity IDs from the new names. UI-renamed entities are unaffected (your custom name wins). Deprecated sensors keep their old names.
+All sensor display names now use HA's official sentence-case, measurement-first style (e.g. "Wind Speed" → "Wind speed", "Today's High Temperature" → "High temperature today", "Tomorrow — Condition" → "Condition tomorrow", "Temperature - Feels Like" → "Temperature feel", "MetService Weather Warnings" → "Warnings"). Entity IDs, unique IDs, and recorded history are unchanged for existing installs — only the displayed friendly name changes (update any dashboard label, notification template, or voice phrase that used the old wording). Fresh installs additionally mint cleaner entity IDs from the new names. UI-renamed entities are unaffected (your custom name wins). Deprecated sensors keep their old names.
 
 #### Fixed / hardened
 

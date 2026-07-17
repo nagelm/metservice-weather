@@ -64,13 +64,14 @@ async def async_setup_entry(
     coordinator listener re-checks the skipped descriptions on every update
     and creates them once MetService resumes publishing data.
 
-    After entities are added, async_check_deprecated_entities raises (or
-    clears) repair issues for any pre-v2026.7.1 sensor still referenced by
-    an automation or script. When any marine service is configured,
-    async_check_marine_device_move similarly raises (or clears) a repair
-    issue for any DEVICE-based automation/script still targeting the old
-    location device for marine (tide/boating/surf) sensors, which moved to
-    their own marine device.
+    After entities are added, async_check_deprecated_entities sweeps every
+    pre-v2026.7.1 sensor still present: unused ones are disabled, used ones
+    are hidden (never both), with a repair issue naming the evidence found
+    for anything still in use — see deprecation.py for the full detector.
+    When any marine service is configured, async_check_marine_device_move
+    similarly raises (or clears) a repair issue for any DEVICE-based
+    automation/script still targeting the old location device for marine
+    (tide/boating/surf) sensors, which moved to their own marine device.
     """
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
     auto_hide_seasonal = entry.data.get(CONF_AUTO_HIDE_SEASONAL, False)

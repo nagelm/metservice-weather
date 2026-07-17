@@ -42,7 +42,7 @@ Earlier versions of this integration included an option to use the MetService mo
 | Sensor | Notes |
 |--------|-------|
 | Temperature | Current observed temperature |
-| Apparent temperature | MetService's felt temperature |
+| Temperature feel | MetService's felt temperature |
 | High / Low temperature today | Observed or forecast high and low for today |
 | Relative humidity | % |
 | Pressure | hPa |

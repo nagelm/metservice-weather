@@ -8,14 +8,27 @@ exists):
   v2026.7.1 was forked: the OLD key kept its v2026.7.0 behaviour (disabled
   and hidden by default for new installs, but left enabled for existing
   installs that already have a registry row for it) and a NEW sibling
-  sensor carries the new behaviour, enabled by default. Raises a
-  (self-clearing) repair issue for any existing install whose old,
-  deprecated entity is still referenced by an automation or script.
-  Deprecated sensors are planned for removal in version 2026.9.0.
-  Enabled, unreferenced deprecated sensors are also auto-hidden
-  (hidden_by=INTEGRATION) rather than left cluttering the entity list, and
-  a one-time dismissible notice explains why; a sensor that starts being
-  referenced again while integration-hidden is automatically un-hidden.
+  sensor carries the new behaviour, enabled by default. Deprecated sensors
+  are planned for removal in version 2026.9.0.
+
+  For an existing install's enabled OLD sensor, a broad usage detector
+  (`_usage_signals`) decides what happens every run: automations, scripts,
+  scenes, groups, Lovelace dashboards, other integrations' config entries
+  (helpers etc.), voice-assistant exposure, HomeKit filters, and even an
+  in-process state-change listener all count as "in use". A sensor with no
+  evidence of use at all is disabled (disabled_by=INTEGRATION) — the
+  strongest signal available that nobody will notice. A sensor with any
+  evidence is instead just hidden (hidden_by=INTEGRATION) so it stops
+  cluttering the entity list while it keeps working, and a self-clearing
+  repair issue nags about migrating to its replacement, naming the
+  evidence found. Every decision is stamped onto the registry row's own
+  per-domain options (entry.options[DOMAIN]); if the entity's live state no
+  longer matches that stamp on a later run, the user reverted our decision
+  themselves and the sweep never touches that entity again. A sensor this
+  sweep previously disabled is never auto-re-enabled even if it becomes
+  used again — only the user re-enables it, via the UI. A one-time,
+  dismissible notice summarises what changed whenever the sweep actually
+  disables or hides something new.
 * Removed entity still referenced — generic catch for ANY 0.9.x-era
   entity a stale-registry cleanup is about to delete (sensor or weather
   domain), not just the sensors tracked below.
@@ -39,11 +52,17 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from homeassistant.components.automation import (
     automations_with_device,
     automations_with_entity,
 )
+from homeassistant.components.group import groups_with_entity
+from homeassistant.components.homeassistant.exposed_entities import (
+    async_get_entity_settings,
+)
+from homeassistant.components.homeassistant.scene import scenes_with_entity
 from homeassistant.components.script import scripts_with_device, scripts_with_entity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -62,6 +81,15 @@ from .weather_current_conditions_sensors import (
 _LOGGER = logging.getLogger(__name__)
 
 _LEARN_MORE_URL = "https://github.com/nagelm/metservice-weather/releases"
+
+# Written into a swept entity's DOMAIN-scoped registry options
+# (entry.options[DOMAIN]) alongside {"swept": "hidden"|"disabled"}, purely
+# for diagnostics/debugging — no code branches on the version value itself,
+# only on the "swept" action.
+SWEEP_VERSION = "2026.7.1"
+
+_SWEPT_HIDDEN = "hidden"
+_SWEPT_DISABLED = "disabled"
 
 # Every OLD sensor key deprecated by the v2026.7.1 fork, mapped to the key
 # of the NEW sibling sensor that carries its behaviour going forward.
@@ -154,35 +182,356 @@ def _referencing_items(hass: HomeAssistant, entity_id: str) -> list[str]:
     return references
 
 
+# ---------------------------------------------------------------------------
+# Usage detector for the deprecated-sensor disable/hide sweep
+# ---------------------------------------------------------------------------
+
+# hass.data key holding HA core's private, undocumented
+# async_track_state_change_event bookkeeping. Reaching into this is a
+# best-effort, conservative veto only: current core stores a small
+# dataclass here (not a plain dict), so the isinstance guard below means
+# this signal is inert on it — but it costs nothing to keep, and picks up
+# a live signal again for free if a future/older core version's shape
+# happens to be a plain dict keyed by entity_id.
+_TRACK_STATE_CHANGE_DATA_KEY = "track_state_change_data"
+
+
+def _dump_json(value: Any) -> str | None:
+    """Best-effort JSON dump for substring matching; None on failure.
+
+    Never logged or persisted anywhere — only ever substring-tested against
+    an entity_id and then discarded.
+    """
+    try:
+        return json.dumps(value, default=str)
+    except (TypeError, ValueError):
+        return None
+
+
+def _config_entries_referencing(hass: HomeAssistant, entity_id: str) -> list[str]:
+    """Return "{domain}: {title}" for other integrations' entries that mention entity_id.
+
+    Covers template/derivative/utility_meter/min_max/statistics-style
+    helpers built through a config entry, and any other integration that
+    happens to store the entity_id in its entry data/options. Our own
+    entries and HomeKit are excluded — HomeKit gets its own explicit
+    "homekit" signal (see _homekit_includes) since that's more meaningful
+    to a user than a generic "homekit: <bridge name>" helper line. Each
+    entry is independently guarded so one malformed entry can't hide
+    evidence from another.
+    """
+    evidence: list[str] = []
+    for config_entry in hass.config_entries.async_entries():
+        if config_entry.domain in (DOMAIN, "homekit"):
+            continue
+        try:
+            data_json = _dump_json(config_entry.data)
+            options_json = _dump_json(config_entry.options)
+            if (data_json and entity_id in data_json) or (
+                options_json and entity_id in options_json
+            ):
+                evidence.append(f"{config_entry.domain}: {config_entry.title}")
+        except Exception:
+            continue
+    return evidence
+
+
+def _homekit_includes(hass: HomeAssistant, entity_id: str) -> bool:
+    """Return True when a HomeKit config entry's options mention entity_id.
+
+    Covers an explicit include_entities filter entry. Each HomeKit entry is
+    independently guarded.
+    """
+    for config_entry in hass.config_entries.async_entries("homekit"):
+        try:
+            options_json = _dump_json(config_entry.options)
+            if options_json and entity_id in options_json:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _voice_assistant_exposure(hass: HomeAssistant, entity_id: str) -> list[str]:
+    """Return assistant keys (e.g. "conversation", "cloud.alexa") exposing entity_id."""
+    settings = async_get_entity_settings(hass, entity_id)
+    return [
+        assistant
+        for assistant, options in settings.items()
+        if options.get("should_expose")
+    ]
+
+
+def _has_in_process_listener(hass: HomeAssistant, entity_id: str) -> bool:
+    """Best-effort check for an in-process state-change listener on entity_id.
+
+    See _TRACK_STATE_CHANGE_DATA_KEY's docstring — the isinstance guard
+    means an unexpected (or simply different-version) shape safely
+    contributes no signal instead of raising.
+    """
+    callbacks = hass.data.get(_TRACK_STATE_CHANGE_DATA_KEY)
+    if isinstance(callbacks, dict):
+        return bool(callbacks.get(entity_id))
+    return False
+
+
+async def _dashboards_referencing(hass: HomeAssistant, entity_id: str) -> list[str]:
+    """Return a title/url_path for every Lovelace dashboard whose config mentions entity_id.
+
+    Only runs once "lovelace" has loaded. LOVELACE_DATA's exact storage
+    location has moved before across HA versions; imported defensively
+    here with a fallback to the plain "lovelace" string key so this keeps
+    working either way (in current core LOVELACE_DATA is a HassKey that
+    compares equal to that string regardless). Each dashboard's
+    async_load() is independently guarded — it can raise (e.g.
+    ConfigNotFound for a strategy dashboard) or return falsy, either of
+    which simply contributes no evidence from that one dashboard.
+    """
+    if "lovelace" not in hass.config.components:
+        return []
+
+    try:
+        from homeassistant.components.lovelace import LOVELACE_DATA as _lovelace_key
+    except ImportError:
+        _lovelace_key = "lovelace"
+
+    lovelace_data = hass.data.get(_lovelace_key)
+    dashboards = getattr(lovelace_data, "dashboards", None)
+    if not dashboards:
+        return []
+
+    evidence: list[str] = []
+    for url_path, dash in dashboards.items():
+        try:
+            config = await dash.async_load(False)
+            if not config:
+                continue
+            config_json = _dump_json(config)
+            if not config_json or entity_id not in config_json:
+                continue
+            dash_config = getattr(dash, "config", None)
+            title = dash_config.get("title") if isinstance(dash_config, dict) else None
+            evidence.append(title or url_path or "default")
+        except Exception:
+            continue
+    return evidence
+
+
+async def _usage_signals(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:
+    """Return a dict of usage evidence for entity_id; an empty dict means UNUSED.
+
+    Far broader than _referencing_items (automations/scripts only), which
+    still backs the other detectors in this module unchanged. Every source
+    is independently wrapped in try/except: a source that fails (missing
+    component, private API shape changed, entity unknown to a helper,
+    etc.) simply contributes no signal, the same fail-open behaviour
+    _referencing_items already relies on for automations/scripts.
+
+    Possible keys: "automations", "scripts", "scenes", "groups"
+    (list[str] entity/service ids), "dashboards", "helpers", "voice"
+    (list[str] human-readable evidence), "homekit", "listeners" (bool).
+    """
+    signals: dict[str, Any] = {}
+
+    try:
+        if "automation" in hass.config.components:
+            automations = automations_with_entity(hass, entity_id)
+            if automations:
+                signals["automations"] = automations
+    except Exception:
+        pass
+
+    try:
+        if "script" in hass.config.components:
+            scripts = scripts_with_entity(hass, entity_id)
+            if scripts:
+                signals["scripts"] = scripts
+    except Exception:
+        pass
+
+    try:
+        if "scene" in hass.config.components:
+            scenes = scenes_with_entity(hass, entity_id)
+            if scenes:
+                signals["scenes"] = scenes
+    except Exception:
+        pass
+
+    try:
+        if "group" in hass.config.components:
+            groups = groups_with_entity(hass, entity_id)
+            if groups:
+                signals["groups"] = groups
+    except Exception:
+        pass
+
+    try:
+        dashboards = await _dashboards_referencing(hass, entity_id)
+        if dashboards:
+            signals["dashboards"] = dashboards
+    except Exception:
+        pass
+
+    try:
+        helpers = _config_entries_referencing(hass, entity_id)
+        if helpers:
+            signals["helpers"] = helpers
+    except Exception:
+        pass
+
+    try:
+        voice = _voice_assistant_exposure(hass, entity_id)
+        if voice:
+            signals["voice"] = voice
+    except Exception:
+        pass
+
+    try:
+        if _homekit_includes(hass, entity_id):
+            signals["homekit"] = True
+    except Exception:
+        pass
+
+    try:
+        if _has_in_process_listener(hass, entity_id):
+            signals["listeners"] = True
+    except Exception:
+        pass
+
+    return signals
+
+
+_EVIDENCE_LABELS: tuple[tuple[str, str], ...] = (
+    ("automations", "automation"),
+    ("scripts", "script"),
+    ("scenes", "scene"),
+    ("groups", "group"),
+    ("dashboards", "dashboard"),
+    ("helpers", "helper"),
+    ("voice", "voice assistant"),
+)
+
+
+def _format_evidence(signals: dict[str, Any]) -> str:
+    """Render a usage-signals dict as a concise, semicolon-joined evidence summary.
+
+    List-valued sources (automations/scripts/scenes/groups/dashboards/
+    helpers/voice) are rendered as "<label>: <joined items>", mirroring the
+    entity_id list style the old "references" placeholder used. The two
+    boolean sources (homekit, listeners) contribute a fixed phrase instead,
+    since they carry no list of their own to join.
+    """
+    parts: list[str] = []
+    for signal_key, singular in _EVIDENCE_LABELS:
+        items = signals.get(signal_key)
+        if items:
+            label = singular if len(items) == 1 else f"{singular}s"
+            parts.append(f"{label}: {_format_references(items)}")
+    if signals.get("homekit"):
+        parts.append("HomeKit")
+    if signals.get("listeners"):
+        parts.append("an in-process listener")
+    return "; ".join(parts) if parts else "no specific usage detected"
+
+
+def _sweep_stamp(reg_entry: er.RegistryEntry) -> dict[str, Any] | None:
+    """Return this integration's sweep stamp from a registry entry's options, if any."""
+    stamp = reg_entry.options.get(DOMAIN)
+    return dict(stamp) if stamp else None
+
+
+def _stamp_reverted_by_user(reg_entry: er.RegistryEntry, stamp: dict[str, Any]) -> bool:
+    """Return True when the entity's live state no longer matches its sweep stamp.
+
+    A user who manually re-enables or un-hides a sensor the sweep
+    previously acted on has made their preference explicit; recognising
+    that here means the *next* run leaves that entity alone forever
+    instead of re-applying the old decision on top of the user's override.
+    """
+    swept = stamp.get("swept")
+    if swept == _SWEPT_DISABLED and reg_entry.disabled_by is None:
+        return True
+    if swept == _SWEPT_HIDDEN and reg_entry.hidden_by is None:
+        return True
+    return False
+
+
+def _is_user_owned(reg_entry: er.RegistryEntry) -> bool:
+    """Return True when the user explicitly disabled or hid this entity themselves."""
+    return (
+        reg_entry.disabled_by == er.RegistryEntryDisabler.USER
+        or reg_entry.hidden_by == er.RegistryEntryHider.USER
+    )
+
+
+def _create_or_refresh_deprecated_issue(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    issue_id: str,
+    entity_id: str,
+    new_key: str,
+    signals: dict[str, Any],
+) -> None:
+    """Create/refresh the per-entity "still in use" repair issue with current evidence."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="deprecated_entity",
+        learn_more_url=_LEARN_MORE_URL,
+        translation_placeholders={
+            "entity_id": entity_id,
+            "replacement_key": _replacement_display_name(new_key),
+            "evidence": _format_evidence(signals),
+        },
+    )
+
+
 async def async_check_deprecated_entities(
     hass: HomeAssistant,
     entry: ConfigEntry,
     coordinator: WeatherUpdateCoordinator,
 ) -> None:
-    """Create or clear repair issues for deprecated sensors still in use.
+    """Disable unused / hide used deprecated sensors, and keep their repair issues in sync.
 
-    For every deprecated sensor key: if the location has no registry row
-    for it, or the row is disabled, there is nothing to warn about (a new
-    install never creates it disabled-by-default; an existing install that
-    already disabled it has already migrated) — any stale issue is
-    cleared, and the row is left alone (hiding is only ever considered for
-    an enabled row). Otherwise, automations/scripts referencing the entity
-    are collected:
+    For every deprecated sensor key with a registry row, two guards run
+    first and — if either matches — the entity is never touched again:
 
-    * Unreferenced — the deprecated_entity issue is cleared, and the row
-      is auto-hidden (hidden_by=INTEGRATION) so it stops cluttering the
-      entity list, unless the user has already set their own hidden_by
-      (never override that, and never re-write a row already
-      integration-hidden).
-    * Referenced — a repair issue is created (self-heals once there are
-      no more references), and if the row was previously
-      integration-hidden it is un-hidden so it's visible while the repair
-      nags.
+    * The row carries a sweep stamp from a previous run
+      (entry.options[DOMAIN]) whose recorded action no longer matches the
+      row's live disabled_by/hidden_by — the user reverted our decision.
+    * disabled_by or hidden_by is already RegistryEntryDisabler.USER /
+      RegistryEntryHider.USER — an explicit user choice.
 
-    A one-time, dismissible notice ("hidden_deprecated") is created when
-    this run newly auto-hides at least one sensor — never recreated on a
-    run that hides nothing new, so a user's dismissal sticks — and deleted
-    once no deprecated sensor remains integration-hidden.
+    Otherwise, a much broader usage detector than plain automation/script
+    references (_usage_signals — scenes, groups, dashboards, other
+    integrations' config entries, voice exposure, HomeKit, even an
+    in-process listener) decides:
+
+    * Used (signals non-empty) — an enabled, unhidden row is hidden
+      (hidden_by=INTEGRATION) and stamped; a row this sweep previously
+      disabled is deliberately left disabled (never auto-re-enabled). The
+      deprecated_entity repair issue is created/refreshed either way,
+      naming the evidence found.
+    * Unused (signals empty) — an enabled row is disabled
+      (disabled_by=INTEGRATION), any hidden_by=INTEGRATION is cleared (so
+      a future manual re-enable is visible), and it's stamped. The
+      deprecated_entity issue is cleared — nobody uses it.
+
+    If usage-signal computation itself fails outside the per-source guards
+    already inside _usage_signals (which should never happen, but this is
+    the fail-safe of last resort), the entire disable/hide decision is
+    skipped for every entity this run and existing state is left exactly
+    as-is; guard-only decisions (already-USER-owned, or disabled for some
+    other, unrelated reason) still apply since they don't need signals.
+
+    A one-time, dismissible notice is created when this run newly disables
+    or hides at least one sensor — never recreated on a run that changes
+    nothing further, so a user's dismissal sticks — and deleted once
+    nothing swept remains disabled/hidden by the integration for this
+    entry.
 
     Also sweeps and self-clears any "removed_entity" issue (detector 1,
     below) for this entry whose stored entity_id is no longer referenced —
@@ -193,53 +542,128 @@ async def async_check_deprecated_entities(
     """
     try:
         ent_reg = er.async_get(hass)
-        newly_hidden: list[str] = []
-        hidden_now: list[str] = []
+
+        candidates: dict[str, tuple[str, str]] = {}
         for old_key, new_key in DEPRECATED_SENSOR_REPLACEMENTS.items():
             issue_id = f"deprecated_entity_{entry.entry_id}_{old_key}"
             unique_id = f"{coordinator.location}_{old_key}".lower()
             entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
-            if entity_id is None:
+            if entity_id is None or ent_reg.async_get(entity_id) is None:
+                ir.async_delete_issue(hass, DOMAIN, issue_id)
+                continue
+            candidates[entity_id] = (old_key, new_key)
+
+        guarded: set[str] = set()
+        needs_signals: list[str] = []
+        for entity_id in candidates:
+            reg_entry = ent_reg.async_get(entity_id)
+            stamp = _sweep_stamp(reg_entry)
+            if (stamp and _stamp_reverted_by_user(reg_entry, stamp)) or _is_user_owned(
+                reg_entry
+            ):
+                guarded.add(entity_id)
+                continue
+            if reg_entry.disabled_by is None or (
+                reg_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+            ):
+                # Either fully enabled (need signals to decide hide vs.
+                # disable), or previously disabled by our own prior
+                # "unused" sweep (need signals purely to know whether the
+                # nag issue should now mention it's in use again — it is
+                # never re-enabled either way).
+                needs_signals.append(entity_id)
+
+        signals_by_entity: dict[str, dict[str, Any]] | None = {}
+        try:
+            for entity_id in needs_signals:
+                signals_by_entity[entity_id] = await _usage_signals(hass, entity_id)
+        except Exception:
+            _LOGGER.debug(
+                "Usage-signal detection failed; skipping the deprecated-sensor "
+                "disable/hide sweep this run",
+                exc_info=True,
+            )
+            signals_by_entity = None
+
+        newly_hidden: list[str] = []
+        newly_disabled: list[str] = []
+
+        for entity_id, (old_key, new_key) in candidates.items():
+            issue_id = f"deprecated_entity_{entry.entry_id}_{old_key}"
+
+            if entity_id in guarded:
                 ir.async_delete_issue(hass, DOMAIN, issue_id)
                 continue
 
             reg_entry = ent_reg.async_get(entity_id)
-            if reg_entry is None or reg_entry.disabled_by is not None:
+            if reg_entry.disabled_by is not None and (
+                reg_entry.disabled_by != er.RegistryEntryDisabler.INTEGRATION
+            ):
+                # Disabled for some other, unrelated reason — nothing left
+                # for this sweep to decide.
                 ir.async_delete_issue(hass, DOMAIN, issue_id)
                 continue
 
-            references = _referencing_items(hass, entity_id)
-            if not references:
+            if signals_by_entity is None:
+                continue
+
+            signals = signals_by_entity.get(entity_id, {})
+
+            if not signals:
                 ir.async_delete_issue(hass, DOMAIN, issue_id)
-                if reg_entry.hidden_by is None:
-                    ent_reg.async_update_entity(
-                        entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
+                if reg_entry.disabled_by is None:
+                    update_kwargs: dict[str, Any] = {
+                        "disabled_by": er.RegistryEntryDisabler.INTEGRATION
+                    }
+                    if reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION:
+                        update_kwargs["hidden_by"] = None
+                    ent_reg.async_update_entity(entity_id, **update_kwargs)
+                    ent_reg.async_update_entity_options(
+                        entity_id,
+                        DOMAIN,
+                        {"swept": _SWEPT_DISABLED, "swept_version": SWEEP_VERSION},
                     )
-                    newly_hidden.append(entity_id)
-                    hidden_now.append(entity_id)
-                elif reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION:
-                    hidden_now.append(entity_id)
+                    newly_disabled.append(entity_id)
                 continue
 
-            ir.async_create_issue(
-                hass,
-                DOMAIN,
-                issue_id,
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key="deprecated_entity",
-                learn_more_url=_LEARN_MORE_URL,
-                translation_placeholders={
-                    "entity_id": entity_id,
-                    "replacement_key": _replacement_display_name(new_key),
-                    "references": _format_references(references),
-                },
+            if reg_entry.disabled_by is None and reg_entry.hidden_by is None:
+                ent_reg.async_update_entity(
+                    entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
+                )
+                ent_reg.async_update_entity_options(
+                    entity_id,
+                    DOMAIN,
+                    {"swept": _SWEPT_HIDDEN, "swept_version": SWEEP_VERSION},
+                )
+                newly_hidden.append(entity_id)
+
+            _create_or_refresh_deprecated_issue(
+                hass, entry, issue_id, entity_id, new_key, signals
             )
 
-            if reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION:
-                ent_reg.async_update_entity(entity_id, hidden_by=None)
+        hidden_now: list[str] = []
+        disabled_now: list[str] = []
+        for entity_id in candidates:
+            reg_entry = ent_reg.async_get(entity_id)
+            if reg_entry is None:
+                continue
+            stamp = _sweep_stamp(reg_entry)
+            if not stamp:
+                continue
+            if (
+                stamp.get("swept") == _SWEPT_HIDDEN
+                and reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION
+            ):
+                hidden_now.append(entity_id)
+            elif (
+                stamp.get("swept") == _SWEPT_DISABLED
+                and reg_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+            ):
+                disabled_now.append(entity_id)
 
-        _async_sync_hidden_deprecated_notice(hass, entry, newly_hidden, hidden_now)
+        _async_sync_deprecated_sweep_notice(
+            hass, entry, newly_hidden, newly_disabled, hidden_now, disabled_now
+        )
 
         removed_entity_prefix = f"removed_entity_{entry.entry_id}_"
         issue_reg = ir.async_get(hass)
@@ -256,37 +680,50 @@ async def async_check_deprecated_entities(
         )
 
 
-def _async_sync_hidden_deprecated_notice(
+def _async_sync_deprecated_sweep_notice(
     hass: HomeAssistant,
     entry: ConfigEntry,
     newly_hidden: list[str],
+    newly_disabled: list[str],
     hidden_now: list[str],
+    disabled_now: list[str],
 ) -> None:
-    """Create, leave alone, or clear the auto-hidden-sensors notice for this entry.
+    """Create, leave alone, or clear the disable/hide sweep summary notice.
 
-    Only (re)created when this run newly auto-hid at least one deprecated
-    sensor, so a user's dismissal of the notice sticks across runs that
-    hide nothing new — but a run that hides a further sensor surfaces the
-    notice again with the full, current list. Deleted once no deprecated
-    sensor remains integration-hidden for this entry (e.g. the last one
-    was un-hidden by the user, or started being referenced again).
+    Supersedes the older "hidden_deprecated" issue (pre-2026.7.1 auto-hide
+    only), which is unconditionally cleared here so a copy lingering from
+    an older integration version doesn't sit alongside this one forever.
+
+    Only (re)created when this run newly disabled or hid at least one
+    deprecated sensor, so a user's dismissal sticks across runs that
+    change nothing further — a run that changes something new surfaces it
+    again with current totals. Deleted once nothing swept remains
+    disabled-by-us or hidden-by-us for this entry.
     """
-    issue_id = f"hidden_deprecated_{entry.entry_id}"
-    if newly_hidden:
+    ir.async_delete_issue(hass, DOMAIN, f"hidden_deprecated_{entry.entry_id}")
+
+    issue_id = f"deprecated_sweep_v2_{entry.entry_id}"
+    if newly_hidden or newly_disabled:
         ir.async_create_issue(
             hass,
             DOMAIN,
             issue_id,
             is_fixable=False,
             severity=ir.IssueSeverity.WARNING,
-            translation_key="hidden_deprecated",
+            translation_key="deprecated_sweep_v2",
             learn_more_url=_LEARN_MORE_URL,
             translation_placeholders={
-                "count": str(len(hidden_now)),
-                "entity_ids": _format_references(hidden_now),
+                "disabled_count": str(len(disabled_now)),
+                "disabled_entity_ids": (
+                    _format_references(disabled_now) if disabled_now else "none"
+                ),
+                "hidden_count": str(len(hidden_now)),
+                "hidden_entity_ids": (
+                    _format_references(hidden_now) if hidden_now else "none"
+                ),
             },
         )
-    elif not hidden_now:
+    elif not hidden_now and not disabled_now:
         ir.async_delete_issue(hass, DOMAIN, issue_id)
 
 

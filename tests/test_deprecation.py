@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
@@ -19,11 +20,17 @@ from custom_components.metservice_weather.coordinator import (
 from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 from custom_components.metservice_weather.deprecation import (
     DEPRECATED_SENSOR_REPLACEMENTS,
+    SWEEP_VERSION,
     _GENERIC_REMOVED_REPLACEMENT_FALLBACK,
     _REPLACEMENT_DISPLAY_NAMES,
+    _config_entries_referencing,
+    _dump_json,
+    _format_evidence,
     _format_references,
     _friendly_key,
+    _homekit_includes,
     _replacement_display_name,
+    _usage_signals,
     async_check_deprecated_entities,
     async_check_marine_device_move,
     async_check_removed_entity,
@@ -36,12 +43,38 @@ _AUTOMATIONS_PATCH = (
     "custom_components.metservice_weather.deprecation.automations_with_entity"
 )
 _SCRIPTS_PATCH = "custom_components.metservice_weather.deprecation.scripts_with_entity"
+_SCENES_PATCH = "custom_components.metservice_weather.deprecation.scenes_with_entity"
+_GROUPS_PATCH = "custom_components.metservice_weather.deprecation.groups_with_entity"
+_VOICE_PATCH = (
+    "custom_components.metservice_weather.deprecation.async_get_entity_settings"
+)
 _AUTOMATIONS_DEVICE_PATCH = (
     "custom_components.metservice_weather.deprecation.automations_with_device"
 )
 _SCRIPTS_DEVICE_PATCH = (
     "custom_components.metservice_weather.deprecation.scripts_with_device"
 )
+
+
+class _FakeDashboard:
+    """Minimal stand-in for a Lovelace LovelaceConfig object."""
+
+    def __init__(self, config, view_config=None, load_error=None):
+        self.config = config
+        self._view_config = view_config
+        self._load_error = load_error
+
+    async def async_load(self, force):
+        if self._load_error is not None:
+            raise self._load_error
+        return self._view_config
+
+
+class _FakeLovelaceData:
+    """Minimal stand-in for homeassistant.components.lovelace.LovelaceData."""
+
+    def __init__(self, dashboards: dict):
+        self.dashboards = dashboards
 
 
 class _FakeAutomationEntity:
@@ -220,7 +253,7 @@ async def test_issue_created_when_deprecated_entity_referenced(hass):
     assert issue is not None
     assert issue.translation_placeholders["entity_id"] == reg_entry.entity_id
     assert issue.translation_placeholders["replacement_key"] == "UV index"
-    assert "automation.check_uv" in issue.translation_placeholders["references"]
+    assert "automation.check_uv" in issue.translation_placeholders["evidence"]
     assert issue.severity == ir.IssueSeverity.WARNING
     assert issue.is_fixable is False
 
@@ -251,8 +284,8 @@ async def test_issue_combines_automation_and_script_references(hass):
         DOMAIN, _issue_id(entry, "weather_warnings")
     )
     assert issue is not None
-    assert "automation.storm_alert" in issue.translation_placeholders["references"]
-    assert "script.notify_warnings" in issue.translation_placeholders["references"]
+    assert "automation.storm_alert" in issue.translation_placeholders["evidence"]
+    assert "script.notify_warnings" in issue.translation_placeholders["evidence"]
     assert issue.translation_placeholders["replacement_key"] == "Warnings"
 
 
@@ -416,8 +449,7 @@ async def test_multiple_deprecated_keys_handled_independently(hass):
 
 
 # ---------------------------------------------------------------------------
-# Test: auto-hide/un-hide of unreferenced deprecated sensors +
-# hidden_deprecated notice
+# Test: disable-unused/hide-used decision matrix + sweep notice
 # ---------------------------------------------------------------------------
 
 
@@ -425,8 +457,12 @@ def _hidden_notice_id(entry: MockConfigEntry) -> str:
     return f"hidden_deprecated_{entry.entry_id}"
 
 
-async def test_unreferenced_enabled_deprecated_entity_is_hidden_by_integration(hass):
-    """An enabled, unreferenced deprecated sensor is auto-hidden by the integration."""
+def _sweep_notice_id(entry: MockConfigEntry) -> str:
+    return f"deprecated_sweep_v2_{entry.entry_id}"
+
+
+async def test_unused_deprecated_entity_is_disabled_by_integration(hass):
+    """A fully-unused deprecated sensor (no evidence anywhere) is disabled, not just hidden."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -435,7 +471,7 @@ async def test_unreferenced_enabled_deprecated_entity_is_hidden_by_integration(h
     reg_entry = ent_reg.async_get_or_create(
         "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
     )
-    assert reg_entry.hidden_by is None
+    assert reg_entry.disabled_by is None
 
     hass.config.components.add("automation")
     hass.config.components.add("script")
@@ -446,11 +482,50 @@ async def test_unreferenced_enabled_deprecated_entity_is_hidden_by_integration(h
         await async_check_deprecated_entities(hass, entry, coord)
 
     updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+    assert updated.hidden_by is None
+    assert updated.options[DOMAIN] == {
+        "swept": "disabled",
+        "swept_version": SWEEP_VERSION,
+    }
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex")) is None
+    )
+
+
+async def test_used_deprecated_entity_is_hidden_not_disabled(hass):
+    """A deprecated sensor with any usage evidence is hidden, never disabled."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=["automation.check_uv"]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
     assert updated.hidden_by == er.RegistryEntryHider.INTEGRATION
+    assert updated.disabled_by is None
+    assert updated.options[DOMAIN] == {
+        "swept": "hidden",
+        "swept_version": SWEEP_VERSION,
+    }
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
+    assert issue is not None
+    assert "automation.check_uv" in issue.translation_placeholders["evidence"]
 
 
 async def test_user_hidden_deprecated_entity_is_left_untouched(hass):
-    """A row the user already hid themselves is never overridden by auto-hide."""
+    """A row the user already hid themselves is never overridden by the sweep."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -464,19 +539,17 @@ async def test_user_hidden_deprecated_entity_is_left_untouched(hass):
     )
 
     hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=[]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
+    with patch(_AUTOMATIONS_PATCH) as mock_automations:
         await async_check_deprecated_entities(hass, entry, coord)
+        mock_automations.assert_not_called()
 
     updated = ent_reg.async_get(reg_entry.entity_id)
     assert updated.hidden_by == er.RegistryEntryHider.USER
+    assert updated.disabled_by is None
 
 
-async def test_referenced_previously_hidden_entity_is_unhidden(hass):
-    """A row the integration had hidden is un-hidden once it becomes referenced again."""
+async def test_used_previously_hidden_entity_stays_hidden_with_refreshed_issue(hass):
+    """A row already hidden by the integration (still in use) stays hidden — never un-hidden."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -487,6 +560,9 @@ async def test_referenced_previously_hidden_entity_is_unhidden(hass):
     )
     ent_reg.async_update_entity(
         reg_entry.entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
+    )
+    ent_reg.async_update_entity_options(
+        reg_entry.entity_id, DOMAIN, {"swept": "hidden", "swept_version": "2026.7.0"}
     )
 
     hass.config.components.add("automation")
@@ -498,16 +574,16 @@ async def test_referenced_previously_hidden_entity_is_unhidden(hass):
         await async_check_deprecated_entities(hass, entry, coord)
 
     updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.hidden_by is None
-    # The usual deprecated_entity nag issue still fires while referenced.
-    assert (
-        ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
-        is not None
-    )
+    assert updated.hidden_by == er.RegistryEntryHider.INTEGRATION
+    assert updated.disabled_by is None
+    # The usual deprecated_entity nag issue still fires while used.
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
+    assert issue is not None
+    assert "automation.check_uv" in issue.translation_placeholders["evidence"]
 
 
-async def test_hidden_deprecated_notice_created_when_newly_hiding(hass):
-    """A run that newly hides a sensor creates the one-time hidden_deprecated notice."""
+async def test_transition_from_hidden_to_disabled_clears_hide_stamp(hass):
+    """A previously-hidden (in-use) sensor that becomes unused is disabled, with hidden_by cleared."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -515,6 +591,12 @@ async def test_hidden_deprecated_notice_created_when_newly_hiding(hass):
     ent_reg = er.async_get(hass)
     reg_entry = ent_reg.async_get_or_create(
         "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    ent_reg.async_update_entity(
+        reg_entry.entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
+    )
+    ent_reg.async_update_entity_options(
+        reg_entry.entity_id, DOMAIN, {"swept": "hidden", "swept_version": "2026.7.0"}
     )
 
     hass.config.components.add("automation")
@@ -525,16 +607,14 @@ async def test_hidden_deprecated_notice_created_when_newly_hiding(hass):
     ):
         await async_check_deprecated_entities(hass, entry, coord)
 
-    issue = ir.async_get(hass).async_get_issue(DOMAIN, _hidden_notice_id(entry))
-    assert issue is not None
-    assert issue.translation_placeholders["count"] == "1"
-    assert reg_entry.entity_id in issue.translation_placeholders["entity_ids"]
-    assert issue.severity == ir.IssueSeverity.WARNING
-    assert issue.is_fixable is False
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+    assert updated.hidden_by is None
+    assert updated.options[DOMAIN]["swept"] == "disabled"
 
 
-async def test_hidden_deprecated_notice_not_recreated_when_nothing_new_hides(hass):
-    """A run that hides nothing new never calls create_issue for the notice — dismissal sticks."""
+async def test_previously_disabled_entity_stays_disabled_even_if_used_again(hass):
+    """A sensor the sweep previously disabled for being unused is never auto-re-enabled."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -543,22 +623,192 @@ async def test_hidden_deprecated_notice_not_recreated_when_nothing_new_hides(has
     reg_entry = ent_reg.async_get_or_create(
         "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
     )
-    # Simulate a prior run that already auto-hid this entity.
     ent_reg.async_update_entity(
-        reg_entry.entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
+        reg_entry.entity_id, disabled_by=er.RegistryEntryDisabler.INTEGRATION
+    )
+    ent_reg.async_update_entity_options(
+        reg_entry.entity_id,
+        DOMAIN,
+        {"swept": "disabled", "swept_version": SWEEP_VERSION},
     )
 
-    notice_id = _hidden_notice_id(entry)
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=["automation.check_uv"]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+    assert updated.hidden_by is None
+    # Still surfaces the evidence in the nag issue, even though it stays off.
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
+    assert issue is not None
+    assert "automation.check_uv" in issue.translation_placeholders["evidence"]
+
+
+async def test_stamp_reverted_disabled_to_enabled_is_never_touched_again(hass):
+    """Stamp says 'disabled' but the entity is live-enabled (user reverted it) -> left alone forever."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    ent_reg.async_update_entity_options(
+        reg_entry.entity_id, DOMAIN, {"swept": "disabled", "swept_version": "2026.7.0"}
+    )
+    assert reg_entry.disabled_by is None
+
+    hass.config.components.add("automation")
+    with patch(_AUTOMATIONS_PATCH) as mock_automations:
+        await async_check_deprecated_entities(hass, entry, coord)
+        mock_automations.assert_not_called()
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.disabled_by is None
+    assert updated.hidden_by is None
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex")) is None
+    )
+
+
+async def test_stamp_reverted_hidden_to_unhidden_is_never_touched_again(hass):
+    """Stamp says 'hidden' but the entity is live-unhidden (user reverted it) -> left alone forever."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    ent_reg.async_update_entity_options(
+        reg_entry.entity_id, DOMAIN, {"swept": "hidden", "swept_version": "2026.7.0"}
+    )
+    assert reg_entry.hidden_by is None
+
+    hass.config.components.add("automation")
+    with patch(_AUTOMATIONS_PATCH) as mock_automations:
+        await async_check_deprecated_entities(hass, entry, coord)
+        mock_automations.assert_not_called()
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.disabled_by is None
+    assert updated.hidden_by is None
+
+
+async def test_top_level_usage_signal_failure_skips_sweep_this_run(hass):
+    """If usage-signal computation itself blows up, no entity is touched this run."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    issue_id = _issue_id(entry, "uvIndex")
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="deprecated_entity",
+    )
+
+    with patch(
+        "custom_components.metservice_weather.deprecation._usage_signals",
+        side_effect=RuntimeError("boom"),
+    ):
+        # Must not raise.
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.disabled_by is None
+    assert updated.hidden_by is None
+    # Left exactly as-is — neither refreshed nor cleared this run.
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
+
+
+async def test_sweep_notice_created_when_something_newly_disabled_and_hidden(hass):
+    """The v2 sweep notice summarises both the disabled and hidden cohorts when something changes."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    unused_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    used_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_moon_phase".lower(), config_entry=entry
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+
+    def _fake_automations(_hass, entity_id):
+        if entity_id == used_entry.entity_id:
+            return ["automation.moon_watch"]
+        return []
+
+    with (
+        patch(_AUTOMATIONS_PATCH, side_effect=_fake_automations),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, _sweep_notice_id(entry))
+    assert issue is not None
+    assert issue.translation_placeholders["disabled_count"] == "1"
+    assert (
+        unused_entry.entity_id in issue.translation_placeholders["disabled_entity_ids"]
+    )
+    assert issue.translation_placeholders["hidden_count"] == "1"
+    assert used_entry.entity_id in issue.translation_placeholders["hidden_entity_ids"]
+    assert issue.severity == ir.IssueSeverity.WARNING
+    assert issue.is_fixable is False
+
+
+async def test_sweep_notice_not_recreated_when_nothing_new_changes(hass):
+    """A run that changes nothing new never calls create_issue for the sweep notice — dismissal sticks."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    # Simulate a prior run that already disabled this still-unused sensor.
+    ent_reg.async_update_entity(
+        reg_entry.entity_id, disabled_by=er.RegistryEntryDisabler.INTEGRATION
+    )
+    ent_reg.async_update_entity_options(
+        reg_entry.entity_id,
+        DOMAIN,
+        {"swept": "disabled", "swept_version": SWEEP_VERSION},
+    )
+
+    notice_id = _sweep_notice_id(entry)
     ir.async_create_issue(
         hass,
         DOMAIN,
         notice_id,
         is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
-        translation_key="hidden_deprecated",
+        translation_key="deprecated_sweep_v2",
         translation_placeholders={
-            "count": "1",
-            "entity_ids": reg_entry.entity_id,
+            "disabled_count": "1",
+            "disabled_entity_ids": reg_entry.entity_id,
+            "hidden_count": "0",
+            "hidden_entity_ids": "none",
         },
     )
     ir.async_get(hass).async_ignore(DOMAIN, notice_id, True)
@@ -579,40 +829,472 @@ async def test_hidden_deprecated_notice_not_recreated_when_nothing_new_hides(has
         await async_check_deprecated_entities(hass, entry, coord)
         mock_create_issue.assert_not_called()
 
-    # Still hidden, still dismissed — nothing recreated or overwritten.
+    # Still disabled, still dismissed — nothing recreated or overwritten.
     updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.hidden_by == er.RegistryEntryHider.INTEGRATION
+    assert updated.disabled_by == er.RegistryEntryDisabler.INTEGRATION
     assert (
         ir.async_get(hass).async_get_issue(DOMAIN, notice_id).dismissed_version
         is not None
     )
 
 
-async def test_hidden_deprecated_notice_deleted_when_nothing_remains_hidden(hass):
-    """The notice is cleared once no deprecated sensor is integration-hidden anymore."""
+async def test_sweep_notice_deleted_when_nothing_remains_swept(hass):
+    """The v2 notice is cleared once nothing remains disabled/hidden by the sweep for this entry."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
 
-    notice_id = _hidden_notice_id(entry)
+    notice_id = _sweep_notice_id(entry)
     ir.async_create_issue(
         hass,
         DOMAIN,
         notice_id,
         is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
-        translation_key="hidden_deprecated",
-        translation_placeholders={"count": "1", "entity_ids": "sensor.napier_uvindex"},
+        translation_key="deprecated_sweep_v2",
+        translation_placeholders={
+            "disabled_count": "1",
+            "disabled_entity_ids": "sensor.napier_uvindex",
+            "hidden_count": "0",
+            "hidden_entity_ids": "none",
+        },
     )
     assert ir.async_get(hass).async_get_issue(DOMAIN, notice_id) is not None
 
-    # No deprecated-sensor registry rows at all this run -> nothing hidden.
+    # No deprecated-sensor registry rows at all this run -> nothing swept.
     hass.config.components.add("automation")
     with patch(_AUTOMATIONS_PATCH) as mock_automations:
         await async_check_deprecated_entities(hass, entry, coord)
         mock_automations.assert_not_called()
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, notice_id) is None
+
+
+async def test_sweep_clears_legacy_hidden_deprecated_issue(hass):
+    """A leftover pre-2026.7.1 'hidden_deprecated' issue is cleared once the v2 sweep runs."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    legacy_id = _hidden_notice_id(entry)
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        legacy_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="hidden_deprecated",
+        translation_placeholders={"count": "1", "entity_ids": "sensor.napier_uvindex"},
+    )
+    assert ir.async_get(hass).async_get_issue(DOMAIN, legacy_id) is not None
+
+    await async_check_deprecated_entities(hass, entry, coord)
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, legacy_id) is None
+
+
+# ---------------------------------------------------------------------------
+# Test: _usage_signals — one test per evidence source, plus failure paths
+# ---------------------------------------------------------------------------
+
+_UV_ENTITY_ID = "sensor.napier_uvindex"
+
+
+async def test_usage_signals_empty_when_nothing_matches(hass):
+    """No source contributing anything means UNUSED (empty dict)."""
+    assert await _usage_signals(hass, _UV_ENTITY_ID) == {}
+
+
+async def test_usage_signals_combines_automations_and_scripts(hass):
+    """Automation and script references are collected under their own separate keys."""
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=["automation.a"]),
+        patch(_SCRIPTS_PATCH, return_value=["script.b"]),
+    ):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["automations"] == ["automation.a"]
+    assert signals["scripts"] == ["script.b"]
+
+
+async def test_usage_signals_detects_scene_reference(hass):
+    """A scene that references the entity shows up under the "scenes" signal."""
+    hass.config.components.add("scene")
+    with patch(_SCENES_PATCH, return_value=["scene.evening"]):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["scenes"] == ["scene.evening"]
+
+
+async def test_usage_signals_scene_not_loaded_contributes_no_signal(hass):
+    """Without the "scene" component loaded, scenes_with_entity is never even called."""
+    with patch(_SCENES_PATCH) as mock_scenes:
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+        mock_scenes.assert_not_called()
+    assert "scenes" not in signals
+
+
+async def test_usage_signals_detects_group_reference(hass):
+    """A group that references the entity shows up under the "groups" signal."""
+    hass.config.components.add("group")
+    with patch(_GROUPS_PATCH, return_value=["group.weather"]):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["groups"] == ["group.weather"]
+
+
+async def test_usage_signals_detects_dashboard_reference(hass):
+    """A Lovelace dashboard whose loaded config mentions the entity is detected, named by its title."""
+    hass.config.components.add("lovelace")
+    dash = _FakeDashboard(
+        config={"title": "Home"},
+        view_config={
+            "views": [{"cards": [{"type": "entity", "entity": _UV_ENTITY_ID}]}]
+        },
+    )
+    hass.data["lovelace"] = _FakeLovelaceData({"home": dash})
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["dashboards"] == ["Home"]
+
+
+async def test_usage_signals_dashboard_default_title_falls_back_to_url_path(hass):
+    """A dashboard with no registered title (e.g. the default dashboard) falls back to url_path/'default'."""
+    hass.config.components.add("lovelace")
+    dash = _FakeDashboard(
+        config=None,
+        view_config={"views": [{"cards": [{"entity": _UV_ENTITY_ID}]}]},
+    )
+    hass.data["lovelace"] = _FakeLovelaceData({None: dash})
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["dashboards"] == ["default"]
+
+
+async def test_usage_signals_dashboard_load_failure_contributes_no_signal(hass):
+    """A dashboard whose async_load() raises (e.g. a strategy dashboard) is silently skipped."""
+    hass.config.components.add("lovelace")
+    hass.data["lovelace"] = _FakeLovelaceData(
+        {None: _FakeDashboard(config=None, load_error=RuntimeError("boom"))}
+    )
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "dashboards" not in signals
+
+
+async def test_usage_signals_dashboard_not_loaded_contributes_no_signal(hass):
+    """When "lovelace" hasn't loaded at all, this source is skipped without touching hass.data."""
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "dashboards" not in signals
+
+
+async def test_usage_signals_detects_helper_config_entry_reference(hass):
+    """A derivative/utility_meter/etc-style helper config entry counts as usage evidence."""
+    helper_entry = MockConfigEntry(
+        domain="derivative", title="Rainfall rate", data={"source": _UV_ENTITY_ID}
+    )
+    helper_entry.add_to_hass(hass)
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["helpers"] == ["derivative: Rainfall rate"]
+
+
+async def test_usage_signals_helper_scan_excludes_own_domain_and_homekit(hass):
+    """Our own config entries and HomeKit entries never show up under 'helpers'."""
+    own_entry = MockConfigEntry(
+        domain=DOMAIN, title="Napier", data={"entity": _UV_ENTITY_ID}
+    )
+    own_entry.add_to_hass(hass)
+    homekit_entry = MockConfigEntry(
+        domain="homekit",
+        title="Bridge",
+        options={"filter": {"include_entities": [_UV_ENTITY_ID]}},
+    )
+    homekit_entry.add_to_hass(hass)
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "helpers" not in signals
+    assert signals["homekit"] is True
+
+
+async def test_usage_signals_helper_scan_skips_malformed_entry_but_keeps_others(hass):
+    """A config entry whose data can't be JSON-dumped (e.g. circular) is skipped, not fatal."""
+    circular: dict = {}
+    circular["self"] = circular
+    bad_entry = MockConfigEntry(domain="derivative", title="Bad", data=circular)
+    bad_entry.add_to_hass(hass)
+    good_entry = MockConfigEntry(
+        domain="derivative", title="Good", data={"source": _UV_ENTITY_ID}
+    )
+    good_entry.add_to_hass(hass)
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["helpers"] == ["derivative: Good"]
+
+
+async def test_usage_signals_detects_homekit_include(hass):
+    """A HomeKit entry whose options mention the entity sets the "homekit" signal."""
+    homekit_entry = MockConfigEntry(
+        domain="homekit",
+        title="Bridge",
+        options={"filter": {"include_entities": [_UV_ENTITY_ID]}},
+    )
+    homekit_entry.add_to_hass(hass)
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["homekit"] is True
+
+
+async def test_usage_signals_detects_voice_exposure(hass):
+    """An assistant with should_expose=True lists that assistant under the "voice" signal."""
+    with patch(
+        _VOICE_PATCH,
+        return_value={
+            "conversation": {"should_expose": True},
+            "cloud.alexa": {"should_expose": False},
+        },
+    ):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["voice"] == ["conversation"]
+
+
+async def test_usage_signals_voice_exposure_not_ready_contributes_no_signal(hass):
+    """exposed_entities raises HomeAssistantError before it's finished loading — that's not a bug."""
+    with patch(_VOICE_PATCH, side_effect=HomeAssistantError("not ready")):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "voice" not in signals
+
+
+async def test_usage_signals_detects_in_process_listener(hass):
+    """A non-empty callback list keyed by entity_id in the private bookkeeping dict counts as usage."""
+    hass.data["track_state_change_data"] = {_UV_ENTITY_ID: [object()]}
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert signals["listeners"] is True
+
+
+async def test_usage_signals_listener_veto_ignores_non_dict_shape(hass):
+    """Current core stores a dataclass here, not a dict — the isinstance guard means no signal, no crash."""
+
+    class _NotADict:
+        pass
+
+    hass.data["track_state_change_data"] = _NotADict()
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "listeners" not in signals
+
+
+async def test_usage_signals_listener_veto_failure_contributes_no_signal(hass):
+    """A raising .get() on the (dict-shaped) bookkeeping object degrades to no signal, not a crash."""
+
+    class _BrokenDict(dict):
+        def get(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    hass.data["track_state_change_data"] = _BrokenDict()
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "listeners" not in signals
+
+
+async def test_usage_signals_automations_lookup_failure_contributes_no_signal(hass):
+    """automations_with_entity raising degrades to no signal, not a crash."""
+    hass.config.components.add("automation")
+    with patch(_AUTOMATIONS_PATCH, side_effect=RuntimeError("boom")):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "automations" not in signals
+
+
+async def test_usage_signals_scripts_lookup_failure_contributes_no_signal(hass):
+    """scripts_with_entity raising degrades to no signal, not a crash."""
+    hass.config.components.add("script")
+    with patch(_SCRIPTS_PATCH, side_effect=RuntimeError("boom")):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "scripts" not in signals
+
+
+async def test_usage_signals_scenes_lookup_failure_contributes_no_signal(hass):
+    """scenes_with_entity raising degrades to no signal, not a crash."""
+    hass.config.components.add("scene")
+    with patch(_SCENES_PATCH, side_effect=RuntimeError("boom")):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "scenes" not in signals
+
+
+async def test_usage_signals_groups_lookup_failure_contributes_no_signal(hass):
+    """groups_with_entity raising degrades to no signal, not a crash."""
+    hass.config.components.add("group")
+    with patch(_GROUPS_PATCH, side_effect=RuntimeError("boom")):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "groups" not in signals
+
+
+async def test_usage_signals_dashboards_lookup_failure_contributes_no_signal(hass):
+    """A failure inside _dashboards_referencing itself degrades to no signal, not a crash."""
+    with patch(
+        "custom_components.metservice_weather.deprecation._dashboards_referencing",
+        side_effect=RuntimeError("boom"),
+    ):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "dashboards" not in signals
+
+
+async def test_usage_signals_helpers_lookup_failure_contributes_no_signal(hass):
+    """A failure inside _config_entries_referencing itself degrades to no signal, not a crash."""
+    with patch(
+        "custom_components.metservice_weather.deprecation._config_entries_referencing",
+        side_effect=RuntimeError("boom"),
+    ):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "helpers" not in signals
+
+
+async def test_usage_signals_homekit_lookup_failure_contributes_no_signal(hass):
+    """A failure inside _homekit_includes itself degrades to no signal, not a crash."""
+    with patch(
+        "custom_components.metservice_weather.deprecation._homekit_includes",
+        side_effect=RuntimeError("boom"),
+    ):
+        signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "homekit" not in signals
+
+
+async def test_usage_signals_dashboard_empty_config_contributes_no_signal(hass):
+    """A dashboard whose async_load() returns falsy (not raising) is silently skipped."""
+    hass.config.components.add("lovelace")
+    hass.data["lovelace"] = _FakeLovelaceData(
+        {None: _FakeDashboard(config=None, view_config=None)}
+    )
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "dashboards" not in signals
+
+
+async def test_usage_signals_dashboard_without_entity_contributes_no_signal(hass):
+    """A dashboard that loads fine but never mentions entity_id contributes nothing."""
+    hass.config.components.add("lovelace")
+    dash = _FakeDashboard(
+        config={"title": "Home"},
+        view_config={"views": [{"cards": [{"entity": "sensor.other"}]}]},
+    )
+    hass.data["lovelace"] = _FakeLovelaceData({"home": dash})
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "dashboards" not in signals
+
+
+async def test_dashboards_referencing_falls_back_when_lovelace_data_not_importable(
+    hass, monkeypatch
+):
+    """If LOVELACE_DATA isn't importable (older core), the plain "lovelace" string key is used instead."""
+    import homeassistant.components.lovelace as lovelace_module
+
+    monkeypatch.delattr(lovelace_module, "LOVELACE_DATA")
+    hass.config.components.add("lovelace")
+    hass.data["lovelace"] = _FakeLovelaceData({})
+
+    signals = await _usage_signals(hass, _UV_ENTITY_ID)
+    assert "dashboards" not in signals
+
+
+def test_dump_json_returns_none_for_circular_reference():
+    """json.dumps can't serialise a self-referencing structure even with default=str."""
+    circular: dict = {}
+    circular["self"] = circular
+    assert _dump_json(circular) is None
+
+
+def test_config_entries_referencing_swallows_per_entry_exception(hass):
+    """A per-entry failure (e.g. _dump_json itself blowing up) is skipped, not fatal to the scan."""
+    entry_x = MockConfigEntry(
+        domain="derivative", title="X", data={"source": _UV_ENTITY_ID}
+    )
+    entry_x.add_to_hass(hass)
+
+    with patch(
+        "custom_components.metservice_weather.deprecation._dump_json",
+        side_effect=RuntimeError("boom"),
+    ):
+        assert _config_entries_referencing(hass, _UV_ENTITY_ID) == []
+
+
+def test_homekit_includes_swallows_per_entry_exception(hass):
+    """A per-entry failure while scanning HomeKit entries is skipped, not fatal."""
+    homekit_entry = MockConfigEntry(domain="homekit", title="Bridge", options={})
+    homekit_entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.metservice_weather.deprecation._dump_json",
+        side_effect=RuntimeError("boom"),
+    ):
+        assert _homekit_includes(hass, _UV_ENTITY_ID) is False
+
+
+def test_format_evidence_includes_homekit_and_listeners():
+    """The two boolean-only sources render as fixed phrases, not joined lists."""
+    text = _format_evidence({"homekit": True, "listeners": True})
+    assert "HomeKit" in text
+    assert "an in-process listener" in text
+
+
+def test_format_evidence_empty_signals_says_no_specific_usage():
+    """An empty signals dict renders as an explicit "no specific usage detected" fallback."""
+    assert _format_evidence({}) == "no specific usage detected"
+
+
+async def test_disabled_for_other_reason_is_left_untouched(hass):
+    """An entity disabled for a reason that's neither ours nor the user's explicit choice is left alone."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+    ent_reg.async_update_entity(
+        reg_entry.entity_id, disabled_by=er.RegistryEntryDisabler.CONFIG_ENTRY
+    )
+
+    hass.config.components.add("automation")
+    with patch(_AUTOMATIONS_PATCH) as mock_automations:
+        await async_check_deprecated_entities(hass, entry, coord)
+        mock_automations.assert_not_called()
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated.disabled_by == er.RegistryEntryDisabler.CONFIG_ENTRY
+
+
+async def test_final_tally_skips_entity_removed_mid_run(hass):
+    """Defensive: a candidate whose registry row vanishes before the final tally is just skipped, not fatal."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+
+    real_async_get = ent_reg.async_get
+    call_count = {"n": 0}
+
+    def _flaky_async_get(entity_id):
+        if entity_id == reg_entry.entity_id:
+            call_count["n"] += 1
+            if call_count["n"] > 3:
+                return None
+        return real_async_get(entity_id)
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=[]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+        patch.object(ent_reg, "async_get", side_effect=_flaky_async_get),
+    ):
+        # Must not raise even though the final tally's lookup returns None.
+        await async_check_deprecated_entities(hass, entry, coord)
 
 
 # ---------------------------------------------------------------------------

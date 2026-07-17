@@ -519,7 +519,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="temperatureFeelsLike",
         translation_key="temperature_feels_like",
-        name="Apparent temperature",
+        name="Temperature feel",
         exists_fn=_has_observations,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.TEMPERATURE,
