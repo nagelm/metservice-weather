@@ -15,9 +15,9 @@ Pull requests are the best way to propose changes to the codebase.
 
 1. Fork the repo and create your branch from `main`.
 2. If you've changed something, update the documentation.
-3. Make sure your code lints (using `scripts/lint`).
-4. Test you contribution.
-5. Issue that pull request!
+3. Make sure your code lints (using `scripts/lint.sh`).
+4. Test your contribution.
+5. Open the pull request.
 
 ## Any contributions you make will be under the MIT Software License
 
@@ -26,7 +26,7 @@ In short, when you submit code changes, your submissions are understood to be un
 ## Report bugs using Github's [issues](../../issues)
 
 GitHub issues are used to track public bugs.
-Report a bug by [opening a new issue](../../issues/new/choose); it's that easy!
+Report a bug by [opening a new issue](../../issues/new/choose).
 
 ## Write bug reports with detail, background, and sample code
 
@@ -40,18 +40,36 @@ Report a bug by [opening a new issue](../../issues/new/choose); it's that easy!
 - What actually happens
 - Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
 
-People *love* thorough bug reports. I'm not even kidding.
+Thorough bug reports make issues much faster to resolve.
 
 ## Use a Consistent Coding Style
 
-Use [black](https://github.com/ambv/black) to make sure the code follows the style.
+Linting and formatting are enforced by [ruff](https://github.com/astral-sh/ruff)
+(config in `.ruff.toml`, rules aligned with Home Assistant core). Run
+`scripts/lint.sh` (or `ruff check . && ruff format .`) before submitting.
 
 ## Test your code modification
 
+Create a Python 3.13+ virtualenv, install the test dependencies, and run the
+suite:
 
-It comes with development environment in a container, easy to launch
-if you use Visual Studio Code. With this container you will have a stand alone
-Home Assistant instance running; the `config` directory (including
+```
+pip install -r requirements-test.txt
+pytest tests/
+```
+
+Alternatively, `scripts/test.sh tests/` activates a venv at
+`$METSERVICE_VENV_DIR` (defaulting to `~/.venv/metservice-weather`) before
+running pytest. Note that pytest requires Linux/macOS —
+`pytest-homeassistant-custom-component` needs `fcntl`, which isn't available
+on Windows.
+
+CI enforces a 95% coverage gate as well as ruff; pull requests must pass both.
+
+For interactive testing against a real Home Assistant instance, a development
+environment in a container is also available and easy to launch if you use
+Visual Studio Code. With this container you will have a stand alone Home
+Assistant instance running; the `config` directory (including
 `configuration.yaml`) is generated on first run by `scripts/develop` rather
 than checked into the repo.
 
