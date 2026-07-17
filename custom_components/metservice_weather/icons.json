@@ -1,74 +1,226 @@
 {
   "entity": {
     "sensor": {
-      "valid_time_local": {"default": "mdi:clock"},
-      "weather_description": {"default": "mdi:note-text"},
-      "relative_humidity": {"default": "mdi:water-percent"},
-      "uv_index": {"default": "mdi:sunglasses"},
-      "uv_risk": {"default": "mdi:sunglasses"},
-      "uv_alert": {"default": "mdi:sunglasses"},
-      "wind_direction": {"default": "mdi:weather-windy"},
-      "temperature_feels_like": {"default": "mdi:thermometer"},
-      "temperature": {"default": "mdi:thermometer"},
-      "pressure": {"default": "mdi:gauge"},
-      "wind_gust": {"default": "mdi:weather-windy"},
-      "wind_speed": {"default": "mdi:weather-windy"},
-      "rainfall": {"default": "mdi:weather-rainy"},
-      "rain_next_8_hours": {"default": "mdi:weather-pouring"},
-      "rain_next_24_hours": {"default": "mdi:weather-pouring"},
-      "next_rain_at": {"default": "mdi:clock-alert-outline"},
-      "pressure_tendency_trend": {"default": "mdi:gauge"},
-      "pressure_trend": {"default": "mdi:gauge"},
-      "pollen": {"default": "mdi:flower-pollen"},
-      "pollen_levels": {"default": "mdi:flower"},
-      "pollen_type": {"default": "mdi:flower"},
-      "weather_warnings": {"default": "mdi:alert"},
-      "warning_level": {"default": "mdi:alert"},
-      "fire_season": {"default": "mdi:fire"},
-      "fire_season_status": {"default": "mdi:fire"},
-      "fire_danger": {"default": "mdi:fire"},
-      "fire_danger_level": {"default": "mdi:fire"},
-      "drying_index_morning": {"default": "mdi:tshirt-crew"},
-      "drying_index_afternoon": {"default": "mdi:tshirt-crew"},
-      "drying_next_good_day": {"default": "mdi:calendar-check"},
-      "tides_high": {"default": "mdi:beach"},
-      "tides_low": {"default": "mdi:beach"},
-      "boating_status": {"default": "mdi:sail-boat"},
-      "boating_forecast": {"default": "mdi:sail-boat"},
-      "surf_conditions": {"default": "mdi:surfing"},
-      "surf_rating": {"default": "mdi:surfing"},
-      "surf_wave_height": {"default": "mdi:waves"},
-      "surf_set_face": {"default": "mdi:waves"},
-      "surf_swell_direction": {"default": "mdi:compass-rose"},
-      "surf_swell_height": {"default": "mdi:waves"},
-      "surf_wind_direction": {"default": "mdi:weather-windy"},
-      "surf_wind_speed": {"default": "mdi:weather-windy"},
-      "surf_wind_gust": {"default": "mdi:weather-windy"},
-      "surf_period": {"default": "mdi:timer-sand"},
-      "wind_strength": {"default": "mdi:weather-windy"},
-      "wind_strength_level": {"default": "mdi:weather-windy"},
-      "temperature_today_high": {"default": "mdi:thermometer"},
-      "temperature_today_low": {"default": "mdi:thermometer"},
-      "tomorrow_condition": {"default": "mdi:weather-partly-cloudy"},
-      "tomorrow_temp_high": {"default": "mdi:thermometer"},
-      "tomorrow_temp_low": {"default": "mdi:thermometer"},
-      "tomorrow_description": {"default": "mdi:note-text"},
-      "breakdown_morning": {"default": "mdi:weather-partly-cloudy"},
-      "breakdown_afternoon": {"default": "mdi:weather-sunny"},
-      "breakdown_evening": {"default": "mdi:weather-sunset"},
-      "breakdown_overnight": {"default": "mdi:weather-night"},
-      "sunrise": {"default": "mdi:weather-sunset-up"},
-      "sunrise_at": {"default": "mdi:weather-sunset-up"},
-      "sunset": {"default": "mdi:weather-sunset-down"},
-      "sunset_at": {"default": "mdi:weather-sunset-down"},
-      "moonrise": {"default": "mdi:weather-night"},
-      "moonrise_at": {"default": "mdi:weather-night"},
-      "moonset": {"default": "mdi:weather-night"},
-      "moonset_at": {"default": "mdi:weather-night"},
-      "moon_phase": {"default": "mdi:moon-new"},
-      "next_moon_phase": {"default": "mdi:moon-new"},
-      "moon_phase_current": {"default": "mdi:moon-waxing-crescent"},
-      "moon_phase_date": {"default": "mdi:calendar-month"}
+      "valid_time_local": {
+        "default": "mdi:clock"
+      },
+      "weather_description": {
+        "default": "mdi:note-text"
+      },
+      "relative_humidity": {
+        "default": "mdi:water-percent"
+      },
+      "uv_index": {
+        "default": "mdi:sunglasses"
+      },
+      "uv_risk": {
+        "default": "mdi:sunglasses"
+      },
+      "uv_alert": {
+        "default": "mdi:sunglasses"
+      },
+      "wind_direction": {
+        "default": "mdi:weather-windy"
+      },
+      "temperature_feels_like": {
+        "default": "mdi:thermometer"
+      },
+      "temperature": {
+        "default": "mdi:thermometer"
+      },
+      "pressure": {
+        "default": "mdi:gauge"
+      },
+      "wind_gust": {
+        "default": "mdi:weather-windy"
+      },
+      "wind_speed": {
+        "default": "mdi:weather-windy"
+      },
+      "rainfall": {
+        "default": "mdi:weather-rainy"
+      },
+      "rain_next_8_hours": {
+        "default": "mdi:weather-pouring"
+      },
+      "rain_next_24_hours": {
+        "default": "mdi:weather-pouring"
+      },
+      "next_rain_at": {
+        "default": "mdi:clock-alert-outline"
+      },
+      "pressure_tendency_trend": {
+        "default": "mdi:gauge"
+      },
+      "pressure_trend": {
+        "default": "mdi:gauge"
+      },
+      "pollen": {
+        "default": "mdi:flower-pollen"
+      },
+      "pollen_levels": {
+        "default": "mdi:flower"
+      },
+      "pollen_type": {
+        "default": "mdi:flower"
+      },
+      "weather_warnings": {
+        "default": "mdi:alert"
+      },
+      "warning_level": {
+        "default": "mdi:alert"
+      },
+      "fire_season": {
+        "default": "mdi:fire"
+      },
+      "fire_season_status": {
+        "default": "mdi:fire"
+      },
+      "fire_danger": {
+        "default": "mdi:fire"
+      },
+      "fire_danger_level": {
+        "default": "mdi:fire"
+      },
+      "drying_index_morning": {
+        "default": "mdi:tshirt-crew"
+      },
+      "drying_index_afternoon": {
+        "default": "mdi:tshirt-crew"
+      },
+      "drying_next_good_day": {
+        "default": "mdi:calendar-check"
+      },
+      "tides_high": {
+        "default": "mdi:beach"
+      },
+      "tides_low": {
+        "default": "mdi:beach"
+      },
+      "boating_status": {
+        "default": "mdi:sail-boat"
+      },
+      "boating_forecast": {
+        "default": "mdi:sail-boat"
+      },
+      "surf_conditions": {
+        "default": "mdi:surfing"
+      },
+      "surf_rating": {
+        "default": "mdi:surfing"
+      },
+      "surf_wave_height": {
+        "default": "mdi:waves"
+      },
+      "surf_set_face": {
+        "default": "mdi:waves"
+      },
+      "surf_swell_direction": {
+        "default": "mdi:compass-rose"
+      },
+      "surf_swell_height": {
+        "default": "mdi:waves"
+      },
+      "surf_wind_direction": {
+        "default": "mdi:weather-windy"
+      },
+      "surf_wind_speed": {
+        "default": "mdi:weather-windy"
+      },
+      "surf_wind_gust": {
+        "default": "mdi:weather-windy"
+      },
+      "surf_period": {
+        "default": "mdi:timer-sand"
+      },
+      "wind_strength": {
+        "default": "mdi:weather-windy"
+      },
+      "wind_strength_level": {
+        "default": "mdi:weather-windy"
+      },
+      "temperature_today_high": {
+        "default": "mdi:thermometer"
+      },
+      "temperature_today_low": {
+        "default": "mdi:thermometer"
+      },
+      "tomorrow_condition": {
+        "default": "mdi:weather-partly-cloudy"
+      },
+      "tomorrow_temp_high": {
+        "default": "mdi:thermometer"
+      },
+      "tomorrow_temp_low": {
+        "default": "mdi:thermometer"
+      },
+      "tomorrow_description": {
+        "default": "mdi:note-text"
+      },
+      "breakdown_morning": {
+        "default": "mdi:weather-partly-cloudy"
+      },
+      "breakdown_afternoon": {
+        "default": "mdi:weather-sunny"
+      },
+      "breakdown_evening": {
+        "default": "mdi:weather-sunset"
+      },
+      "breakdown_overnight": {
+        "default": "mdi:weather-night"
+      },
+      "sunrise": {
+        "default": "mdi:weather-sunset-up"
+      },
+      "sunrise_at": {
+        "default": "mdi:weather-sunset-up"
+      },
+      "sunset": {
+        "default": "mdi:weather-sunset-down"
+      },
+      "sunset_at": {
+        "default": "mdi:weather-sunset-down"
+      },
+      "moonrise": {
+        "default": "mdi:weather-night"
+      },
+      "moonrise_at": {
+        "default": "mdi:weather-night"
+      },
+      "moonset": {
+        "default": "mdi:weather-night"
+      },
+      "moonset_at": {
+        "default": "mdi:weather-night"
+      },
+      "moon_phase": {
+        "default": "mdi:moon-new"
+      },
+      "next_moon_phase": {
+        "default": "mdi:moon-new",
+        "state": {
+          "new": "mdi:moon-new",
+          "first_quarter": "mdi:moon-first-quarter",
+          "full": "mdi:moon-full",
+          "last_quarter": "mdi:moon-last-quarter"
+        }
+      },
+      "moon_phase_current": {
+        "default": "mdi:moon-waxing-crescent",
+        "state": {
+          "new_moon": "mdi:moon-new",
+          "waxing_crescent": "mdi:moon-waxing-crescent",
+          "first_quarter": "mdi:moon-first-quarter",
+          "waxing_gibbous": "mdi:moon-waxing-gibbous",
+          "full_moon": "mdi:moon-full",
+          "waning_gibbous": "mdi:moon-waning-gibbous",
+          "last_quarter": "mdi:moon-last-quarter",
+          "waning_crescent": "mdi:moon-waning-crescent"
+        }
+      },
+      "moon_phase_date": {
+        "default": "mdi:calendar-month"
+      }
     }
   }
 }
