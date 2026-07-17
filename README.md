@@ -51,7 +51,7 @@ Earlier versions of this integration included an option to use the MetService mo
 | Wind gust | km/h |
 | Wind direction | Cardinal (e.g. SW) |
 | Wind strength | Enum: `calm` → `storm` (MetService's Beaufort-style scale) |
-| Rainfall | mm accumulated today |
+| Rain last hour | mm recorded at the station over the trailing hour — rises and falls with the rain, 0 when dry (not a daily total) |
 | UV index | Enum: `low` / `moderate` / `high` / `very_high` / `extreme`; advice + protection window as attributes |
 | Weather description | Plain-English forecast text |
 

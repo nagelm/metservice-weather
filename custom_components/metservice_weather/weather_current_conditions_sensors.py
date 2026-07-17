@@ -581,7 +581,7 @@ current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="rainfall",
         translation_key="rainfall",
-        name="Rainfall",
+        name="Rain last hour",
         exists_fn=_has_observations,
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.PRECIPITATION,

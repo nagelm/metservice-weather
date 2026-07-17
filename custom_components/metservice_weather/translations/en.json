@@ -114,7 +114,7 @@
         "name": "Wind speed"
       },
       "rainfall": {
-        "name": "Rainfall"
+        "name": "Rain last hour"
       },
       "rain_next_8_hours": {
         "name": "Rain next 8 hours"
