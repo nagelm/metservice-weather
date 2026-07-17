@@ -1,7 +1,3 @@
-> **This is a fork of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather). Full credit to [@ciejer](https://github.com/ciejer) for building and maintaining the original integration. This fork has diverged significantly — resolving over 20 open upstream issues, adding new sensors, redesigning the config flow, and working toward Home Assistant Integration Quality Scale compliance.**
-
----
-
 ## v2026.7.1
 
 ### Sensor behaviour hardening

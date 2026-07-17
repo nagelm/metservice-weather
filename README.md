@@ -4,22 +4,20 @@
 
 Real-time and forecast weather data from [MetService NZ](https://www.metservice.com) for Home Assistant. New Zealand's only purpose-built weather integration, using the same data source as the MetService website and app.
 
-> **This integration is a fork of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather)**, built on the foundational work of [@ciejer](https://github.com/ciejer). This fork has since diverged significantly — see [What's changed since the fork](#whats-changed-since-the-fork).
-
 ---
 
-## What's changed since the fork
+## Highlights
 
-This fork was started to resolve issues blocking daily use and to bring the integration toward [Home Assistant Integration Quality Scale](https://developers.home-assistant.io/docs/integration_quality_scale_index) compliance. Key changes over the original:
+Built toward [Home Assistant Integration Quality Scale](https://developers.home-assistant.io/docs/integration_quality_scale_index) compliance:
 
-- **Public API only** — the integration now uses MetService's public web data API exclusively. No API key or account required.
+- **Public API only** — the integration uses MetService's public web data API exclusively. No API key or account required.
 - **Typed data model** — a `MetServicePublicData` dataclass replaces the raw dict. All sensors read typed attributes; no more string-key lookups at runtime.
 - **40+ sensors** — full sensor coverage including sub-day breakdown, drying index, moon phase, fire danger, pollen, and all marine sensors (tides, boating, surf).
 - **Marine data** — optional tide station, boating conditions, and surf sensors, each independently configurable.
-- **Config flow redesigned** — two-step setup with live-fetched marine station lists; reconfigure support; duplicate location prevention.
+- **Config flow** — two-step setup with live-fetched marine station lists; reconfigure support; duplicate location prevention.
 - **Forecast caching** — hourly and daily forecasts are cached and invalidated only on coordinator update, avoiding redundant API calls.
 - **IQS Gold compliance** — translation keys, `icons.json`, stable unique IDs, `asyncio.timeout` throughout, 206 tests at 95%+ coverage.
-- **Bug fixes** — hourly wind speed, `clear-night` condition when sun is below horizon, coordinator `always_update=False`, `async_get_clientsession` (no session leaks), and more.
+- **Correctness fixes** — hourly wind speed, `clear-night` condition when sun is below horizon, coordinator `always_update=False`, `async_get_clientsession` (no session leaks), and more.
 
 ---
 
@@ -262,12 +260,14 @@ For bugs: include your HA version, integration version, and the relevant section
 
 ## Disclaimer
 
-Weather data is updated every 20 minutes. Always check the MetService website directly in time-critical or safety-of-life situations. This integration should never be relied upon for emergency decisions.
+This integration is not affiliated with, endorsed by, or supported by MetService or NIWA. It is an independent, community-maintained project that consumes MetService's public web data.
+
+Data and software are provided "as is", without warranty of any kind, express or implied. The author accepts no responsibility for any loss, damage, or inconvenience arising from use of this integration — including from automations or physical devices that act on its data.
+
+Weather data is updated every 20 minutes and may be delayed, incomplete, or wrong. Always check the MetService website directly in time-critical situations. Never rely on this integration for safety-of-life or emergency decisions.
 
 ---
 
 ## Credits
 
-- [@ciejer](https://github.com/ciejer) — original integration author and maintainer of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather)
-- [jaydeethree](https://github.com/jaydeethree/Home-Assistant-weatherdotcom) and [alexander0042](https://github.com/alexander0042/pirate-weather-ha) — structural reference
-- [natekspencer](https://github.com/natekspencer/hacs-vivint) — installation / config structure
+- [@ciejer](https://github.com/ciejer) — this project began in 2026 as a fork of [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather); thanks for the original foundation.
