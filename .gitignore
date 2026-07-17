@@ -30,4 +30,5 @@ dev-notes.local.md
 
 # Local dev helpers and prompts
 prompts/
-fix_index.pydev-notes.md
+fix_index.py
+dev-notes.md
