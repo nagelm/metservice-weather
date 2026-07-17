@@ -987,6 +987,40 @@ def test_next_rain_at_disabled_by_default():
     assert _desc("next_rain_at").entity_registry_enabled_default is False
 
 
+def test_next_rain_at_attrs_precision_and_outlook():
+    """Attributes carry precision + outlook when forecast data exists."""
+    desc = _desc("next_rain_at")
+    data = MetServicePublicData(
+        next_rain_at="2026-07-19T12:00:00+12:00",
+        next_rain_precision="day",
+        rain_forecast_horizon="2026-07-22T12:00:00+12:00",
+    )
+    assert desc.attr_fn(data) == {
+        "precision": "day",
+        "outlook": "rain_expected",
+        "forecast_horizon": "2026-07-22T12:00:00+12:00",
+    }
+
+
+def test_next_rain_at_attrs_no_rain_expected():
+    """A dry full horizon reads unknown + outlook no_rain_expected — an explicit claim, not missing data."""
+    desc = _desc("next_rain_at")
+    data = MetServicePublicData(
+        rain_forecast_horizon="2026-07-22T12:00:00+12:00",
+    )
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {
+        "outlook": "no_rain_expected",
+        "forecast_horizon": "2026-07-22T12:00:00+12:00",
+    }
+
+
+def test_next_rain_at_attrs_empty_without_forecast_data():
+    """No daily data at all: no attributes, so unknown really means unknown."""
+    desc = _desc("next_rain_at")
+    assert desc.attr_fn(MetServicePublicData()) == {}
+
+
 # ---------------------------------------------------------------------------
 # Test: UV ENUM sensor (uvIndex, now sourced from uv_alert_level)
 # ---------------------------------------------------------------------------

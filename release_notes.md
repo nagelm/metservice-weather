@@ -39,7 +39,9 @@ New `*_time` sensors carry real timestamps usable in automation triggers and tem
 
 #### Added: opt-in forecast rain sensors
 
-Three new sensors, disabled by default (enable on the device page): **Rain next 8 hours** (mm), **Rain next 24 hours** (mm), and **Next rain expected** (timestamp of the first forecast hour with rain). These replace the `weather.get_forecasts` template dance for the most common rain automations.
+Three new sensors, disabled by default (enable on the device page): **Rain next 8 hours** (mm), **Rain next 24 hours** (mm), and **Next rain expected**. These replace the `weather.get_forecasts` template dance for the most common rain automations.
+
+Next rain expected searches the full forecast, not just the hourly series: the first rainy hour when one is in reach (`precision: hour`), otherwise the first daily-forecast day MetService draws with a precipitation icon (`precision: day`, timestamped midday). When the entire 7-day horizon is dry the state is unknown **with `outlook: no_rain_expected` and a `forecast_horizon` attribute** — an explicit "no rain through <date>" claim, distinguishable from missing data (which carries no attributes).
 
 #### Added: option to auto-remove sensors with no upstream data
 

@@ -1777,6 +1777,83 @@ def test_next_rain_at_none_when_all_dry():
     assert result.next_rain_at is None
 
 
+def test_next_rain_precision_hour_when_hourly_hit():
+    """An hourly-series hit reports hour precision."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    columns = [_hourly_column((now + timedelta(hours=1)).isoformat(), 1.0)]
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    result = normalize_public_data(current, {}, now=now)
+    assert result.next_rain_precision == "hour"
+
+
+def test_next_rain_falls_back_to_first_rainy_daily_condition():
+    """Dry hourly series: the first future precipitation-condition day answers at day precision."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    columns = [
+        _hourly_column((now + timedelta(hours=i)).isoformat(), 0.0) for i in range(12)
+    ]
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    days = [
+        {"date": "2026-07-16T12:00:00+12:00", "condition": "partly-cloudy"},
+        {"date": "2026-07-17T12:00:00+12:00", "condition": "cloudy"},
+        {"date": "2026-07-18T12:00:00+12:00", "condition": "few-showers"},
+        {"date": "2026-07-19T12:00:00+12:00", "condition": "rain"},
+    ]
+    result = normalize_public_data(current, _daily_payload(days), now=now)
+    assert result.next_rain_at == "2026-07-18T12:00:00+12:00"
+    assert result.next_rain_precision == "day"
+    assert result.rain_forecast_horizon == "2026-07-19T12:00:00+12:00"
+
+
+def test_next_rain_daily_skips_days_covered_by_dry_hourly():
+    """A rainy-condition day that ended before the last dry hourly entry is skipped."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    # 30 dry hours reach midday on the 17th.
+    columns = [
+        _hourly_column((now + timedelta(hours=i)).isoformat(), 0.0) for i in range(30)
+    ]
+    current = _graph_payload(columns, skip=0, forecast_count=len(columns))
+    days = [
+        {"date": "2026-07-16T12:00:00+12:00", "condition": "few-showers"},
+        {"date": "2026-07-19T12:00:00+12:00", "condition": "showers"},
+    ]
+    result = normalize_public_data(current, _daily_payload(days), now=now)
+    assert result.next_rain_at == "2026-07-19T12:00:00+12:00"
+    assert result.next_rain_precision == "day"
+
+
+def test_next_rain_daily_skips_past_days():
+    """Rainy days before today never answer, even with no hourly data at all."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    days = [
+        {"date": "2026-07-14T12:00:00+12:00", "condition": "rain"},
+        {"date": "2026-07-18T12:00:00+12:00", "condition": "drizzle"},
+    ]
+    result = normalize_public_data({}, _daily_payload(days), now=now)
+    assert result.next_rain_at == "2026-07-18T12:00:00+12:00"
+    assert result.next_rain_precision == "day"
+
+
+def test_next_rain_none_with_horizon_when_forecast_dry():
+    """A fully dry horizon leaves next_rain_at None but records how far it searched."""
+    now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
+    days = [
+        {"date": "2026-07-16T12:00:00+12:00", "condition": "fine"},
+        {"date": "2026-07-22T12:00:00+12:00", "condition": "partly-cloudy"},
+    ]
+    result = normalize_public_data({}, _daily_payload(days), now=now)
+    assert result.next_rain_at is None
+    assert result.next_rain_precision is None
+    assert result.rain_forecast_horizon == "2026-07-22T12:00:00+12:00"
+
+
+def test_next_rain_horizon_none_without_daily_data():
+    """No daily forecast at all: no horizon claim is made."""
+    result = normalize_public_data({}, {})
+    assert result.rain_forecast_horizon is None
+    assert result.next_rain_precision is None
+
+
 # ---------------------------------------------------------------------------
 # Fixture regression — new fields must not crash against real payloads
 # ---------------------------------------------------------------------------

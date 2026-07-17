@@ -623,6 +623,28 @@ current_condition_sensor_descriptions_public = [
             if isinstance(data.next_rain_at, str)
             else None
         ),
+        # precision says how exact the timestamp is ("hour" from the hourly
+        # series, "day" from the daily-forecast fallback). outlook makes the
+        # empty case explicit: an unknown state with outlook
+        # "no_rain_expected" means the whole forecast horizon is dry, not
+        # that the data is missing.
+        attr_fn=lambda data: {
+            **(
+                {"precision": data.next_rain_precision}
+                if data.next_rain_precision
+                else {}
+            ),
+            **(
+                {
+                    "outlook": (
+                        "rain_expected" if data.next_rain_at else "no_rain_expected"
+                    ),
+                    "forecast_horizon": data.rain_forecast_horizon,
+                }
+                if data.rain_forecast_horizon
+                else {}
+            ),
+        },
     ),
     # Deprecated — superseded by pressure_trend; keeps its v2026.7.0 behaviour for existing installs.
     WeatherSensorEntityDescription(

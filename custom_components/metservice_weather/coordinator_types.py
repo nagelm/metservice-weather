@@ -12,7 +12,21 @@ from typing import Any
 
 from homeassistant.util import dt as dt_util
 
+from .const import CONDITION_MAP
+
 _LOGGER = logging.getLogger(__name__)
+
+# HA conditions that imply precipitation — used to find the first "rain day"
+# in the daily forecast beyond the hourly series' reach.
+_PRECIPITATION_HA_CONDITIONS = {
+    "rainy",
+    "pouring",
+    "hail",
+    "snowy",
+    "snowy-rainy",
+    "lightning",
+    "lightning-rainy",
+}
 
 
 def _round_iso_to_minutes(iso: Any, resolution_minutes: int = 5) -> Any:
@@ -195,6 +209,34 @@ _POLLEN_CLASS_TO_STATE = {"good": "low", "medium": "moderate", "bad": "high"}
 _POLLEN_STATE_RANK = {"low": 1, "moderate": 2, "high": 3}
 _UNKNOWN_POLLEN_CLASSES_LOGGED: set[str] = set()
 _POLLEN_LABEL_DRIFT_LOGGED: set[str] = set()
+
+
+def _next_rain_from_daily(
+    daily_entries: list[DailyEntry],
+    now: datetime,
+    last_hourly: datetime | None,
+) -> str | None:
+    """First future day whose condition MetService itself draws as precipitation.
+
+    Days that ended before the last (dry) hourly entry are already answered
+    by the hourly data and are skipped, as are past days and days with
+    missing/unparseable dates or unknown condition tokens.
+    """
+    for day in daily_entries:
+        if CONDITION_MAP.get(day.condition or "") not in _PRECIPITATION_HA_CONDITIONS:
+            continue
+        if not day.datetime:
+            continue
+        try:
+            day_dt = datetime.fromisoformat(day.datetime)
+        except (ValueError, TypeError):
+            continue
+        if day_dt.date() < now.date():
+            continue
+        if last_hourly is not None and day_dt.date() < last_hourly.date():
+            continue
+        return day.datetime
+    return None
 
 
 def _derive_pollen(
@@ -399,6 +441,8 @@ class MetServicePublicData:
     rain_next_8h_mm: float | None = None
     rain_next_24h_mm: float | None = None
     next_rain_at: str | None = None
+    next_rain_precision: str | None = None  # "hour" | "day"
+    rain_forecast_horizon: str | None = None  # last daily-forecast day searched
 
     # Daily forecast
     daily_entries: list[DailyEntry] = field(default_factory=list)
@@ -699,6 +743,22 @@ def normalize_public_data(
         ),
         None,
     )
+    next_rain_precision = "hour" if next_rain_at is not None else None
+
+    # Daily fallback — the hourly series only reaches ~2 days out. When it
+    # shows no rain, the first future precipitation-condition day answers at
+    # day precision. rain_forecast_horizon records the last day searched, so
+    # a None next_rain_at means "no rain expected through <horizon>" rather
+    # than "don't know".
+    if next_rain_at is None:
+        last_hourly = future_hourly[-1][0] if future_hourly else None
+        next_rain_at = _next_rain_from_daily(daily_entries, now, last_hourly)
+        if next_rain_at is not None:
+            next_rain_precision = "day"
+
+    rain_forecast_horizon = (
+        (daily_entries[-1].datetime or None) if daily_entries else None
+    )
 
     # Tomorrow's forecast is day index 1 of the 7-day data.
     tomorrow = daily_entries[1] if len(daily_entries) > 1 else None
@@ -832,6 +892,8 @@ def normalize_public_data(
         rain_next_8h_mm=rain_next_8h_mm,
         rain_next_24h_mm=rain_next_24h_mm,
         next_rain_at=next_rain_at,
+        next_rain_precision=next_rain_precision,
+        rain_forecast_horizon=rain_forecast_horizon,
         # Daily
         daily_entries=daily_entries,
         # Tides (injected at root as a list)

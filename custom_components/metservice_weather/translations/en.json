@@ -123,7 +123,18 @@
         "name": "Rain next 24 hours"
       },
       "next_rain_at": {
-        "name": "Next rain expected"
+        "name": "Next rain expected",
+        "state_attributes": {
+          "precision": {
+            "name": "Precision"
+          },
+          "outlook": {
+            "name": "Outlook"
+          },
+          "forecast_horizon": {
+            "name": "Forecast horizon"
+          }
+        }
       },
       "pressure_tendency_trend": {
         "name": "Pressure Tendency Trend (deprecated)"

@@ -69,7 +69,7 @@ Earlier versions of this integration included an option to use the MetService mo
 | Weather description tomorrow | |
 | Rain next 8 hours | mm from the hourly forecast; **disabled by default** |
 | Rain next 24 hours | mm from the hourly forecast; **disabled by default** |
-| Next rain expected | Timestamp of the first forecast hour with rain; **disabled by default** |
+| Next rain expected | First rainy hour from the hourly series, else the first rainy day from the 7-day forecast (`precision` attribute: `hour`/`day`). A fully dry horizon reads unknown with `outlook: no_rain_expected` + `forecast_horizon`; **disabled by default** |
 
 **Seasonal / environmental**
 
