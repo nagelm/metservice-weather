@@ -43,9 +43,11 @@ Three new sensors, disabled by default (enable on the device page): **Rain next 
 
 Next rain expected searches the full forecast, not just the hourly series: the first rainy hour when one is in reach (`precision: hour`), otherwise the first daily-forecast day MetService draws with a precipitation icon (`precision: day`, timestamped midday). When the entire 7-day horizon is dry the state is unknown **with `outlook: no_rain_expected` and a `forecast_horizon` attribute** — an explicit "no rain through <date>" claim, distinguishable from missing data (which carries no attributes).
 
-#### Added: option to auto-remove sensors with no upstream data
+#### Added: option to auto-disable sensors with no upstream data
 
-A new setup/reconfigure toggle ("Automatically remove sensors while MetService publishes no data", default off) removes seasonal sensors (UV, fire danger, clothes drying) while MetService pauses the product, and re-adds them automatically — no restart — when data resumes. Leave it off to keep today's behaviour (sensors stay and read `unknown` off-season).
+A new setup/reconfigure toggle ("Automatically disable sensors while MetService publishes no data", default off) disables and hides seasonal sensors (UV, fire danger, clothes drying) while MetService pauses the product, instead of removing them. Their history and settings are kept, and they're re-enabled automatically — no restart — when data resumes; turning the toggle back off restores everything in one restart too. Leave it off to keep today's behaviour (sensors stay visible and read `unknown` off-season).
+
+Installs that already had the option turned on under its earlier remove-outright behaviour will have their seasonal sensors' registry rows re-created — born disabled and hidden — the first time they update.
 
 #### Zero breaking changes: deprecation instead of removal
 

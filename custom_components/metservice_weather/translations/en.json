@@ -17,9 +17,9 @@
         "sections": {
           "advanced_options": {
             "name": "Advanced",
-            "description": "Seasonal products (UV, fire danger, clothes drying) pause for part of the year. Turn on the automatic-removal option to remove their sensors while MetService pauses them — they return automatically when data resumes. Leave it off (default) and they stay, reading unknown while paused.",
+            "description": "Seasonal products (UV, fire danger, clothes drying) pause for part of the year. Turn on the automatic-disable option to disable and hide their sensors while MetService pauses the product — their history and settings are kept, and they're re-enabled automatically, no restart required, when data resumes. Leave it off (default) and they stay visible, reading unknown while paused.",
             "data": {
-              "auto_hide_seasonal": "Automatically remove sensors while MetService publishes no data"
+              "auto_hide_seasonal": "Automatically disable sensors while MetService publishes no data"
             }
           }
         }

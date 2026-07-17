@@ -214,10 +214,11 @@ The label shown in the integrations list. The device itself — and therefore ev
 #### Weather location
 The MetService location used to fetch weather data. Choose the town or city closest to you. Around 150 NZ towns and rural locations are available.
 
-#### Automatically remove sensors while MetService publishes no data *(optional)*
-Off by default. When enabled, seasonal sensors (UV, fire danger, clothes drying) are removed while
-MetService pauses the product server-side, and return automatically when data resumes. When disabled,
-they stay and read `unknown` off-season.
+#### Automatically disable sensors while MetService publishes no data *(optional)*
+Off by default. When enabled, seasonal sensors (UV, fire danger, clothes drying) are disabled and
+hidden — keeping their history and settings — while MetService pauses the product server-side, and
+are re-enabled automatically, no restart required, when data resumes. When disabled (the default),
+they stay visible and read `unknown` off-season.
 
 #### Marine Region *(optional)*
 Select the marine region that covers your area to enable tide, boating, and surf sensors. The integration will then ask you to choose specific stations on the next screen. Choose **None — skip marine data** if you don't need any marine sensors.

@@ -14,10 +14,14 @@ CONF_ATTRIBUTION = "Data provided by the MetService NZ weather service"
 MANUFACTURER = "MetService"
 
 # Onboarding option: when enabled, seasonal sensors (UV, fire danger, clothes
-# drying) that MetService is not currently publishing are removed instead of
-# staying in an always-unknown state, and re-created automatically once data
-# resumes. Default off — see weather_current_conditions_sensors.py's
-# `seasonal` field and sensor.py's async_setup_entry gating.
+# drying) that MetService is not currently publishing are disabled and
+# hidden instead of staying in an always-unknown state — keeping their
+# history and settings — and re-enabled automatically, no restart required,
+# once data resumes. Default off — see weather_current_conditions_sensors.py's
+# `seasonal` field and sensor.py's async_setup_entry gating. Storage key name
+# (auto_hide_seasonal) is unchanged from when the option removed sensors
+# outright, for backward compatibility with entries created before that
+# behaviour changed to disable+hide.
 CONF_AUTO_HIDE_SEASONAL = "auto_hide_seasonal"
 
 FIELD_DESCRIPTION = "wxPhraseLong"

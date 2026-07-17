@@ -46,12 +46,19 @@ All four are warning/error severity, non-fixable (the fix is a config or
 automation change only the user can make), self-clearing once the
 underlying condition stops being true, and wrapped so a failure in any of
 them can never break setup.
+
+`async_merge_entity_options` below is the shared read-merge-write helper
+behind every entry.options[DOMAIN] write in the integration — this
+module's own sweep stamp, and sensor.py's seasonal-disable stamp for
+CONF_AUTO_HIDE_SEASONAL — so the two concerns never clobber each other's
+keys.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 from homeassistant.components.automation import (
@@ -465,6 +472,38 @@ def _is_user_owned(reg_entry: er.RegistryEntry) -> bool:
     )
 
 
+def async_merge_entity_options(
+    ent_reg: er.EntityRegistry,
+    entity_id: str,
+    *,
+    updates: dict[str, Any] | None = None,
+    remove_keys: Iterable[str] = (),
+) -> None:
+    """Merge changes into a registry entry's DOMAIN-scoped options.
+
+    entity_registry.async_update_entity_options replaces a domain's whole
+    options dict on every call, and this integration writes two
+    independent concerns into the same entry.options[DOMAIN] mapping: this
+    module's sweep stamp ({"swept": ..., "swept_version": ...}, written
+    below) and sensor.py's seasonal-disable stamp
+    ({"seasonal_disabled": True}). Every write against DOMAIN-scoped
+    options — in this module or sensor.py — goes through this helper so
+    neither concern ever clobbers the other's keys: it reads the entry's
+    current DOMAIN options, applies `updates` on top, drops any
+    `remove_keys`, and writes the merged result back. A no-op if the
+    entity has no registry row.
+    """
+    reg_entry = ent_reg.async_get(entity_id)
+    if reg_entry is None:
+        return
+    merged = dict(reg_entry.options.get(DOMAIN) or {})
+    for key in remove_keys:
+        merged.pop(key, None)
+    if updates:
+        merged.update(updates)
+    ent_reg.async_update_entity_options(entity_id, DOMAIN, merged or None)
+
+
 def _create_or_refresh_deprecated_issue(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -619,10 +658,13 @@ async def async_check_deprecated_entities(
                     if reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION:
                         update_kwargs["hidden_by"] = None
                     ent_reg.async_update_entity(entity_id, **update_kwargs)
-                    ent_reg.async_update_entity_options(
+                    async_merge_entity_options(
+                        ent_reg,
                         entity_id,
-                        DOMAIN,
-                        {"swept": _SWEPT_DISABLED, "swept_version": SWEEP_VERSION},
+                        updates={
+                            "swept": _SWEPT_DISABLED,
+                            "swept_version": SWEEP_VERSION,
+                        },
                     )
                     newly_disabled.append(entity_id)
                 continue
@@ -631,10 +673,10 @@ async def async_check_deprecated_entities(
                 ent_reg.async_update_entity(
                     entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
                 )
-                ent_reg.async_update_entity_options(
+                async_merge_entity_options(
+                    ent_reg,
                     entity_id,
-                    DOMAIN,
-                    {"swept": _SWEPT_HIDDEN, "swept_version": SWEEP_VERSION},
+                    updates={"swept": _SWEPT_HIDDEN, "swept_version": SWEEP_VERSION},
                 )
                 newly_hidden.append(entity_id)
 
