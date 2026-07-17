@@ -178,19 +178,20 @@ def _uv_alert_level_state(raw: str | None) -> str | None:
 
 
 def _uv_attrs(data: Any) -> dict[str, StateType]:
-    """Return UV detail attributes, populated only when the state itself mapped."""
+    """Return UV detail attributes, populated only when the state itself mapped.
+
+    status_class is the one upstream field independent of the state's source
+    label; its in-season vocabulary is unverified, so it stays exposed until
+    a summer capture shows whether it carries anything the state doesn't.
+    """
     if _uv_alert_level_state(data.uv_alert_level) is None:
         return {}
     return {
-        "level_label": data.uv_alert_level,
         "status_class": data.uv_status_class,
         "advice": data.uv_message,
         "protection_window_start": data.uv_window_start_at or data.uv_window_start_raw,
         "protection_window_end": data.uv_window_end_at or data.uv_window_end_raw,
         "has_alert": data.uv_has_alert,
-        "attribution": (
-            "Data by NIWA — https://www.niwa.co.nz/our-services/online-services/uv-ozone"
-        ),
     }
 
 
@@ -598,9 +599,16 @@ current_condition_sensor_descriptions_public = [
         value_fn=lambda data, _: data.pollen_state,
         attr_fn=lambda data: (
             {
-                "level_label": data.pollen_level_label,
-                "active_allergens": data.pollen_active,
-                "imminent_allergens": data.pollen_imminent,
+                **{
+                    f"{level}_allergens": ", ".join(data.pollen_active.get(level, []))
+                    for level in ("low", "moderate", "high")
+                    if data.pollen_active.get(level)
+                },
+                **(
+                    {"imminent_allergens": ", ".join(data.pollen_imminent)}
+                    if data.pollen_imminent
+                    else {}
+                ),
             }
             if data.pollen_state is not None
             else {}

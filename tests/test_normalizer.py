@@ -1221,7 +1221,7 @@ def test_pollen_groups_default_empty():
 
 
 # ---------------------------------------------------------------------------
-# Pollen — derived one-sensor model (state, level_label, active, imminent)
+# Pollen — derived one-sensor model (state, active, imminent)
 # ---------------------------------------------------------------------------
 
 
@@ -1248,13 +1248,12 @@ def test_pollen_imminent_only_groups():
 
 
 def test_pollen_single_good_block():
-    """A single "good" block maps to state "low" with a verbatim level label."""
+    """A single "good" block maps to state "low"."""
     current = _pollen_current(
         [{"level": "Low", "type": "Wattle, Cypress, Hazelnut", "status_class": "good"}]
     )
     result = normalize_public_data(current, {})
     assert result.pollen_state == "low"
-    assert result.pollen_level_label == "Low"
     assert result.pollen_active == {"low": ["Wattle", "Cypress", "Hazelnut"]}
 
 
@@ -1268,7 +1267,6 @@ def test_pollen_good_and_bad_worst_wins():
     )
     result = normalize_public_data(current, {})
     assert result.pollen_state == "high"
-    assert result.pollen_level_label == "High"
     assert result.pollen_active == {
         "low": ["Wattle", "Cypress"],
         "high": ["Ragweed"],
@@ -1293,7 +1291,6 @@ def test_pollen_medium_good_and_good_real_shape():
     )
     result = normalize_public_data(current, {})
     assert result.pollen_state == "low"
-    assert result.pollen_level_label == "Low"
     assert result.pollen_imminent == ["Macrocarpa", "Pinus Radiata", "Early Grasses"]
     assert result.pollen_active == {
         "low": ["Wattle", "Cypress", "Hazelnut", "Cedar", "Alder", "Fungal Spores"]
@@ -1330,11 +1327,53 @@ def test_pollen_unknown_class_ignored_and_warns_once(caplog):
     assert "purple" in warning_records[0].getMessage()
 
 
+def test_pollen_label_drift_warns_once(caplog):
+    """A label that doesn't match its status class warns once per runtime.
+
+    The state comes from status_class, so a richer label (e.g. "Very High" on
+    a "bad" block) would be silently collapsed to the enum — the tripwire
+    warning is the only trace of it.
+    """
+    from custom_components.metservice_weather import coordinator_types
+
+    coordinator_types._POLLEN_LABEL_DRIFT_LOGGED.clear()
+    current = _pollen_current(
+        [{"level": "Very High", "type": "Ragweed", "status_class": "bad"}]
+    )
+    with caplog.at_level(
+        logging.WARNING, logger="custom_components.metservice_weather.coordinator_types"
+    ):
+        result = normalize_public_data(current, {})
+        normalize_public_data(current, {})  # second call must not warn again
+
+    assert result.pollen_state == "high"
+    assert result.pollen_active == {"high": ["Ragweed"]}
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warning_records) == 1
+    assert "Very High" in warning_records[0].getMessage()
+
+
+def test_pollen_matching_label_does_not_warn(caplog):
+    """The expected label wording (matching its class's state) never warns."""
+    from custom_components.metservice_weather import coordinator_types
+
+    coordinator_types._POLLEN_LABEL_DRIFT_LOGGED.clear()
+    current = _pollen_current(
+        [{"level": "Low", "type": "Wattle", "status_class": "good"}]
+    )
+    with caplog.at_level(
+        logging.WARNING, logger="custom_components.metservice_weather.coordinator_types"
+    ):
+        result = normalize_public_data(current, {})
+
+    assert result.pollen_state == "low"
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
 def test_pollen_state_none_when_no_groups_at_all():
     """No pollen groups at all (module not published) leaves pollen_state None."""
     result = normalize_public_data({}, {})
     assert result.pollen_state is None
-    assert result.pollen_level_label is None
     assert result.pollen_active == {}
     assert result.pollen_imminent == []
 

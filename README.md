@@ -127,7 +127,7 @@ seasons:
 
 | Sensor | Behaviour |
 |---|---|
-| Pollen | Runs year-round. State is the current exposure level (`none`/`low`/`moderate`/`high`, from MetService's own severity taxonomy); allergens about to start their season appear in the `imminent_allergens` attribute, active allergens per level in the `active_allergens` attribute |
+| Pollen | Runs year-round. State is the current exposure level (`none`/`low`/`moderate`/`high`, from MetService's own severity taxonomy); allergens about to start their season appear in the `imminent_allergens` attribute (comma-separated string), active allergens per level in the `low_allergens`/`moderate_allergens`/`high_allergens` attributes (each a comma-separated string, present only when that level is non-empty) |
 | Clothes Drying | Year-round for towns/cities; rural locations may not carry it |
 
 Sensors a **location can never provide** (e.g. wind/temperature observations for
@@ -149,7 +149,7 @@ state_content:
   - headline
 ```
 
-The same pattern works for Pollen (`level_label`) and the tide sensors
+The same pattern works for Pollen (`low_allergens`) and the tide sensors
 (`height_m`) — swap `headline` in `state_content` for the attribute you want.
 
 ### Weather entity

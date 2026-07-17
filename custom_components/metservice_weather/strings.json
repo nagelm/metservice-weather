@@ -75,9 +75,6 @@
           "extreme": "Extreme"
         },
         "state_attributes": {
-          "level_label": {
-            "name": "Level label"
-          },
           "status_class": {
             "name": "Status class"
           },
@@ -92,9 +89,6 @@
           },
           "has_alert": {
             "name": "Alert active"
-          },
-          "attribution": {
-            "name": "Attribution"
           }
         }
       },
@@ -151,11 +145,14 @@
           "high": "High"
         },
         "state_attributes": {
-          "level_label": {
-            "name": "Level label"
+          "low_allergens": {
+            "name": "Low-level allergens"
           },
-          "active_allergens": {
-            "name": "Active allergens"
+          "moderate_allergens": {
+            "name": "Moderate-level allergens"
+          },
+          "high_allergens": {
+            "name": "High-level allergens"
           },
           "imminent_allergens": {
             "name": "Imminent allergens"

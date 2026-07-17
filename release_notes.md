@@ -11,9 +11,8 @@ MetService's allergen page serves several concurrent status blocks — e.g. mid-
 The new `sensor.<device>_pollen`:
 
 - **State** = the current exposure level: `none` / `low` / `moderate` / `high`, keyed to MetService's own severity taxonomy (never `Imminent` — that's an outlook, not a level)
-- **`active_allergens`** attribute maps each level to its allergens, e.g. `low: [Wattle, Cypress, Hazelnut, …]`
+- **`low_allergens`** / **`moderate_allergens`** / **`high_allergens`** attributes list what's in the air at each level (comma-separated strings, so they render on tile cards via `state_content`; empty levels are omitted)
 - **`imminent_allergens`** attribute lists species whose season is about to start
-- **`level_label`** carries MetService's verbatim wording
 
 `sensor.<device>_pollen_levels` and `sensor.<device>_pollen_type` are **deprecated but keep working** — existing installs keep them; new installs get them disabled and hidden. An automation watching `imminent_allergens` is the new way to get a "pollen season starting" alert.
 
@@ -27,7 +26,7 @@ A new `warning_level` sensor is an enum keyed to severity; the existing Weather 
 
 #### New UV Risk sensor (5-level enum; UV Index deprecated)
 
-The new `uv_risk` sensor's state is `low` / `moderate` / `high` / `very_high` / `extreme` (NIWA's alert scale — a closed vocabulary, so ad-hoc wording changes can't break automations). New attributes: `level_label` (verbatim wording), `status_class`, `advice` (the sun-protection message), `protection_window_start` / `protection_window_end` (populated in season), `has_alert`, and NIWA attribution. Off-season the sensor reads `unknown` as before.
+The new `uv_risk` sensor's state is `low` / `moderate` / `high` / `very_high` / `extreme` (NIWA's alert scale — a closed vocabulary, so ad-hoc wording changes can't break automations). New attributes: `status_class`, `advice` (the sun-protection message), `protection_window_start` / `protection_window_end` (populated in season), and `has_alert`. Off-season the sensor reads `unknown` as before.
 
 #### New closed-vocabulary enum sensors (old text sensors deprecated)
 

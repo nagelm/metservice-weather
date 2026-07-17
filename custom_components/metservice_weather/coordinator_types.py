@@ -194,28 +194,26 @@ def _moon_phase_current(moon_phases: Any, reference: datetime | None) -> str | N
 _POLLEN_CLASS_TO_STATE = {"good": "low", "medium": "moderate", "bad": "high"}
 _POLLEN_STATE_RANK = {"low": 1, "moderate": 2, "high": 3}
 _UNKNOWN_POLLEN_CLASSES_LOGGED: set[str] = set()
+_POLLEN_LABEL_DRIFT_LOGGED: set[str] = set()
 
 
 def _derive_pollen(
     groups: list[dict[str, str | None]],
-) -> tuple[str | None, str | None, dict[str, list[str]], list[str]]:
+) -> tuple[str | None, dict[str, list[str]], list[str]]:
     """Derive the one-sensor pollen model from raw MetService status groups.
 
-    Returns (pollen_state, pollen_level_label, pollen_active, pollen_imminent):
+    Returns (pollen_state, pollen_active, pollen_imminent):
     - pollen_state: highest-ranked state among the exposure-ramp blocks
       (good/medium/bad); "none" if groups exist but none are exposure blocks;
       None if there are no groups at all (module wasn't published).
-    - pollen_level_label: verbatim `level` text of the block that set the
-      state; None when state is "none" or None.
     - pollen_active: state -> list of allergens, from good/medium/bad blocks.
     - pollen_imminent: allergens from medium-good (informational) blocks.
     """
     if not groups:
-        return None, None, {}, []
+        return None, {}, []
 
     active: dict[str, list[str]] = {}
     imminent: list[str] = []
-    level_labels: dict[str, str | None] = {}
 
     for group in groups:
         cls = group.get("status_class")
@@ -227,7 +225,24 @@ def _derive_pollen(
         elif cls in _POLLEN_CLASS_TO_STATE:
             state = _POLLEN_CLASS_TO_STATE[cls]
             active.setdefault(state, []).extend(allergens)
-            level_labels[state] = group.get("level")
+            # The state comes from status_class; the free-text `level` label is
+            # expected to be the same word. If MetService ever pairs a richer
+            # label with a known class, the enum would silently drop it — warn
+            # so it gets reported instead.
+            label = (group.get("level") or "").strip()
+            if (
+                label
+                and label.lower() != state
+                and label not in _POLLEN_LABEL_DRIFT_LOGGED
+            ):
+                _POLLEN_LABEL_DRIFT_LOGGED.add(label)
+                _LOGGER.warning(
+                    "MetService pollen label %r doesn't match its status class "
+                    "%r — please report at "
+                    "https://github.com/nagelm/metservice-weather/issues",
+                    label,
+                    cls,
+                )
         elif cls == "none" or cls is None:
             continue
         elif cls not in _UNKNOWN_POLLEN_CLASSES_LOGGED:
@@ -239,10 +254,10 @@ def _derive_pollen(
             )
 
     if not active:
-        return "none", None, active, imminent
+        return "none", active, imminent
 
     best_state = max(active, key=lambda s: _POLLEN_STATE_RANK[s])
-    return best_state, level_labels.get(best_state), active, imminent
+    return best_state, active, imminent
 
 
 @dataclass
@@ -352,7 +367,6 @@ class MetServicePublicData:
 
     # Derived pollen model (one-sensor design)
     pollen_state: str | None = None  # none | low | moderate | high
-    pollen_level_label: str | None = None
     pollen_active: dict[str, list[str]] = field(default_factory=dict)
     pollen_imminent: list[str] = field(default_factory=list)
 
@@ -713,9 +727,7 @@ def normalize_public_data(
     # Pollen — derive the one-sensor model from the raw status groups
     # ------------------------------------------------------------------
     pollen_groups = current.get("pollen", {}).get("groups") or []
-    pollen_state, pollen_level_label, pollen_active, pollen_imminent = _derive_pollen(
-        pollen_groups
-    )
+    pollen_state, pollen_active, pollen_imminent = _derive_pollen(pollen_groups)
 
     # ------------------------------------------------------------------
     # Moon phase date — MetService recomputes this per backend refresh with
@@ -797,7 +809,6 @@ def normalize_public_data(
         pollen_groups=pollen_groups,
         # Derived pollen model (one-sensor design)
         pollen_state=pollen_state,
-        pollen_level_label=pollen_level_label,
         pollen_active=pollen_active,
         pollen_imminent=pollen_imminent,
         # Injected derived fields

@@ -347,21 +347,43 @@ def test_pollen_sensor_is_enum_with_four_options():
 
 
 def test_pollen_sensor_value_and_attrs_from_derived_fields():
-    """value_fn/attr_fn read pollen_state and the derived attribute fields."""
+    """value_fn/attr_fn read pollen_state and the derived attribute fields.
+
+    Per-level/imminent allergen lists are flattened into joined strings;
+    levels absent from pollen_active are omitted.
+    """
+    desc = next(
+        d for d in current_condition_sensor_descriptions_public if d.key == "pollen"
+    )
+    data = MetServicePublicData(
+        pollen_state="high",
+        pollen_active={"low": ["Wattle", "Cypress"], "high": ["Ragweed"]},
+        pollen_imminent=["Macrocarpa", "Pinus Radiata"],
+    )
+    assert desc.value_fn(data, "metric") == "high"
+    assert desc.attr_fn(data) == {
+        "low_allergens": "Wattle, Cypress",
+        "high_allergens": "Ragweed",
+        "imminent_allergens": "Macrocarpa, Pinus Radiata",
+    }
+
+
+def test_pollen_sensor_attrs_omit_empty_levels_and_imminent():
+    """attr_fn omits empty allergen data.
+
+    Levels absent from pollen_active (or present with an empty list) and an
+    empty pollen_imminent are omitted from the attributes entirely.
+    """
     desc = next(
         d for d in current_condition_sensor_descriptions_public if d.key == "pollen"
     )
     data = MetServicePublicData(
         pollen_state="low",
-        pollen_level_label="Low",
-        pollen_active={"low": ["Wattle", "Cypress"]},
-        pollen_imminent=["Macrocarpa"],
+        pollen_active={"low": ["Wattle"], "moderate": []},
+        pollen_imminent=[],
     )
-    assert desc.value_fn(data, "metric") == "low"
     assert desc.attr_fn(data) == {
-        "level_label": "Low",
-        "active_allergens": {"low": ["Wattle", "Cypress"]},
-        "imminent_allergens": ["Macrocarpa"],
+        "low_allergens": "Wattle",
     }
 
 
@@ -1016,13 +1038,15 @@ def test_uv_risk_description_value_and_attrs():
     )
     assert desc.value_fn(data, "metric") == "moderate"
     attrs = desc.attr_fn(data)
-    assert attrs["level_label"] == "Moderate"
     assert attrs["status_class"] == "moderate"
     assert attrs["advice"] == "Take care"
     assert attrs["protection_window_start"] == "2026-07-16T09:00:00+12:00"
     assert attrs["protection_window_end"] == "2026-07-16T17:00:00+12:00"
     assert attrs["has_alert"] is True
-    assert "niwa.co.nz" in attrs["attribution"]
+    # level_label (bijective with the state) and the manual attribution key
+    # (the platform-wide _attr_attribution covers it) are deliberately absent.
+    assert "level_label" not in attrs
+    assert "attribution" not in attrs
 
 
 def test_uv_risk_description_attrs_fall_back_to_raw_window():
