@@ -244,10 +244,10 @@ def test_warnings_state_embedded_newline_survives_in_attribute():
 def test_warnings_state_attr_count_matches_list_length():
     """The attribute count matches the number of active warnings.
 
-    Targets the current warning_level ENUM sensor, which carries the
-    structured warnings_list/count attributes today — the deprecated
-    weather_warnings sensor reverted to its v2026.7.0 shape (a single
-    joined "warnings" string, no count) and is covered separately below.
+    Targets the current warning_level ENUM sensor, whose attributes are
+    fully flat (headline + count) — the structured list moved to the
+    opt-in warning_details carrier, and the deprecated weather_warnings
+    sensor keeps its v2026.7.0 shape (a single joined "warnings" string).
     """
     warnings = [
         {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
@@ -261,7 +261,7 @@ def test_warnings_state_attr_count_matches_list_length():
     )
     attrs = desc.attr_fn(data)
     assert attrs["count"] == 2
-    assert attrs["warnings"] == warnings
+    assert "warnings" not in attrs
 
 
 def test_warnings_state_truncates_to_255_chars():
@@ -292,6 +292,7 @@ def test_public_sensor_descriptions_non_empty():
 _MARINE_SENSOR_KEYS = {
     "tides_high",
     "tides_low",
+    "tide_direction",
     "boating_status",
     "boating_forecast",
     "surf_conditions",
@@ -307,15 +308,15 @@ _MARINE_SENSOR_KEYS = {
 }
 
 
-def test_marine_device_flag_covers_exactly_the_fourteen_marine_sensors():
-    """device="marine" is set on exactly the 14 tide/boating/surf sensors — no more, no fewer."""
+def test_marine_device_flag_covers_exactly_the_fifteen_marine_sensors():
+    """device="marine" is set on exactly the 15 tide/boating/surf sensors — no more, no fewer."""
     marine_keys = {
         d.key
         for d in current_condition_sensor_descriptions_public
         if d.device == "marine"
     }
     assert marine_keys == _MARINE_SENSOR_KEYS
-    assert len(_MARINE_SENSOR_KEYS) == 14
+    assert len(_MARINE_SENSOR_KEYS) == 15
 
 
 def test_non_marine_descriptions_default_to_location_device():
@@ -1222,7 +1223,7 @@ def test_warning_level_description_headline_attribute():
     attrs = desc.attr_fn(data)
     assert attrs["headline"] == "Strong Wind Warning - Orange (+1 more)"
     assert attrs["count"] == 2
-    assert attrs["warnings"] == data.warnings_list
+    assert "warnings" not in attrs
 
 
 def test_warning_level_description_headline_truncates_to_255():
@@ -1235,6 +1236,45 @@ def test_warning_level_description_headline_truncates_to_255():
     attrs = desc.attr_fn(data)
     assert len(attrs["headline"]) == 255
     assert attrs["headline"] == long_name[:255]
+
+
+# ---------------------------------------------------------------------------
+# Test: warning_details opt-in carrier sensor
+# ---------------------------------------------------------------------------
+
+
+def test_warning_details_is_optin_carrier_with_count_state():
+    """warning_details is disabled by default; state = active warning count."""
+    desc = _desc("warning_details")
+    assert desc.entity_registry_enabled_default is False
+    assert desc.device == "location"
+    warnings = [
+        {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
+        {"name": "Heavy Rain Warning", "text": "b", "threat_period": "Tonight"},
+    ]
+    data = MetServicePublicData(warnings_list=warnings)
+    assert desc.value_fn(data, "metric") == 2
+    assert desc.attr_fn(data) == {"active_warnings": warnings}
+
+
+def test_warning_details_zero_when_clear():
+    """No active warnings: state 0 with a stable empty-list attribute."""
+    desc = _desc("warning_details")
+    data = MetServicePublicData(warnings_list=[])
+    assert desc.value_fn(data, "metric") == 0
+    assert desc.attr_fn(data) == {"active_warnings": []}
+
+
+def test_carrier_payload_attributes_are_recorder_exempt():
+    """The two machine-payload attribute names are excluded from the recorder.
+
+    Matching is by attribute name class-wide, so the set must never contain
+    "warnings" — that would silently stop recording the deprecated
+    weather_warnings sensor's frozen attribute.
+    """
+    assert WeatherSensor._unrecorded_attributes == frozenset(
+        {"tide_table", "active_warnings"}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1935,6 +1975,86 @@ def test_tide_attrs_empty_when_tides_not_a_list():
     """attr_fn returns {} when tides is None (no marine location configured)."""
     data = MetServicePublicData(tides=None)
     assert _tide_attrs(data, "HIGH") == {}
+
+
+# ---------------------------------------------------------------------------
+# Test: tide_direction opt-in carrier sensor
+# ---------------------------------------------------------------------------
+
+
+def _future_tides(*types: str) -> list[dict]:
+    """Build a chronological tide table starting one hour from now."""
+    base = datetime.datetime.now(datetime.UTC)
+    return [
+        {
+            "type": t,
+            "time": (base + datetime.timedelta(hours=1 + i * 6)).isoformat(),
+            "height": "1.5",
+        }
+        for i, t in enumerate(types)
+    ]
+
+
+def test_tide_direction_rising_when_next_event_is_high():
+    """Next upcoming event HIGH means the tide is coming in (rising)."""
+    desc = _desc("tide_direction")
+    assert desc.device == "marine"
+    assert desc.entity_registry_enabled_default is False
+    assert desc.options == ["rising", "falling"]
+    data = MetServicePublicData(tides=_future_tides("HIGH", "LOW"))
+    assert desc.value_fn(data, "metric") == "rising"
+
+
+def test_tide_direction_falling_when_next_event_is_low():
+    """Next upcoming event LOW means the tide is going out (falling)."""
+    desc = _desc("tide_direction")
+    data = MetServicePublicData(tides=_future_tides("LOW", "HIGH"))
+    assert desc.value_fn(data, "metric") == "falling"
+
+
+def test_tide_direction_skips_past_events():
+    """Past entries are skipped — the state comes from the first future event."""
+    desc = _desc("tide_direction")
+    past = (
+        datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+    ).isoformat()
+    tides = [{"type": "HIGH", "time": past, "height": "1.8"}] + _future_tides("LOW")
+    data = MetServicePublicData(tides=tides)
+    assert desc.value_fn(data, "metric") == "falling"
+
+
+def test_tide_direction_unknown_when_exhausted_or_absent():
+    """State is None when the table is exhausted, absent, or the type is unknown."""
+    desc = _desc("tide_direction")
+    past = (
+        datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+    ).isoformat()
+    assert (
+        desc.value_fn(
+            MetServicePublicData(tides=[{"type": "HIGH", "time": past}]), "metric"
+        )
+        is None
+    )
+    assert desc.value_fn(MetServicePublicData(tides=None), "metric") is None
+    assert (
+        desc.value_fn(MetServicePublicData(tides=_future_tides("KING")), "metric")
+        is None
+    )
+    # Non-dict entries are skipped rather than crashing the derivation.
+    junk_then_low = ["junk"] + _future_tides("LOW")
+    assert (
+        desc.value_fn(MetServicePublicData(tides=junk_then_low), "metric") == "falling"
+    )
+
+
+def test_tide_direction_attr_carries_full_table():
+    """The carrier attribute holds the whole table; {} when there is no table."""
+    desc = _desc("tide_direction")
+    tides = _future_tides("HIGH", "LOW")
+    data = MetServicePublicData(tides=tides)
+    assert desc.attr_fn(data) == {"tide_table": tides}
+    assert desc.attr_fn(MetServicePublicData(tides=None)) == {}
+    assert desc.attr_fn(MetServicePublicData(tides=[])) == {}
 
 
 # ---------------------------------------------------------------------------

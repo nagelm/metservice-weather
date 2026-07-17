@@ -151,6 +151,13 @@ class WeatherSensor(MetServiceEntity, SensorEntity):
     """Implementing the MetService sensor."""
 
     _attr_attribution = CONF_ATTRIBUTION
+    # Bulky machine-payload attributes on the opt-in carrier sensors
+    # (tide_direction, warning_details) stay live in the state machine but
+    # are never written to the recorder. Matching is by attribute name
+    # across the whole class, so these names must stay unique to their
+    # carriers — in particular the deprecated weather_warnings sensor's
+    # "warnings" attribute must keep recording, hence "active_warnings".
+    _unrecorded_attributes = frozenset({"tide_table", "active_warnings"})
     entity_description: WeatherSensorEntityDescription
 
     def __init__(

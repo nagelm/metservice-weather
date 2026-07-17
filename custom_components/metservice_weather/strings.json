@@ -183,8 +183,13 @@
           },
           "count": {
             "name": "Active warning count"
-          },
-          "warnings": {
+          }
+        }
+      },
+      "warning_details": {
+        "name": "Warning details",
+        "state_attributes": {
+          "active_warnings": {
             "name": "Active warnings"
           }
         }
@@ -254,6 +259,18 @@
         "state_attributes": {
           "height_m": {
             "name": "Tide height (m)"
+          }
+        }
+      },
+      "tide_direction": {
+        "name": "Tide direction",
+        "state": {
+          "rising": "Rising",
+          "falling": "Falling"
+        },
+        "state_attributes": {
+          "tide_table": {
+            "name": "Today's tide table"
           }
         }
       },

@@ -81,7 +81,8 @@ Earlier versions of this integration included an option to use the MetService mo
 | Clothes drying next good day | Day name when today is a washout |
 | Fire season | Enum: `open` / `restricted` / `prohibited` (FENZ) |
 | Fire danger | Enum: `low` → `extreme` (NIWA index) |
-| Warnings | Severity enum: `none` / `watch` / `warning` / `orange` / `red`; headline + structured list as attributes |
+| Warnings | Severity enum: `none` / `watch` / `warning` / `orange` / `red`; `headline` + `count` attributes |
+| Warning details *(disabled by default)* | State = active warning count; `active_warnings` attribute carries the full structured list (not recorded in the database) |
 
 **Sunrise / sunset / moon**
 
@@ -96,8 +97,9 @@ Earlier versions of this integration included an option to use the MetService mo
 
 | Sensor | Requires |
 |--------|---------|
-| Next high tide (+ height and day table attributes) | Tide station configured |
-| Next low tide (+ height and day table attributes) | Tide station configured |
+| Next high tide (+ `height_m` attribute) | Tide station configured |
+| Next low tide (+ `height_m` attribute) | Tide station configured |
+| Tide direction *(disabled by default)* — `rising`/`falling`, with the full-day `tide_table` attribute (not recorded in the database) | Tide station configured |
 | Boating conditions | Boating location configured |
 | Boating forecast | Boating location configured |
 | Surf conditions | Surf location configured |
@@ -227,7 +229,7 @@ Choose a specific station for each marine service you want. Each selector includ
 
 | Field | Sensors enabled |
 |-------|----------------|
-| Tide station | Next high tide, Next low tide |
+| Tide station | Next high tide, Next low tide, Tide direction |
 | Boating location | Boating conditions, Boating forecast |
 | Surf location | 10 surf sensors (conditions, rating, swell, wind, period) |
 

@@ -70,6 +70,9 @@
       "warning_level": {
         "default": "mdi:alert"
       },
+      "warning_details": {
+        "default": "mdi:alert-box-outline"
+      },
       "fire_season": {
         "default": "mdi:fire"
       },
@@ -96,6 +99,13 @@
       },
       "tides_low": {
         "default": "mdi:beach"
+      },
+      "tide_direction": {
+        "default": "mdi:waves",
+        "state": {
+          "rising": "mdi:elevation-rise",
+          "falling": "mdi:elevation-decline"
+        }
       },
       "boating_status": {
         "default": "mdi:sail-boat"

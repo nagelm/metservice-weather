@@ -21,7 +21,8 @@ The new `sensor.<device>_pollen`:
 A new `warning_level` sensor is an enum keyed to severity; the existing Weather Warnings sensor is deprecated but keeps working (its state is the headline text — the old truncation bug stays fixed):
 
 - **State**: `none` / `watch` / `warning` / `orange` / `red` — the most severe active warning's level, so numeric-style "at least orange" automation conditions work.
-- **Attributes**: `headline` (most severe warning's name, e.g. `Strong Wind Warning - Orange (+1 more)`), `count`, and a structured `warnings` list (`name`, `text`, `threat_period`) with no truncation.
+- **Attributes**: `headline` (most severe warning's name, e.g. `Strong Wind Warning - Orange (+1 more)`) and `count` — flat values that render everywhere, per HA's attribute guidance.
+- **Warning details** — a companion sensor, disabled by default (enable it on the device page): state is the active warning count and its `active_warnings` attribute carries the full structured list (`name`, `text`, `threat_period`, no truncation) for notification automations. The list is deliberately excluded from the recorder, so enabling it costs no database growth.
 - Existing automations on the old sensor keep working; when migrating, `state != "No warnings"` becomes `state != "none"` on the new sensor.
 
 #### New UV Risk sensor (5-level enum; UV Index deprecated)
@@ -61,9 +62,9 @@ Repair issues now appear **only when your setup shows evidence of needing them**
 
 Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically. Because these sensors move to their own device, their displayed friendly name changes too (e.g. "Auckland Next high tide" becomes "Auckland East Coast Next high tide"). entity_id, unique_id, and recorded history are unaffected — but update any notification template, dashboard label, or voice-assistant phrase that used the old friendly name.
 
-#### Added: tide detail attributes
+#### Added: tide detail attributes and Tide direction sensor
 
-Next high/low tide sensors now carry a `height_m` attribute — the predicted height of the tide the sensor is counting down to.
+Next high/low tide sensors now carry a `height_m` attribute — the predicted height of the tide the sensor is counting down to. A new **Tide direction** sensor (marine device, disabled by default) reads `rising` / `falling` from the next upcoming event and carries the full-day `tide_table` attribute (`type`, `time`, `height` per entry); the table is excluded from the recorder, so enabling it costs no database growth.
 
 #### Added: daily rainfall totals for today and tomorrow
 

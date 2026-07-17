@@ -94,6 +94,52 @@ def _tide_attrs(data: Any, tide_type: str) -> dict[str, StateType]:
     return {"height_m": _safe_float(entry.get("height"))} if entry else {}
 
 
+_TIDE_DIRECTION_BY_TYPE = {"HIGH": "rising", "LOW": "falling"}
+
+
+def _next_tide_event(data: list | None) -> dict | None:
+    """Return the next upcoming tide entry of either type, or None."""
+    if not isinstance(data, list):
+        return None
+    now = dt_util.utcnow()
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        t = dt_util.parse_datetime(entry.get("time") or "")
+        if t is not None and t > now:
+            return entry
+    return None
+
+
+def _tide_direction_state(tides: list | None) -> str | None:
+    """Direction the tide is moving: next event HIGH means rising, LOW falling.
+
+    None (unknown) when the day's table is exhausted, absent, or the next
+    entry has an unrecognised type.
+    """
+    entry = _next_tide_event(tides)
+    if entry is None:
+        return None
+    return _TIDE_DIRECTION_BY_TYPE.get(entry.get("type"))
+
+
+def _tide_table_attr(data: Any) -> dict[str, Any]:
+    """Full-day tide table for the opt-in carrier sensor.
+
+    Excluded from the recorder via WeatherSensor._unrecorded_attributes —
+    the UI and templates see it live, the database never stores it.
+    """
+    if not isinstance(data.tides, list) or not data.tides:
+        return {}
+    return {
+        "tide_table": [
+            {"type": t.get("type"), "time": t.get("time"), "height": t.get("height")}
+            for t in data.tides
+            if isinstance(t, dict)
+        ]
+    }
+
+
 def _warning_severity(name: str) -> int:
     """Rank a MetService warning name: Red > Orange > other Warning > Watch."""
     lowered = name.lower()
@@ -674,8 +720,18 @@ current_condition_sensor_descriptions_public = [
         attr_fn=lambda data: {
             "headline": _warnings_state(data),
             "count": len(data.warnings_list),
-            "warnings": data.warnings_list,
         },
+    ),
+    WeatherSensorEntityDescription(
+        key="warning_details",
+        translation_key="warning_details",
+        name="Warning details",
+        # Opt-in carrier for the structured warning payload (full text, no
+        # truncation, for notification automations). The list is excluded
+        # from the recorder via WeatherSensor._unrecorded_attributes.
+        entity_registry_enabled_default=False,
+        value_fn=lambda data, _: len(data.warnings_list),
+        attr_fn=lambda data: {"active_warnings": data.warnings_list},
     ),
     # Deprecated — superseded by fire_season_status; keeps its v2026.7.0 behaviour for existing installs.
     WeatherSensorEntityDescription(
@@ -777,6 +833,20 @@ current_condition_sensor_descriptions_public = [
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: _next_tide_time(data.tides, "LOW"),
         attr_fn=lambda data: _tide_attrs(data, "LOW"),
+    ),
+    WeatherSensorEntityDescription(
+        key="tide_direction",
+        translation_key="tide_direction",
+        name="Tide direction",
+        # Opt-in carrier for the full-day tide table; its own state is the
+        # direction the tide is moving (next event HIGH = rising).
+        entity_registry_enabled_default=False,
+        exists_fn=_tides_enabled,
+        device="marine",
+        device_class=SensorDeviceClass.ENUM,
+        options=["rising", "falling"],
+        value_fn=lambda data, _: _tide_direction_state(data.tides),
+        attr_fn=_tide_table_attr,
     ),
     WeatherSensorEntityDescription(
         key="boating_status",
