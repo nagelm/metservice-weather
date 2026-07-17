@@ -4,9 +4,9 @@
 
 ## v2026.7.1
 
-### Hardening from a two-month production data audit
+### Hardening from a two-month data audit
 
-Every sensor's real-world behaviour was audited against two months of recorded Home Assistant history; this release fixes what that audit surfaced.
+Every sensor's real-world behaviour was audited against two months of recorded data; this release fixes what that audit surfaced.
 
 #### New Pollen sensor (old sensors deprecated, not removed)
 
