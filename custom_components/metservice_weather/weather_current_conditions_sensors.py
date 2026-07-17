@@ -217,12 +217,9 @@ def _pressure_trend_state(raw: str | None) -> str | None:
 # Wind strength
 # ---------------------------------------------------------------------------
 
-# Vocabulary confirmed 2026-07 by probing observations.wind[0].strength
-# across 10 towns-cities locations: "Light winds", "Moderate" and "Fresh"
-# were observed live. The remaining entries (calm/strong/gale/severe
-# gale/storm) are the plausible rest of MetService's Beaufort-style scale
-# and are included defensively — any raw value outside this set falls
-# through to the warn-once/None path rather than raising in HA.
+# Live MetService values observed to date: "Light winds", "Moderate", "Fresh".
+# The remaining entries are the plausible rest of MetService's Beaufort-style
+# scale, included defensively; unknown raw values warn once and read unknown.
 _WIND_STRENGTH_MAP: dict[str, str] = {
     "calm": "calm",
     "light winds": "light_winds",

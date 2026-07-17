@@ -4,9 +4,9 @@
 
 ## v2026.7.1
 
-### Hardening from a two-month data audit
+### Sensor behaviour hardening
 
-Every sensor's real-world behaviour was audited against two months of recorded data; this release fixes what that audit surfaced.
+Every sensor's real-world behaviour was reviewed against recorded history; this release fixes what that review surfaced.
 
 #### New Pollen sensor (old sensors deprecated, not removed)
 
@@ -64,7 +64,7 @@ Repair issues now appear **only when your setup shows evidence of needing them**
 
 #### Added: marine data gets its own device
 
-Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically. Because these sensors move to their own device, their displayed friendly name changes too (e.g. "Napier Next High Tide" becomes "Kapiti and Wellington Next High Tide"). entity_id, unique_id, and recorded history are unaffected — but update any notification template, dashboard label, or voice-assistant phrase that used the old friendly name.
+Tide, boating, and surf sensors now group under a separate device named after your selected marine region (e.g. "Kapiti and Wellington"), linked via the town device. Entity IDs and history are unchanged - Home Assistant re-homes the entities automatically. Because these sensors move to their own device, their displayed friendly name changes too (e.g. "Auckland Next High Tide" becomes "Auckland East Coast Next High Tide"). entity_id, unique_id, and recorded history are unaffected — but update any notification template, dashboard label, or voice-assistant phrase that used the old friendly name.
 
 #### Added: tide detail attributes
 
@@ -76,7 +76,7 @@ The daily forecast now carries a real precipitation amount (mm) for today and to
 
 #### Fixed / hardened
 
-- **Rural weather entities now show current temperature and wind**: locations without a weather station (most rural pages) previously had no `temperature`, `wind_speed`, or `wind_bearing` on the weather entity at all. These now fall back to the forecast for the current hour — the same stand-in MetService's own site uses. Stations that briefly drop an observation get the same fallback instead of a blank. Humidity and pressure have no hourly forecast source and remain unavailable without a station. (Found by release testing on a live rural install.)
+- **Rural weather entities now show current temperature and wind**: locations without a weather station (most rural pages) previously had no `temperature`, `wind_speed`, or `wind_bearing` on the weather entity at all. These now fall back to the forecast for the current hour — the same stand-in MetService's own site uses. Stations that briefly drop an observation get the same fallback instead of a blank. Humidity and pressure have no hourly forecast source and remain unavailable without a station.
 - **Stale duplicate weather entities are cleaned up on upgrade**: installs dating back to the old entity-ID collision (e.g. a leftover `weather.<name>_<name>_forecast` stuck permanently `unavailable`) had that orphan restored on every restart. The weather platform now prunes stale registry entries at setup, as the sensor platform already did.
 - **Unknown condition tokens can no longer break the weather card**: unmapped MetService condition tokens (e.g. unseen night variants) now fall back to their day equivalent, or report as unknown with a logged warning — previously they passed through as invalid Home Assistant conditions.
 - **Moon phase date no longer flip-flops**: MetService recomputes the phase time per request with second-level jitter (observed: the same event served 19 s apart), causing spurious state changes. Timestamps are now rounded to 5 minutes, so the sensor changes only when the actual phase event advances.
@@ -131,7 +131,7 @@ MetService's daily `rainFall1`/`rainFall10` fields are **exceedance probabilitie
 
 **v0.9.19 is the last release with mobile API support.**
 
-The mobile API has been removed as part of this integration's path toward inclusion in Home Assistant Core. The MetService mobile API relies on a private API key extracted from the iOS app — it is not publicly distributed, not officially supported for third-party use, and incompatible with the requirements for Core submission. Retaining it would permanently block Core inclusion.
+The mobile API relied on a private key that is not supported for third-party use, and has been removed. The MetService mobile API relies on a private API key extracted from the iOS app — it is not publicly distributed and is not supported for third-party use.
 
 If you rely on GPS-based location tracking or a location not in the ~150 supported towns, stay on [v0.9.19](https://github.com/nagelm/metservice-weather/releases/tag/v0.9.19) — it remains fully functional.
 
@@ -263,7 +263,7 @@ All upstream changes through the point of forking are included, covering the ful
 ### UI label and help text improvements
 
 - **"Integration name" → "Device name"** — the name field on the setup screen is now labelled "Device name" to better reflect that it prefixes all HA entity names and appears on the device card
-- **Help text for Device name** — explains that the name appears on all entities (e.g. "Napier Temperature") and that adding multiple instances with different names/locations is how you get weather for more than one place
+- **Help text for Device name** — explains that the name appears on all entities (e.g. "Auckland Temperature") and that adding multiple instances with different names/locations is how you get weather for more than one place
 - **Help text for Marine Region** — explains that the field is optional, covers tide times, boating conditions, and surf sensors, and that the next screen lets you pick specific stations for each
 - **Help text for each location selector** — each of Tide station, Boating location, and Surf location now has a description explaining what sensors it enables and that "None — skip" omits those sensors entirely
 - **"marine_region" → "Marine Region"** — display label corrected

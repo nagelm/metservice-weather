@@ -1,7 +1,7 @@
 """Support for MetService weather service.
 
 For more details about this platform, please refer to the documentation at
-https://github.com/ciejer/metservice-weather.
+https://github.com/nagelm/metservice-weather.
 """
 
 from __future__ import annotations

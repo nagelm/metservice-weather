@@ -1,5 +1,5 @@
 {
-    "name": "ciejer/metservice_weather",
+    "name": "nagelm/metservice-weather",
     "image": "mcr.microsoft.com/devcontainers/python:3.12-bullseye",
     "postCreateCommand": "scripts/setup",
     "forwardPorts": [

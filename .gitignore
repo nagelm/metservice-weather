@@ -14,23 +14,7 @@ upload_result.json
 coverage.xml
 venv/
 
-# Home Assistant configuration
-config/*
-!config/configuration.yaml
-
 # Sensitive / local-only
-dev_credentials.md
 *.credentials.md
 .env
 secrets.yaml
-dev-notes.local.md
-
-# local tooling project files
-.devtools/
-
-# Local dev helpers and prompts
-prompts/
-fix_index.py
-dev-notes.md
-CORE_REVIEW.md
-config/

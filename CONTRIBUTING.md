@@ -51,9 +51,9 @@ Use [black](https://github.com/ambv/black) to make sure the code follows the sty
 
 It comes with development environment in a container, easy to launch
 if you use Visual Studio Code. With this container you will have a stand alone
-Home Assistant instance running and already configured with the included
-[`configuration.yaml`](./config/configuration.yaml)
-file.
+Home Assistant instance running; the `config` directory (including
+`configuration.yaml`) is generated on first run by `scripts/develop` rather
+than checked into the repo.
 
 ## License
 

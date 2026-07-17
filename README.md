@@ -18,7 +18,7 @@ This fork was started to resolve issues blocking daily use and to bring the inte
 - **Marine data** — optional tide station, boating conditions, and surf sensors, each independently configurable.
 - **Config flow redesigned** — two-step setup with live-fetched marine station lists; reconfigure support; duplicate location prevention.
 - **Forecast caching** — hourly and daily forecasts are cached and invalidated only on coordinator update, avoiding redundant API calls.
-- **IQS Gold compliance** — translation keys, `icons.json`, stable unique IDs, `asyncio.timeout` throughout, 206 tests at 95%+ coverage. Working toward Core inclusion.
+- **IQS Gold compliance** — translation keys, `icons.json`, stable unique IDs, `asyncio.timeout` throughout, 206 tests at 95%+ coverage.
 - **Bug fixes** — hourly wind speed, `clear-night` condition when sun is below horizon, coordinator `always_update=False`, `async_get_clientsession` (no session leaks), and more.
 
 ---
@@ -29,7 +29,7 @@ This fork was started to resolve issues blocking daily use and to bring the inte
 
 Earlier versions of this integration included an option to use the MetService mobile app API, which enabled GPS-based location data not available from the public web API. That feature has been removed in v1.0.0.
 
-**Why it was removed:** The mobile API relies on a private API key extracted from the MetService iOS app. This key is not publicly distributed, not officially supported for third-party use, and incompatible with the requirements for inclusion in Home Assistant Core. Retaining it would permanently block this integration from being accepted into the Core repository.
+**Why it was removed:** The mobile API relies on a private API key extracted from the MetService iOS app. This key is not publicly distributed and is not supported for third-party use, so it has been removed.
 
 **If you rely on the mobile API** — for GPS-based location tracking or a location not in the list of ~150 supported towns — stay on [v0.9.19](https://github.com/nagelm/metservice-weather/releases/tag/v0.9.19). It remains fully functional for that purpose and will continue to be available via HACS.
 
@@ -192,7 +192,7 @@ Setup takes at most two screens.
 ### Screen 1 — Setup
 
 #### Device name
-A label used as the prefix for all entities created by this integration (e.g. `Napier`). Defaults to your Home Assistant location name. You can set up multiple instances with different names to get weather for more than one location — each instance creates its own independent set of entities.
+A label used as the prefix for all entities created by this integration (e.g. `Auckland`). Defaults to your Home Assistant location name. You can set up multiple instances with different names to get weather for more than one location — each instance creates its own independent set of entities.
 
 #### Weather location
 The MetService location used to fetch weather data. Choose the town or city closest to you. Around 150 NZ towns and rural locations are available.
