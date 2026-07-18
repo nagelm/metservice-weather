@@ -62,9 +62,6 @@
       "relative_humidity": {
         "name": "Relative humidity"
       },
-      "uv_index": {
-        "name": "UV Index (deprecated)"
-      },
       "uv_risk": {
         "name": "UV index",
         "state": {
@@ -136,9 +133,6 @@
           }
         }
       },
-      "pressure_tendency_trend": {
-        "name": "Pressure Tendency Trend (deprecated)"
-      },
       "pressure_trend": {
         "name": "Pressure tendency",
         "state": {
@@ -170,15 +164,6 @@
           }
         }
       },
-      "pollen_levels": {
-        "name": "Pollen Levels (deprecated)"
-      },
-      "pollen_type": {
-        "name": "Pollen Type (deprecated)"
-      },
-      "weather_warnings": {
-        "name": "MetService Weather Warnings (deprecated)"
-      },
       "warning_level": {
         "name": "Warnings",
         "state": {
@@ -205,9 +190,6 @@
           }
         }
       },
-      "fire_season": {
-        "name": "Fire Season (deprecated)"
-      },
       "fire_season_status": {
         "name": "Fire season",
         "state": {
@@ -223,9 +205,6 @@
             "name": "Detail"
           }
         }
-      },
-      "fire_danger": {
-        "name": "Fire Danger (deprecated)"
       },
       "fire_danger_level": {
         "name": "Fire danger",
@@ -321,9 +300,6 @@
       "surf_period": {
         "name": "Surf period"
       },
-      "wind_strength": {
-        "name": "Wind Strength (deprecated)"
-      },
       "wind_strength_level": {
         "name": "Wind strength",
         "state": {
@@ -367,9 +343,6 @@
       "breakdown_overnight": {
         "name": "Condition overnight"
       },
-      "sunrise": {
-        "name": "Sunrise (deprecated)"
-      },
       "sunrise_at": {
         "name": "Sunrise",
         "state_attributes": {
@@ -377,9 +350,6 @@
             "name": "Local time text"
           }
         }
-      },
-      "sunset": {
-        "name": "Sunset (deprecated)"
       },
       "sunset_at": {
         "name": "Sunset",
@@ -389,9 +359,6 @@
           }
         }
       },
-      "moonrise": {
-        "name": "Moonrise (deprecated)"
-      },
       "moonrise_at": {
         "name": "Moonrise",
         "state_attributes": {
@@ -400,9 +367,6 @@
           }
         }
       },
-      "moonset": {
-        "name": "Moonset (deprecated)"
-      },
       "moonset_at": {
         "name": "Moonset",
         "state_attributes": {
@@ -410,9 +374,6 @@
             "name": "Local time text"
           }
         }
-      },
-      "moon_phase": {
-        "name": "Moon Phase (deprecated)"
       },
       "moon_phase_current": {
         "name": "Moon phase",
@@ -434,9 +395,6 @@
             "name": "Next phase date"
           }
         }
-      },
-      "moon_phase_date": {
-        "name": "Next Moon Phase Date (deprecated)"
       }
     }
   },
@@ -468,6 +426,22 @@
     "marine_device_move": {
       "title": "Marine sensors moved to a new device",
       "description": "Tide, boating, and surf entities now live on the {marine_device} device instead of the main location device — entity IDs are unchanged, so entity-based automations keep working. But device-based triggers, conditions, or actions in the following automations/scripts still target the old device and may no longer fire as expected: {references}. Open each one and re-select the entity, or point it at the {marine_device} device."
+    },
+    "entity_id_reclaim": {
+      "title": "{sensor_name} can reclaim its entity ID",
+      "description": "The {sensor_name} sensor is currently {current_entity_id} because its canonical ID was taken by a deprecated sensor that has since been removed in v2026.9.0. That ID, {new_entity_id}, is now free and nothing currently references {current_entity_id}. Select **Fix** to rename it — its history and settings move with it.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Rename {current_entity_id}?",
+            "description": "This renames {current_entity_id} to {new_entity_id}. History, settings, and any dashboard cards or automations that reference the new canonical entity_id keep working; anything still pointed at {current_entity_id} would need updating first, but nothing was found referencing it. Select **Submit** to proceed."
+          }
+        }
+      }
+    },
+    "entity_id_reclaim_referenced": {
+      "title": "{sensor_name} could reclaim its entity ID, but it's in use",
+      "description": "The {sensor_name} sensor ({current_entity_id}) could be renamed to its canonical ID, {new_entity_id}, now that the deprecated sensor that used to hold it is gone. It's still referenced by: {references}. Home Assistant only rewrites automations for renames made from the UI, so an automatic rename here would silently break these — rename it yourself from Settings > Devices & services > Entities if you want the canonical ID, then update the references above."
     }
   }
 }

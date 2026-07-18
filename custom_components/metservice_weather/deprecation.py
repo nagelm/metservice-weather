@@ -1,37 +1,25 @@
-"""Repair issues for entities/entries deprecated across the v0.9.x -> v1.0+ and v2026.7.1 transitions.
+"""Repair issues for entities/entries deprecated across the v0.9.x -> v1.0+, v2026.7.1, and v2026.9.0 transitions.
 
-Four retroactive, evidence-driven detectors live here (a fifth,
+Five retroactive, evidence-driven detectors live here (a sixth,
 legacy-entry, lives in __init__.py since it runs before any coordinator
 exists):
 
-* Deprecated sensors — every sensor key whose state format changed in
-  v2026.7.1 was forked: the OLD key kept its v2026.7.0 behaviour (disabled
-  and hidden by default for new installs, but left enabled for existing
-  installs that already have a registry row for it) and a NEW sibling
-  sensor carries the new behaviour, enabled by default. Deprecated sensors
-  are planned for removal in version 2026.9.0.
-
-  For an existing install's enabled OLD sensor, a broad usage detector
-  (`_usage_signals`) decides what happens every run: automations, scripts,
-  scenes, groups, Lovelace dashboards, other integrations' config entries
-  (helpers etc.), voice-assistant exposure, HomeKit filters, and even an
-  in-process state-change listener all count as "in use". A sensor with no
-  evidence of use at all is disabled (disabled_by=INTEGRATION) — the
-  strongest signal available that nobody will notice. A sensor with any
-  evidence is instead just hidden (hidden_by=INTEGRATION) so it stops
-  cluttering the entity list while it keeps working, and a self-clearing
-  repair issue nags about migrating to its replacement, naming the
-  evidence found. Every decision is stamped onto the registry row's own
-  per-domain options (entry.options[DOMAIN]); if the entity's live state no
-  longer matches that stamp on a later run, the user reverted our decision
-  themselves and the sweep never touches that entity again. A sensor this
-  sweep previously disabled is never auto-re-enabled even if it becomes
-  used again — only the user re-enables it, via the UI. A one-time,
-  dismissible notice summarises what changed whenever the sweep actually
-  disables or hides something new.
-* Removed entity still referenced — generic catch for ANY 0.9.x-era
-  entity a stale-registry cleanup is about to delete (sensor or weather
-  domain), not just the sensors tracked below.
+* Deprecated sensors (historical) — every sensor key whose state format
+  changed in v2026.7.1 was forked: the OLD key kept its v2026.7.0 behaviour
+  and a NEW sibling sensor carried the new behaviour. The 14 OLD
+  descriptions were removed outright in v2026.9.0 (see
+  weather_current_conditions_sensors.py) — any registry row for one of them
+  is now just an ordinary stale row, cleaned up by sensor.py's
+  async_setup_entry stale-registry sweep like any other (with
+  async_check_removed_entity, below, raising a repair first if it's still
+  referenced). async_check_deprecated_entities therefore no longer runs a
+  disable/hide usage sweep — it only clears any deprecated_entity /
+  deprecated_sweep_v2 / hidden_deprecated issues an earlier integration
+  version may have left behind, then hands off to the removed-entity sweep
+  and the entity-ID reclaim detector below.
+* Removed entity still referenced — generic catch for ANY 0.9.x-era or
+  2026.9.0-deprecated entity a stale-registry cleanup is about to delete
+  (sensor or weather domain), not just the sensors tracked below.
 * Removed forecast attributes — v0.9.x exposed forecast_hourly/
   forecast_daily as weather-entity attributes; both were removed in
   favour of the weather.get_forecasts action.
@@ -41,17 +29,32 @@ exists):
   against the old location device silently stops working for anything
   marine-related, since the device it targets no longer owns those
   entities.
+* Entity-ID reclaim — a replacement sensor that couldn't mint its
+  canonical entity_id at v2026.7.1 (because a still-present deprecated
+  sensor's registry row already held it) got a suffixed id instead (e.g.
+  `sensor.napier_moon_phase_2`). Now that the deprecated sensors are gone,
+  the canonical id may be free; this is the one FIXABLE issue in the
+  integration — see async_check_entity_id_reclaim and repairs.py.
 
-All four are warning/error severity, non-fixable (the fix is a config or
-automation change only the user can make), self-clearing once the
-underlying condition stops being true, and wrapped so a failure in any of
-them can never break setup.
+All are warning/error severity except the fixable entity-ID reclaim issue,
+self-clearing once the underlying condition stops being true, and wrapped
+so a failure in any of them can never break setup.
 
 `async_merge_entity_options` below is the shared read-merge-write helper
-behind every entry.options[DOMAIN] write in the integration — this
-module's own sweep stamp, and sensor.py's seasonal-disable stamp for
-CONF_AUTO_HIDE_SEASONAL — so the two concerns never clobber each other's
-keys.
+behind every entry.options[DOMAIN] write in the integration — currently
+only sensor.py's seasonal-disable stamp for CONF_AUTO_HIDE_SEASONAL, kept
+here as a small, self-contained registry-options helper other detectors
+may still want.
+
+`_usage_signals` — the broad, multi-source usage detector originally built
+for the (now-removed) deprecated-sensor disable/hide sweep — is kept and
+reused by the entity-ID reclaim detector's "is anything still referencing
+the old, suffixed entity_id" check: renaming an entity_id is a more
+consequential, automatic action than hiding a sensor, so it deserves the
+broadest evidence gathering available (automations, scripts, scenes,
+groups, dashboards, other integrations' config entries, voice exposure,
+HomeKit, even an in-process listener) before the fix flow is allowed to
+just go ahead and rename it.
 """
 
 from __future__ import annotations
@@ -82,21 +85,13 @@ from .const import DOMAIN
 from .coordinator import WeatherUpdateCoordinator
 from .entity import _marine_device_name
 from .weather_current_conditions_sensors import (
+    WeatherSensorEntityDescription,
     current_condition_sensor_descriptions_public,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 _LEARN_MORE_URL = "https://github.com/nagelm/metservice-weather/releases"
-
-# Written into a swept entity's DOMAIN-scoped registry options
-# (entry.options[DOMAIN]) alongside {"swept": "hidden"|"disabled"}, purely
-# for diagnostics/debugging — no code branches on the version value itself,
-# only on the "swept" action.
-SWEEP_VERSION = "2026.7.1"
-
-_SWEPT_HIDDEN = "hidden"
-_SWEPT_DISABLED = "disabled"
 
 # Every OLD sensor key deprecated by the v2026.7.1 fork, mapped to the key
 # of the NEW sibling sensor that carries its behaviour going forward.
@@ -442,36 +437,6 @@ def _format_evidence(signals: dict[str, Any]) -> str:
     return "; ".join(parts) if parts else "no specific usage detected"
 
 
-def _sweep_stamp(reg_entry: er.RegistryEntry) -> dict[str, Any] | None:
-    """Return this integration's sweep stamp from a registry entry's options, if any."""
-    stamp = reg_entry.options.get(DOMAIN)
-    return dict(stamp) if stamp else None
-
-
-def _stamp_reverted_by_user(reg_entry: er.RegistryEntry, stamp: dict[str, Any]) -> bool:
-    """Return True when the entity's live state no longer matches its sweep stamp.
-
-    A user who manually re-enables or un-hides a sensor the sweep
-    previously acted on has made their preference explicit; recognising
-    that here means the *next* run leaves that entity alone forever
-    instead of re-applying the old decision on top of the user's override.
-    """
-    swept = stamp.get("swept")
-    if swept == _SWEPT_DISABLED and reg_entry.disabled_by is None:
-        return True
-    if swept == _SWEPT_HIDDEN and reg_entry.hidden_by is None:
-        return True
-    return False
-
-
-def _is_user_owned(reg_entry: er.RegistryEntry) -> bool:
-    """Return True when the user explicitly disabled or hid this entity themselves."""
-    return (
-        reg_entry.disabled_by == er.RegistryEntryDisabler.USER
-        or reg_entry.hidden_by == er.RegistryEntryHider.USER
-    )
-
-
 def async_merge_entity_options(
     ent_reg: er.EntityRegistry,
     entity_id: str,
@@ -482,16 +447,15 @@ def async_merge_entity_options(
     """Merge changes into a registry entry's DOMAIN-scoped options.
 
     entity_registry.async_update_entity_options replaces a domain's whole
-    options dict on every call, and this integration writes two
-    independent concerns into the same entry.options[DOMAIN] mapping: this
-    module's sweep stamp ({"swept": ..., "swept_version": ...}, written
-    below) and sensor.py's seasonal-disable stamp
-    ({"seasonal_disabled": True}). Every write against DOMAIN-scoped
-    options — in this module or sensor.py — goes through this helper so
-    neither concern ever clobbers the other's keys: it reads the entry's
-    current DOMAIN options, applies `updates` on top, drops any
-    `remove_keys`, and writes the merged result back. A no-op if the
-    entity has no registry row.
+    options dict on every call, so every write against entry.options[DOMAIN]
+    goes through this helper instead of calling that API directly: it reads
+    the entry's current DOMAIN options, applies `updates` on top, drops any
+    `remove_keys`, and writes the merged result back. That matters because
+    more than one concern can share the same entry.options[DOMAIN] mapping
+    over an entity's lifetime — currently sensor.py's seasonal-disable stamp
+    ({"seasonal_disabled": True}) for CONF_AUTO_HIDE_SEASONAL — and going
+    through the read-merge-write here is what stops one concern's write from
+    clobbering another's keys. A no-op if the entity has no registry row.
     """
     reg_entry = ent_reg.async_get(entity_id)
     if reg_entry is None:
@@ -504,214 +468,41 @@ def async_merge_entity_options(
     ent_reg.async_update_entity_options(entity_id, DOMAIN, merged or None)
 
 
-def _create_or_refresh_deprecated_issue(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    issue_id: str,
-    entity_id: str,
-    new_key: str,
-    signals: dict[str, Any],
-) -> None:
-    """Create/refresh the per-entity "still in use" repair issue with current evidence.
-
-    ERROR severity as of the 2026.8 line: removal of the deprecated set in
-    2026.9.0 is one release away, so a still-used deprecated sensor is now an
-    action-required condition, not a heads-up.
-    """
-    ir.async_create_issue(
-        hass,
-        DOMAIN,
-        issue_id,
-        is_fixable=False,
-        severity=ir.IssueSeverity.ERROR,
-        translation_key="deprecated_entity",
-        learn_more_url=_LEARN_MORE_URL,
-        translation_placeholders={
-            "entity_id": entity_id,
-            "replacement_key": _replacement_display_name(new_key),
-            "evidence": _format_evidence(signals),
-        },
-    )
-
-
 async def async_check_deprecated_entities(
     hass: HomeAssistant,
     entry: ConfigEntry,
     coordinator: WeatherUpdateCoordinator,
 ) -> None:
-    """Disable unused / hide used deprecated sensors, and keep their repair issues in sync.
+    """Clear obsolete pre-2026.9.0 deprecation issues, then run the follow-on detectors.
 
-    For every deprecated sensor key with a registry row, two guards run
-    first and — if either matches — the entity is never touched again:
+    The 14 deprecated sensor descriptions this function used to run a
+    disable/hide usage sweep over no longer exist as of v2026.9.0 (see
+    weather_current_conditions_sensors.py) — any registry row for one of
+    them is now an ordinary stale row, cleaned up by sensor.py's
+    async_setup_entry stale-registry sweep before this function is even
+    called. There is therefore nothing left for a sweep to decide here.
+    This function instead:
 
-    * The row carries a sweep stamp from a previous run
-      (entry.options[DOMAIN]) whose recorded action no longer matches the
-      row's live disabled_by/hidden_by — the user reverted our decision.
-    * disabled_by or hidden_by is already RegistryEntryDisabler.USER /
-      RegistryEntryHider.USER — an explicit user choice.
-
-    Otherwise, a much broader usage detector than plain automation/script
-    references (_usage_signals — scenes, groups, dashboards, other
-    integrations' config entries, voice exposure, HomeKit, even an
-    in-process listener) decides:
-
-    * Used (signals non-empty) — an enabled, unhidden row is hidden
-      (hidden_by=INTEGRATION) and stamped; a row this sweep previously
-      disabled is deliberately left disabled (never auto-re-enabled). The
-      deprecated_entity repair issue is created/refreshed either way,
-      naming the evidence found.
-    * Unused (signals empty) — an enabled row is disabled
-      (disabled_by=INTEGRATION), any hidden_by=INTEGRATION is cleared (so
-      a future manual re-enable is visible), and it's stamped. The
-      deprecated_entity issue is cleared — nobody uses it.
-
-    If usage-signal computation itself fails outside the per-source guards
-    already inside _usage_signals (which should never happen, but this is
-    the fail-safe of last resort), the entire disable/hide decision is
-    skipped for every entity this run and existing state is left exactly
-    as-is; guard-only decisions (already-USER-owned, or disabled for some
-    other, unrelated reason) still apply since they don't need signals.
-
-    A one-time, dismissible notice is created when this run newly disables
-    or hides at least one sensor — never recreated on a run that changes
-    nothing further, so a user's dismissal sticks — and deleted once
-    nothing swept remains disabled/hidden by the integration for this
-    entry.
-
-    Also sweeps and self-clears any "removed_entity" issue (detector 1,
-    below) for this entry whose stored entity_id is no longer referenced —
-    self-corrected users see nothing.
+    1. Clears any deprecated_entity / deprecated_sweep_v2 / hidden_deprecated
+       issues an earlier integration version may have left in the issue
+       registry for this entry (ir.async_delete_issue is idempotent, so
+       this is a no-op once they're gone).
+    2. Sweeps and self-clears any "removed_entity" issue (detector 1, below)
+       for this entry whose stored entity_id is no longer referenced —
+       self-corrected users see nothing.
+    3. Runs the entity-ID reclaim detector (async_check_entity_id_reclaim,
+       below), which is independently exception-guarded.
 
     Wrapped in a broad except so a failure in this best-effort check can
     never break sensor setup.
     """
     try:
-        ent_reg = er.async_get(hass)
-
-        candidates: dict[str, tuple[str, str]] = {}
-        for old_key, new_key in DEPRECATED_SENSOR_REPLACEMENTS.items():
-            issue_id = f"deprecated_entity_{entry.entry_id}_{old_key}"
-            unique_id = f"{coordinator.location}_{old_key}".lower()
-            entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
-            if entity_id is None or ent_reg.async_get(entity_id) is None:
-                ir.async_delete_issue(hass, DOMAIN, issue_id)
-                continue
-            candidates[entity_id] = (old_key, new_key)
-
-        guarded: set[str] = set()
-        needs_signals: list[str] = []
-        for entity_id in candidates:
-            reg_entry = ent_reg.async_get(entity_id)
-            stamp = _sweep_stamp(reg_entry)
-            if (stamp and _stamp_reverted_by_user(reg_entry, stamp)) or _is_user_owned(
-                reg_entry
-            ):
-                guarded.add(entity_id)
-                continue
-            if reg_entry.disabled_by is None or (
-                reg_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
-            ):
-                # Either fully enabled (need signals to decide hide vs.
-                # disable), or previously disabled by our own prior
-                # "unused" sweep (need signals purely to know whether the
-                # nag issue should now mention it's in use again — it is
-                # never re-enabled either way).
-                needs_signals.append(entity_id)
-
-        signals_by_entity: dict[str, dict[str, Any]] | None = {}
-        try:
-            for entity_id in needs_signals:
-                signals_by_entity[entity_id] = await _usage_signals(hass, entity_id)
-        except Exception:
-            _LOGGER.debug(
-                "Usage-signal detection failed; skipping the deprecated-sensor "
-                "disable/hide sweep this run",
-                exc_info=True,
+        ir.async_delete_issue(hass, DOMAIN, f"hidden_deprecated_{entry.entry_id}")
+        ir.async_delete_issue(hass, DOMAIN, f"deprecated_sweep_v2_{entry.entry_id}")
+        for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
+            ir.async_delete_issue(
+                hass, DOMAIN, f"deprecated_entity_{entry.entry_id}_{old_key}"
             )
-            signals_by_entity = None
-
-        newly_hidden: list[str] = []
-        newly_disabled: list[str] = []
-
-        for entity_id, (old_key, new_key) in candidates.items():
-            issue_id = f"deprecated_entity_{entry.entry_id}_{old_key}"
-
-            if entity_id in guarded:
-                ir.async_delete_issue(hass, DOMAIN, issue_id)
-                continue
-
-            reg_entry = ent_reg.async_get(entity_id)
-            if reg_entry.disabled_by is not None and (
-                reg_entry.disabled_by != er.RegistryEntryDisabler.INTEGRATION
-            ):
-                # Disabled for some other, unrelated reason — nothing left
-                # for this sweep to decide.
-                ir.async_delete_issue(hass, DOMAIN, issue_id)
-                continue
-
-            if signals_by_entity is None:
-                continue
-
-            signals = signals_by_entity.get(entity_id, {})
-
-            if not signals:
-                ir.async_delete_issue(hass, DOMAIN, issue_id)
-                if reg_entry.disabled_by is None:
-                    update_kwargs: dict[str, Any] = {
-                        "disabled_by": er.RegistryEntryDisabler.INTEGRATION
-                    }
-                    if reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION:
-                        update_kwargs["hidden_by"] = None
-                    ent_reg.async_update_entity(entity_id, **update_kwargs)
-                    async_merge_entity_options(
-                        ent_reg,
-                        entity_id,
-                        updates={
-                            "swept": _SWEPT_DISABLED,
-                            "swept_version": SWEEP_VERSION,
-                        },
-                    )
-                    newly_disabled.append(entity_id)
-                continue
-
-            if reg_entry.disabled_by is None and reg_entry.hidden_by is None:
-                ent_reg.async_update_entity(
-                    entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
-                )
-                async_merge_entity_options(
-                    ent_reg,
-                    entity_id,
-                    updates={"swept": _SWEPT_HIDDEN, "swept_version": SWEEP_VERSION},
-                )
-                newly_hidden.append(entity_id)
-
-            _create_or_refresh_deprecated_issue(
-                hass, entry, issue_id, entity_id, new_key, signals
-            )
-
-        hidden_now: list[str] = []
-        disabled_now: list[str] = []
-        for entity_id in candidates:
-            reg_entry = ent_reg.async_get(entity_id)
-            if reg_entry is None:
-                continue
-            stamp = _sweep_stamp(reg_entry)
-            if not stamp:
-                continue
-            if (
-                stamp.get("swept") == _SWEPT_HIDDEN
-                and reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION
-            ):
-                hidden_now.append(entity_id)
-            elif (
-                stamp.get("swept") == _SWEPT_DISABLED
-                and reg_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
-            ):
-                disabled_now.append(entity_id)
-
-        _async_sync_deprecated_sweep_notice(
-            hass, entry, newly_hidden, newly_disabled, hidden_now, disabled_now
-        )
 
         removed_entity_prefix = f"removed_entity_{entry.entry_id}_"
         issue_reg = ir.async_get(hass)
@@ -727,52 +518,7 @@ async def async_check_deprecated_entities(
             exc_info=True,
         )
 
-
-def _async_sync_deprecated_sweep_notice(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    newly_hidden: list[str],
-    newly_disabled: list[str],
-    hidden_now: list[str],
-    disabled_now: list[str],
-) -> None:
-    """Create, leave alone, or clear the disable/hide sweep summary notice.
-
-    Supersedes the older "hidden_deprecated" issue (pre-2026.7.1 auto-hide
-    only), which is unconditionally cleared here so a copy lingering from
-    an older integration version doesn't sit alongside this one forever.
-
-    Only (re)created when this run newly disabled or hid at least one
-    deprecated sensor, so a user's dismissal sticks across runs that
-    change nothing further — a run that changes something new surfaces it
-    again with current totals. Deleted once nothing swept remains
-    disabled-by-us or hidden-by-us for this entry.
-    """
-    ir.async_delete_issue(hass, DOMAIN, f"hidden_deprecated_{entry.entry_id}")
-
-    issue_id = f"deprecated_sweep_v2_{entry.entry_id}"
-    if newly_hidden or newly_disabled:
-        ir.async_create_issue(
-            hass,
-            DOMAIN,
-            issue_id,
-            is_fixable=False,
-            severity=ir.IssueSeverity.WARNING,
-            translation_key="deprecated_sweep_v2",
-            learn_more_url=_LEARN_MORE_URL,
-            translation_placeholders={
-                "disabled_count": str(len(disabled_now)),
-                "disabled_entity_ids": (
-                    _format_references(disabled_now) if disabled_now else "none"
-                ),
-                "hidden_count": str(len(hidden_now)),
-                "hidden_entity_ids": (
-                    _format_references(hidden_now) if hidden_now else "none"
-                ),
-            },
-        )
-    elif not hidden_now and not disabled_now:
-        ir.async_delete_issue(hass, DOMAIN, issue_id)
+    await async_check_entity_id_reclaim(hass, entry, coordinator)
 
 
 # ---------------------------------------------------------------------------
@@ -1073,5 +819,193 @@ async def async_check_marine_device_move(
     except Exception:
         _LOGGER.debug(
             "Marine-device-move repair check failed; continuing without it",
+            exc_info=True,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Detector 5: entity-ID reclaim (the one FIXABLE issue — see repairs.py)
+# ---------------------------------------------------------------------------
+
+# Every replacement sensor key from DEPRECATED_SENSOR_REPLACEMENTS.values(),
+# resolved to its live WeatherSensorEntityDescription — used to read the
+# replacement's display name= for both the canonical object_id computation
+# and the issue's sensor_name placeholder. Built once at import time from
+# the same list sensor.py builds entities from, so it stays in sync
+# automatically if a replacement sensor's name= ever changes.
+_REPLACEMENT_DESCRIPTIONS_BY_KEY: dict[str, WeatherSensorEntityDescription] = {
+    description.key: description
+    for description in current_condition_sensor_descriptions_public
+}
+
+
+def _reclaim_issue_id(entry_id: str, key: str) -> str:
+    """Return the fixable entity_id_reclaim issue_id for a replacement key."""
+    return f"entity_id_reclaim_{entry_id}_{key}"
+
+
+def _reclaim_referenced_issue_id(entry_id: str, key: str) -> str:
+    """Return the non-fixable entity_id_reclaim_referenced issue_id for a replacement key."""
+    return f"entity_id_reclaim_referenced_{entry_id}_{key}"
+
+
+def _clear_reclaim_issues(hass: HomeAssistant, entry_id: str, key: str) -> None:
+    """Delete both the fixable and non-fixable reclaim issue variants for key.
+
+    Called for every short-circuit ("nothing to reclaim right now") branch
+    in async_check_entity_id_reclaim, so a key that was previously flagged
+    self-clears the instant the underlying condition stops being true —
+    row removed, already canonical, or the canonical id got taken by
+    something else in the meantime.
+    """
+    ir.async_delete_issue(hass, DOMAIN, _reclaim_issue_id(entry_id, key))
+    ir.async_delete_issue(hass, DOMAIN, _reclaim_referenced_issue_id(entry_id, key))
+
+
+async def async_check_entity_id_reclaim(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: WeatherUpdateCoordinator,
+) -> None:
+    """Offer to rename a replacement sensor onto its now-free canonical entity_id.
+
+    Context: on installs that upgraded through v2026.7.1 while still on an
+    earlier integration version, a replacement sensor could sometimes not
+    mint its canonical entity_id because the deprecated sensor's registry
+    row already held it — so it got a suffixed id instead (e.g.
+    `sensor.napier_moon_phase_2`). Now that the deprecated set is removed
+    (v2026.9.0), the canonical id may be free.
+
+    For every DISTINCT replacement key in DEPRECATED_SENSOR_REPLACEMENTS's
+    values (moon_phase/moon_phase_date both point at moon_phase_current,
+    pollen_levels/pollen_type both point at pollen — each is only checked
+    once):
+
+    1. Resolve the replacement's own registry row via its unique_id
+       (`f"{coordinator.location}_{key}".lower()`, sensor domain). No row
+       (location doesn't have this sensor, or setup hasn't added it yet)
+       -> self-clear and skip.
+    2. Compute the canonical object_id: `slugify(f"{device_name}
+       {description.name}")`, where device_name is the row's device's
+       display name (name_by_user, falling back to name) and
+       description.name is the replacement's own name= in
+       weather_current_conditions_sensors.py — the same recipe HA's entity
+       platform uses to mint an entity_id from has_entity_name +
+       original_name. No device row, or the row's object_id already equals
+       the canonical one -> self-clear and skip.
+    3. The canonical entity_id (`sensor.<canonical_object_id>`) must be
+       FREE (no registry row already holds it) -> self-clear and skip
+       otherwise; renaming onto an occupied id would collide.
+    4. Referenced check on the CURRENT (suffixed) entity_id, via the same
+       broad, multi-source _usage_signals detector the old deprecated-
+       sensor sweep used (automations, scripts, scenes, groups,
+       dashboards, other integrations' config entries, voice exposure,
+       HomeKit, an in-process listener) — a much higher bar than plain
+       automation/script references, appropriate for an action (automatic
+       rename) more consequential than hiding a sensor:
+       * Not referenced -> a FIXABLE, WARNING-severity entity_id_reclaim
+         issue is created/refreshed, naming the current and new entity_id
+         and the sensor's display name. Its one-step confirm fix flow
+         (repairs.py) performs the rename via
+         er.async_update_entity(..., new_entity_id=...) when submitted.
+       * Referenced -> a non-fixable, WARNING-severity
+         entity_id_reclaim_referenced issue is created/refreshed instead,
+         listing the evidence found and explaining that renaming here
+         would silently break those references (Home Assistant only
+         rewrites automations for UI-driven renames) — the user has to
+         rename it by hand once they've dealt with the references.
+
+    Every run, whichever issue variant no longer applies to a key is
+    deleted, so a key flips cleanly between "fixable", "referenced", and
+    "nothing to reclaim" as its underlying state changes.
+
+    Wrapped in a broad except so a failure in this best-effort check can
+    never break sensor setup.
+    """
+    try:
+        ent_reg = er.async_get(hass)
+        dev_reg = dr.async_get(hass)
+
+        for key in sorted(set(DEPRECATED_SENSOR_REPLACEMENTS.values())):
+            description = _REPLACEMENT_DESCRIPTIONS_BY_KEY.get(key)
+            if description is None:
+                _clear_reclaim_issues(hass, entry.entry_id, key)
+                continue
+
+            unique_id = f"{coordinator.location}_{key}".lower()
+            entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
+            if entity_id is None:
+                _clear_reclaim_issues(hass, entry.entry_id, key)
+                continue
+
+            reg_entry = ent_reg.async_get(entity_id)
+            if reg_entry is None:
+                _clear_reclaim_issues(hass, entry.entry_id, key)
+                continue
+
+            device = (
+                dev_reg.async_get(reg_entry.device_id) if reg_entry.device_id else None
+            )
+            device_name = (device.name_by_user or device.name) if device else None
+            if not device_name:
+                _clear_reclaim_issues(hass, entry.entry_id, key)
+                continue
+
+            canonical_object_id = slugify(f"{device_name} {description.name}")
+            current_object_id = entity_id.split(".", 1)[1]
+            if current_object_id == canonical_object_id:
+                _clear_reclaim_issues(hass, entry.entry_id, key)
+                continue
+
+            canonical_entity_id = f"sensor.{canonical_object_id}"
+            if ent_reg.async_get(canonical_entity_id) is not None:
+                _clear_reclaim_issues(hass, entry.entry_id, key)
+                continue
+
+            signals = await _usage_signals(hass, entity_id)
+            placeholders = {
+                "current_entity_id": entity_id,
+                "new_entity_id": canonical_entity_id,
+                "sensor_name": description.name,
+            }
+
+            if not signals:
+                ir.async_delete_issue(
+                    hass, DOMAIN, _reclaim_referenced_issue_id(entry.entry_id, key)
+                )
+                ir.async_create_issue(
+                    hass,
+                    DOMAIN,
+                    _reclaim_issue_id(entry.entry_id, key),
+                    is_fixable=True,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key="entity_id_reclaim",
+                    learn_more_url=_LEARN_MORE_URL,
+                    translation_placeholders=placeholders,
+                    data={
+                        "current_entity_id": entity_id,
+                        "new_entity_id": canonical_entity_id,
+                    },
+                )
+            else:
+                ir.async_delete_issue(
+                    hass, DOMAIN, _reclaim_issue_id(entry.entry_id, key)
+                )
+                ir.async_create_issue(
+                    hass,
+                    DOMAIN,
+                    _reclaim_referenced_issue_id(entry.entry_id, key),
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key="entity_id_reclaim_referenced",
+                    learn_more_url=_LEARN_MORE_URL,
+                    translation_placeholders={
+                        **placeholders,
+                        "references": _format_evidence(signals),
+                    },
+                )
+    except Exception:
+        _LOGGER.debug(
+            "Entity-ID reclaim repair check failed; continuing without it",
             exc_info=True,
         )

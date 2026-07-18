@@ -1,3 +1,17 @@
+## v2026.9.0 (draft — release/2026.9 branch)
+
+### The 14 deprecated sensors are removed
+
+The old sensors forked in v2026.7.1 — UV Index, Weather Warnings, Pressure Tendency Trend, Wind Strength, Fire Season, Fire Danger, Moon Phase, Next Moon Phase Date, sunrise/sunset/moonrise/moonset strings, Pollen Levels, and Pollen Type — are gone. Their replacements (UV index, Warnings, Pressure tendency, Wind strength, Fire season, Fire danger, Moon phase, Sunrise/Sunset/Moonrise/Moonset timestamps, Pollen) have carried the same data since v2026.7.1 and are unaffected.
+
+This is the end of a migration window that opened in v2026.7.1: unused deprecated sensors were disabled automatically, still-used ones were hidden with a repair naming exactly where they were used, and v2026.8.0 escalated that repair to error severity as a final warning. If a deprecated sensor is still registered and still referenced by an automation, script, scene, group, dashboard, helper, voice assistant, or HomeKit filter at upgrade time, removing it now raises a **"Removed entity is still in use"** repair naming the reference and the replacement sensor to switch to — update those before the entity comes back. An unreferenced deprecated sensor is removed silently.
+
+### New: one-click entity-ID reclaim repair
+
+On some installs that upgraded through v2026.7.1, a replacement sensor couldn't mint its canonical entity ID because the deprecated sensor's registry row was still holding it, so it landed on a suffixed ID instead (e.g. `sensor.napier_moon_phase_2`). Now that the deprecated sensors are gone, that ID may be free. Where it is — and nothing currently references the suffixed entity — a **fixable** repair (Settings → Repairs) offers a one-click rename onto the canonical ID; history and settings move with it. Where the suffixed entity is still referenced by something, the repair instead lists what's using it and explains that it needs a manual rename from Settings → Devices & services → Entities — an automatic rename here would silently break those references, since Home Assistant only rewrites automations for renames made from the UI. Both repairs clear themselves once there's nothing left to reclaim.
+
+---
+
 ## v2026.8.0 (draft — release/2026.8 branch)
 
 ### Deprecation repairs escalate to errors

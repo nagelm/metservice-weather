@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
@@ -20,7 +20,6 @@ from custom_components.metservice_weather.coordinator import (
 from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 from custom_components.metservice_weather.deprecation import (
     DEPRECATED_SENSOR_REPLACEMENTS,
-    SWEEP_VERSION,
     _GENERIC_REMOVED_REPLACEMENT_FALLBACK,
     _REPLACEMENT_DISPLAY_NAMES,
     _config_entries_referencing,
@@ -228,231 +227,13 @@ def test_format_references_caps_long_list_with_suffix():
 
 
 # ---------------------------------------------------------------------------
-# Test: async_check_deprecated_entities behaviour
-# ---------------------------------------------------------------------------
-
-
-async def test_issue_created_when_deprecated_entity_referenced(hass):
-    """A registered, enabled, referenced deprecated entity gets a repair issue."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=["automation.check_uv"]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    issue = ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
-    assert issue is not None
-    assert issue.translation_placeholders["entity_id"] == reg_entry.entity_id
-    assert issue.translation_placeholders["replacement_key"] == "UV index"
-    assert "automation.check_uv" in issue.translation_placeholders["evidence"]
-    # ERROR as of the 2026.8 line — removal in 2026.9.0 is one release away.
-    assert issue.severity == ir.IssueSeverity.ERROR
-    assert issue.is_fixable is False
-
-
-async def test_issue_combines_automation_and_script_references(hass):
-    """References from both automations and scripts are combined into one issue."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    ent_reg.async_get_or_create(
-        "sensor",
-        DOMAIN,
-        f"{coord.location}_weather_warnings".lower(),
-        config_entry=entry,
-    )
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=["automation.storm_alert"]),
-        patch(_SCRIPTS_PATCH, return_value=["script.notify_warnings"]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    issue = ir.async_get(hass).async_get_issue(
-        DOMAIN, _issue_id(entry, "weather_warnings")
-    )
-    assert issue is not None
-    assert "automation.storm_alert" in issue.translation_placeholders["evidence"]
-    assert "script.notify_warnings" in issue.translation_placeholders["evidence"]
-    assert issue.translation_placeholders["replacement_key"] == "Warnings"
-
-
-async def test_issue_cleared_when_no_longer_referenced(hass):
-    """A pre-existing issue is deleted once nothing references the entity anymore."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-
-    issue_id = _issue_id(entry, "uvIndex")
-    ir.async_create_issue(
-        hass,
-        DOMAIN,
-        issue_id,
-        is_fixable=False,
-        severity=ir.IssueSeverity.WARNING,
-        translation_key="deprecated_entity",
-    )
-    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=[]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
-
-
-async def test_disabled_registry_row_clears_issue_and_skips_lookup(hass):
-    """A disabled registry row is treated as already-migrated: issue cleared, no reference lookup."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    ent_reg.async_update_entity(
-        reg_entry.entity_id, disabled_by=er.RegistryEntryDisabler.USER
-    )
-
-    issue_id = _issue_id(entry, "uvIndex")
-    ir.async_create_issue(
-        hass,
-        DOMAIN,
-        issue_id,
-        is_fixable=False,
-        severity=ir.IssueSeverity.WARNING,
-        translation_key="deprecated_entity",
-    )
-
-    hass.config.components.add("automation")
-    with patch(_AUTOMATIONS_PATCH) as mock_automations:
-        await async_check_deprecated_entities(hass, entry, coord)
-        mock_automations.assert_not_called()
-
-    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
-
-
-async def test_missing_registry_row_no_crash_no_issue(hass):
-    """An absent registry row for every deprecated key is a safe no-op."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    hass.config.components.add("automation")
-    with patch(_AUTOMATIONS_PATCH) as mock_automations:
-        await async_check_deprecated_entities(hass, entry, coord)
-        mock_automations.assert_not_called()
-
-    for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
-        assert (
-            ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, old_key))
-            is None
-        )
-
-
-async def test_automation_component_not_loaded_no_crash_no_issue(hass):
-    """When neither automation nor script is loaded, the check is a safe no-op."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-
-    # Neither "automation" nor "script" added to hass.config.components.
-    with (
-        patch(_AUTOMATIONS_PATCH) as mock_automations,
-        patch(_SCRIPTS_PATCH) as mock_scripts,
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-        mock_automations.assert_not_called()
-        mock_scripts.assert_not_called()
-
-    assert (
-        ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex")) is None
-    )
-
-
-async def test_exception_inside_check_does_not_propagate(hass):
-    """A failure anywhere inside the check is swallowed, never raised out of setup."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    with patch(
-        "custom_components.metservice_weather.deprecation.er.async_get",
-        side_effect=RuntimeError("boom"),
-    ):
-        # Must not raise.
-        await async_check_deprecated_entities(hass, entry, coord)
-
-
-async def test_multiple_deprecated_keys_handled_independently(hass):
-    """Two different deprecated sensors each get their own independent issue."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    uv_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_moon_phase".lower(), config_entry=entry
-    )
-
-    hass.config.components.add("automation")
-
-    def _fake_automations(_hass, entity_id):
-        if entity_id == uv_entry.entity_id:
-            return ["automation.uv_watch"]
-        return []
-
-    with (
-        patch(_AUTOMATIONS_PATCH, side_effect=_fake_automations),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    assert (
-        ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
-        is not None
-    )
-    assert (
-        ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "moon_phase"))
-        is None
-    )
-
-
-# ---------------------------------------------------------------------------
-# Test: disable-unused/hide-used decision matrix + sweep notice
+# Test: async_check_deprecated_entities — v2026.9.0 rework. No deprecated
+# sensor descriptions remain (see weather_current_conditions_sensors.py), so
+# this function no longer runs a disable/hide usage sweep; it only clears
+# any leftover pre-2026.9.0 deprecation issues and hands off to the
+# entity-ID reclaim detector (async_check_entity_id_reclaim, exercised
+# through async_check_deprecated_entities here to prove the wiring; its own
+# behaviour is covered in detail in tests/test_repairs.py).
 # ---------------------------------------------------------------------------
 
 
@@ -464,385 +245,33 @@ def _sweep_notice_id(entry: MockConfigEntry) -> str:
     return f"deprecated_sweep_v2_{entry.entry_id}"
 
 
-async def test_unused_deprecated_entity_is_disabled_by_integration(hass):
-    """A fully-unused deprecated sensor (no evidence anywhere) is disabled, not just hidden."""
+async def test_leftover_deprecated_entity_issues_cleared_for_every_old_key(hass):
+    """A leftover deprecated_entity issue from a pre-2026.9.0 install is cleared for every OLD key."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
 
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    assert reg_entry.disabled_by is None
+    for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            _issue_id(entry, old_key),
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="deprecated_entity",
+        )
 
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=[]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
+    await async_check_deprecated_entities(hass, entry, coord)
 
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.disabled_by == er.RegistryEntryDisabler.INTEGRATION
-    assert updated.hidden_by is None
-    assert updated.options[DOMAIN] == {
-        "swept": "disabled",
-        "swept_version": SWEEP_VERSION,
-    }
-    assert (
-        ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex")) is None
-    )
+    for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
+        assert (
+            ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, old_key))
+            is None
+        )
 
 
-async def test_used_deprecated_entity_is_hidden_not_disabled(hass):
-    """A deprecated sensor with any usage evidence is hidden, never disabled."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=["automation.check_uv"]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.hidden_by == er.RegistryEntryHider.INTEGRATION
-    assert updated.disabled_by is None
-    assert updated.options[DOMAIN] == {
-        "swept": "hidden",
-        "swept_version": SWEEP_VERSION,
-    }
-    issue = ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
-    assert issue is not None
-    assert "automation.check_uv" in issue.translation_placeholders["evidence"]
-
-
-async def test_user_hidden_deprecated_entity_is_left_untouched(hass):
-    """A row the user already hid themselves is never overridden by the sweep."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    ent_reg.async_update_entity(
-        reg_entry.entity_id, hidden_by=er.RegistryEntryHider.USER
-    )
-
-    hass.config.components.add("automation")
-    with patch(_AUTOMATIONS_PATCH) as mock_automations:
-        await async_check_deprecated_entities(hass, entry, coord)
-        mock_automations.assert_not_called()
-
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.hidden_by == er.RegistryEntryHider.USER
-    assert updated.disabled_by is None
-
-
-async def test_used_previously_hidden_entity_stays_hidden_with_refreshed_issue(hass):
-    """A row already hidden by the integration (still in use) stays hidden — never un-hidden."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    ent_reg.async_update_entity(
-        reg_entry.entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
-    )
-    ent_reg.async_update_entity_options(
-        reg_entry.entity_id, DOMAIN, {"swept": "hidden", "swept_version": "2026.7.0"}
-    )
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=["automation.check_uv"]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.hidden_by == er.RegistryEntryHider.INTEGRATION
-    assert updated.disabled_by is None
-    # The usual deprecated_entity nag issue still fires while used.
-    issue = ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
-    assert issue is not None
-    assert "automation.check_uv" in issue.translation_placeholders["evidence"]
-
-
-async def test_transition_from_hidden_to_disabled_clears_hide_stamp(hass):
-    """A previously-hidden (in-use) sensor that becomes unused is disabled, with hidden_by cleared."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    ent_reg.async_update_entity(
-        reg_entry.entity_id, hidden_by=er.RegistryEntryHider.INTEGRATION
-    )
-    ent_reg.async_update_entity_options(
-        reg_entry.entity_id, DOMAIN, {"swept": "hidden", "swept_version": "2026.7.0"}
-    )
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=[]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.disabled_by == er.RegistryEntryDisabler.INTEGRATION
-    assert updated.hidden_by is None
-    assert updated.options[DOMAIN]["swept"] == "disabled"
-
-
-async def test_previously_disabled_entity_stays_disabled_even_if_used_again(hass):
-    """A sensor the sweep previously disabled for being unused is never auto-re-enabled."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    ent_reg.async_update_entity(
-        reg_entry.entity_id, disabled_by=er.RegistryEntryDisabler.INTEGRATION
-    )
-    ent_reg.async_update_entity_options(
-        reg_entry.entity_id,
-        DOMAIN,
-        {"swept": "disabled", "swept_version": SWEEP_VERSION},
-    )
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=["automation.check_uv"]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.disabled_by == er.RegistryEntryDisabler.INTEGRATION
-    assert updated.hidden_by is None
-    # Still surfaces the evidence in the nag issue, even though it stays off.
-    issue = ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex"))
-    assert issue is not None
-    assert "automation.check_uv" in issue.translation_placeholders["evidence"]
-
-
-async def test_stamp_reverted_disabled_to_enabled_is_never_touched_again(hass):
-    """Stamp says 'disabled' but the entity is live-enabled (user reverted it) -> left alone forever."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    ent_reg.async_update_entity_options(
-        reg_entry.entity_id, DOMAIN, {"swept": "disabled", "swept_version": "2026.7.0"}
-    )
-    assert reg_entry.disabled_by is None
-
-    hass.config.components.add("automation")
-    with patch(_AUTOMATIONS_PATCH) as mock_automations:
-        await async_check_deprecated_entities(hass, entry, coord)
-        mock_automations.assert_not_called()
-
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.disabled_by is None
-    assert updated.hidden_by is None
-    assert (
-        ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, "uvIndex")) is None
-    )
-
-
-async def test_stamp_reverted_hidden_to_unhidden_is_never_touched_again(hass):
-    """Stamp says 'hidden' but the entity is live-unhidden (user reverted it) -> left alone forever."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    ent_reg.async_update_entity_options(
-        reg_entry.entity_id, DOMAIN, {"swept": "hidden", "swept_version": "2026.7.0"}
-    )
-    assert reg_entry.hidden_by is None
-
-    hass.config.components.add("automation")
-    with patch(_AUTOMATIONS_PATCH) as mock_automations:
-        await async_check_deprecated_entities(hass, entry, coord)
-        mock_automations.assert_not_called()
-
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.disabled_by is None
-    assert updated.hidden_by is None
-
-
-async def test_top_level_usage_signal_failure_skips_sweep_this_run(hass):
-    """If usage-signal computation itself blows up, no entity is touched this run."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    issue_id = _issue_id(entry, "uvIndex")
-    ir.async_create_issue(
-        hass,
-        DOMAIN,
-        issue_id,
-        is_fixable=False,
-        severity=ir.IssueSeverity.WARNING,
-        translation_key="deprecated_entity",
-    )
-
-    with patch(
-        "custom_components.metservice_weather.deprecation._usage_signals",
-        side_effect=RuntimeError("boom"),
-    ):
-        # Must not raise.
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.disabled_by is None
-    assert updated.hidden_by is None
-    # Left exactly as-is — neither refreshed nor cleared this run.
-    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
-
-
-async def test_sweep_notice_created_when_something_newly_disabled_and_hidden(hass):
-    """The v2 sweep notice summarises both the disabled and hidden cohorts when something changes."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    unused_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    used_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_moon_phase".lower(), config_entry=entry
-    )
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-
-    def _fake_automations(_hass, entity_id):
-        if entity_id == used_entry.entity_id:
-            return ["automation.moon_watch"]
-        return []
-
-    with (
-        patch(_AUTOMATIONS_PATCH, side_effect=_fake_automations),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    issue = ir.async_get(hass).async_get_issue(DOMAIN, _sweep_notice_id(entry))
-    assert issue is not None
-    assert issue.translation_placeholders["disabled_count"] == "1"
-    assert (
-        unused_entry.entity_id in issue.translation_placeholders["disabled_entity_ids"]
-    )
-    assert issue.translation_placeholders["hidden_count"] == "1"
-    assert used_entry.entity_id in issue.translation_placeholders["hidden_entity_ids"]
-    assert issue.severity == ir.IssueSeverity.WARNING
-    assert issue.is_fixable is False
-
-
-async def test_sweep_notice_not_recreated_when_nothing_new_changes(hass):
-    """A run that changes nothing new never calls create_issue for the sweep notice — dismissal sticks."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    # Simulate a prior run that already disabled this still-unused sensor.
-    ent_reg.async_update_entity(
-        reg_entry.entity_id, disabled_by=er.RegistryEntryDisabler.INTEGRATION
-    )
-    ent_reg.async_update_entity_options(
-        reg_entry.entity_id,
-        DOMAIN,
-        {"swept": "disabled", "swept_version": SWEEP_VERSION},
-    )
-
-    notice_id = _sweep_notice_id(entry)
-    ir.async_create_issue(
-        hass,
-        DOMAIN,
-        notice_id,
-        is_fixable=False,
-        severity=ir.IssueSeverity.WARNING,
-        translation_key="deprecated_sweep_v2",
-        translation_placeholders={
-            "disabled_count": "1",
-            "disabled_entity_ids": reg_entry.entity_id,
-            "hidden_count": "0",
-            "hidden_entity_ids": "none",
-        },
-    )
-    ir.async_get(hass).async_ignore(DOMAIN, notice_id, True)
-    assert (
-        ir.async_get(hass).async_get_issue(DOMAIN, notice_id).dismissed_version
-        is not None
-    )
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=[]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-        patch(
-            "custom_components.metservice_weather.deprecation.ir.async_create_issue"
-        ) as mock_create_issue,
-    ):
-        await async_check_deprecated_entities(hass, entry, coord)
-        mock_create_issue.assert_not_called()
-
-    # Still disabled, still dismissed — nothing recreated or overwritten.
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.disabled_by == er.RegistryEntryDisabler.INTEGRATION
-    assert (
-        ir.async_get(hass).async_get_issue(DOMAIN, notice_id).dismissed_version
-        is not None
-    )
-
-
-async def test_sweep_notice_deleted_when_nothing_remains_swept(hass):
-    """The v2 notice is cleared once nothing remains disabled/hidden by the sweep for this entry."""
+async def test_leftover_deprecated_sweep_v2_issue_cleared(hass):
+    """A leftover deprecated_sweep_v2 summary issue is cleared."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -864,17 +293,13 @@ async def test_sweep_notice_deleted_when_nothing_remains_swept(hass):
     )
     assert ir.async_get(hass).async_get_issue(DOMAIN, notice_id) is not None
 
-    # No deprecated-sensor registry rows at all this run -> nothing swept.
-    hass.config.components.add("automation")
-    with patch(_AUTOMATIONS_PATCH) as mock_automations:
-        await async_check_deprecated_entities(hass, entry, coord)
-        mock_automations.assert_not_called()
+    await async_check_deprecated_entities(hass, entry, coord)
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, notice_id) is None
 
 
-async def test_sweep_clears_legacy_hidden_deprecated_issue(hass):
-    """A leftover pre-2026.7.1 'hidden_deprecated' issue is cleared once the v2 sweep runs."""
+async def test_leftover_hidden_deprecated_issue_cleared(hass):
+    """A leftover pre-2026.7.1 'hidden_deprecated' issue is cleared."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -894,6 +319,160 @@ async def test_sweep_clears_legacy_hidden_deprecated_issue(hass):
     await async_check_deprecated_entities(hass, entry, coord)
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, legacy_id) is None
+
+
+async def test_cleanup_is_idempotent_when_nothing_left_to_clear(hass):
+    """A safe no-op when no leftover deprecation issues exist for this entry."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    # Must not raise, and must not create anything new.
+    await async_check_deprecated_entities(hass, entry, coord)
+
+    for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
+        assert (
+            ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, old_key))
+            is None
+        )
+    assert ir.async_get(hass).async_get_issue(DOMAIN, _sweep_notice_id(entry)) is None
+    assert ir.async_get(hass).async_get_issue(DOMAIN, _hidden_notice_id(entry)) is None
+
+
+async def test_exception_inside_cleanup_does_not_propagate(hass):
+    """A failure anywhere inside the cleanup step is swallowed, never raised out of setup."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    with patch(
+        "custom_components.metservice_weather.deprecation.ir.async_get",
+        side_effect=RuntimeError("boom"),
+    ):
+        # Must not raise.
+        await async_check_deprecated_entities(hass, entry, coord)
+
+
+async def test_deprecated_entities_check_invokes_entity_id_reclaim_detector(hass):
+    """async_check_deprecated_entities hands off to the entity-ID reclaim detector.
+
+    Full reclaim-detector behaviour (fixable vs. referenced vs. self-clear)
+    is covered in tests/test_repairs.py — this just proves the wiring, using
+    a plain AsyncMock (no side_effect) so the call itself is observed
+    without exercising async_check_entity_id_reclaim's own, independent
+    exception guard.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    with patch(
+        "custom_components.metservice_weather.deprecation.async_check_entity_id_reclaim",
+        new=AsyncMock(),
+    ) as mock_reclaim:
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    mock_reclaim.assert_called_once_with(hass, entry, coord)
+
+
+# ---------------------------------------------------------------------------
+# Part 2: removal rehearsal — the real v2026.9.0 upgrade path, via genuine
+# config-entry setup (coordinator + weather + sensor platforms), not a
+# hand-rolled add_entities callback. This is what actually happens the
+# first time an existing install with an old, still-registered deprecated
+# sensor row starts up on v2026.9.0: sensor.py's stale-registry cleanup
+# removes it (having asked async_check_removed_entity to raise a repair
+# first if it's still referenced).
+# ---------------------------------------------------------------------------
+
+
+async def _async_setup_full(
+    hass, entry: MockConfigEntry, data: MetServicePublicData
+) -> WeatherUpdateCoordinator:
+    """Run the real config-entry setup (coordinator + weather + sensor platforms).
+
+    Mirrors test_seasonal_gating.py's helper of the same name.
+    _async_update_data is patched so the coordinator's `.data` ends up
+    holding exactly the MetServicePublicData passed in, with no real
+    network I/O.
+    """
+    entry.add_to_hass(hass)
+    with patch.object(
+        WeatherUpdateCoordinator,
+        "_async_update_data",
+        AsyncMock(return_value=data),
+    ):
+        result = await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert result is True
+    return entry.runtime_data
+
+
+async def test_2026_9_upgrade_removes_referenced_deprecated_row_with_repair(hass):
+    """A re-enabled, still-referenced deprecated row is removed on real setup, with a removed_entity repair naming the reference and the replacement."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    ent_reg = er.async_get(hass)
+    unique_id = f"{LOCATION}_uvIndex".lower()
+    stale = ent_reg.async_get_or_create("sensor", DOMAIN, unique_id, config_entry=entry)
+    # Simulate an install where this row survived enabled — e.g. it was
+    # never swept by an older integration version, or the user re-enabled
+    # it themselves at some point.
+    ent_reg.async_update_entity(stale.entity_id, disabled_by=None)
+    entity_id = stale.entity_id
+    assert ent_reg.async_get(entity_id).disabled_by is None
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=["automation.check_uv"]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await _async_setup_full(hass, entry, MetServicePublicData())
+
+    # The row is gone from the registry.
+    assert ent_reg.async_get(entity_id) is None
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id) is None
+
+    # A removed_entity repair was raised naming the reference and the
+    # replacement's display name.
+    issue_id = f"removed_entity_{entry.entry_id}_{slugify(entity_id)}"
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert issue is not None
+    assert issue.translation_placeholders["entity_id"] == entity_id
+    assert "automation.check_uv" in issue.translation_placeholders["references"]
+    assert issue.translation_placeholders["replacement"] == "UV index"
+
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_2026_9_upgrade_removes_unreferenced_deprecated_row_silently(hass):
+    """An unreferenced deprecated row is removed on real setup with no removed_entity issue raised."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    ent_reg = er.async_get(hass)
+    unique_id = f"{LOCATION}_uvIndex".lower()
+    stale = ent_reg.async_get_or_create("sensor", DOMAIN, unique_id, config_entry=entry)
+    entity_id = stale.entity_id
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=[]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await _async_setup_full(hass, entry, MetServicePublicData())
+
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id) is None
+
+    issue_id = f"removed_entity_{entry.entry_id}_{slugify(entity_id)}"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
 
 
 # ---------------------------------------------------------------------------
@@ -1243,61 +822,6 @@ def test_format_evidence_includes_homekit_and_listeners():
 def test_format_evidence_empty_signals_says_no_specific_usage():
     """An empty signals dict renders as an explicit "no specific usage detected" fallback."""
     assert _format_evidence({}) == "no specific usage detected"
-
-
-async def test_disabled_for_other_reason_is_left_untouched(hass):
-    """An entity disabled for a reason that's neither ours nor the user's explicit choice is left alone."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-    ent_reg.async_update_entity(
-        reg_entry.entity_id, disabled_by=er.RegistryEntryDisabler.CONFIG_ENTRY
-    )
-
-    hass.config.components.add("automation")
-    with patch(_AUTOMATIONS_PATCH) as mock_automations:
-        await async_check_deprecated_entities(hass, entry, coord)
-        mock_automations.assert_not_called()
-
-    updated = ent_reg.async_get(reg_entry.entity_id)
-    assert updated.disabled_by == er.RegistryEntryDisabler.CONFIG_ENTRY
-
-
-async def test_final_tally_skips_entity_removed_mid_run(hass):
-    """Defensive: a candidate whose registry row vanishes before the final tally is just skipped, not fatal."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    ent_reg = er.async_get(hass)
-    reg_entry = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
-    )
-
-    real_async_get = ent_reg.async_get
-    call_count = {"n": 0}
-
-    def _flaky_async_get(entity_id):
-        if entity_id == reg_entry.entity_id:
-            call_count["n"] += 1
-            if call_count["n"] > 3:
-                return None
-        return real_async_get(entity_id)
-
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=[]),
-        patch(_SCRIPTS_PATCH, return_value=[]),
-        patch.object(ent_reg, "async_get", side_effect=_flaky_async_get),
-    ):
-        # Must not raise even though the final tally's lookup returns None.
-        await async_check_deprecated_entities(hass, entry, coord)
 
 
 # ---------------------------------------------------------------------------

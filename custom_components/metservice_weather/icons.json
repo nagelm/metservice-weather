@@ -10,9 +10,6 @@
       "relative_humidity": {
         "default": "mdi:water-percent"
       },
-      "uv_index": {
-        "default": "mdi:sunglasses"
-      },
       "uv_risk": {
         "default": "mdi:sunglasses"
       },
@@ -49,23 +46,11 @@
       "next_rain_at": {
         "default": "mdi:clock-alert-outline"
       },
-      "pressure_tendency_trend": {
-        "default": "mdi:gauge"
-      },
       "pressure_trend": {
         "default": "mdi:gauge"
       },
       "pollen": {
         "default": "mdi:flower-pollen"
-      },
-      "pollen_levels": {
-        "default": "mdi:flower"
-      },
-      "pollen_type": {
-        "default": "mdi:flower"
-      },
-      "weather_warnings": {
-        "default": "mdi:alert"
       },
       "warning_level": {
         "default": "mdi:alert"
@@ -73,13 +58,7 @@
       "warning_details": {
         "default": "mdi:alert-box-outline"
       },
-      "fire_season": {
-        "default": "mdi:fire"
-      },
       "fire_season_status": {
-        "default": "mdi:fire"
-      },
-      "fire_danger": {
         "default": "mdi:fire"
       },
       "fire_danger_level": {
@@ -143,9 +122,6 @@
       "surf_period": {
         "default": "mdi:timer-sand"
       },
-      "wind_strength": {
-        "default": "mdi:weather-windy"
-      },
       "wind_strength_level": {
         "default": "mdi:weather-windy"
       },
@@ -179,32 +155,17 @@
       "breakdown_overnight": {
         "default": "mdi:weather-night"
       },
-      "sunrise": {
-        "default": "mdi:weather-sunset-up"
-      },
       "sunrise_at": {
         "default": "mdi:weather-sunset-up"
-      },
-      "sunset": {
-        "default": "mdi:weather-sunset-down"
       },
       "sunset_at": {
         "default": "mdi:weather-sunset-down"
       },
-      "moonrise": {
-        "default": "mdi:weather-night"
-      },
       "moonrise_at": {
-        "default": "mdi:weather-night"
-      },
-      "moonset": {
         "default": "mdi:weather-night"
       },
       "moonset_at": {
         "default": "mdi:weather-night"
-      },
-      "moon_phase": {
-        "default": "mdi:moon-new"
       },
       "moon_phase_current": {
         "default": "mdi:moon-waxing-crescent",
@@ -218,9 +179,6 @@
           "last_quarter": "mdi:moon-last-quarter",
           "waning_crescent": "mdi:moon-waning-crescent"
         }
-      },
-      "moon_phase_date": {
-        "default": "mdi:calendar-month"
       }
     }
   }

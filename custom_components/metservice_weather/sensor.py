@@ -181,11 +181,11 @@ async def async_setup_entry(
     seasonal ones (UV, fire danger, clothes drying) included — so the stale-
     registry cleanup above never touches them. When CONF_AUTO_HIDE_SEASONAL
     is enabled, every dataless seasonal description whose key isn't one of
-    the deprecation sweep's DEPRECATED_SENSOR_REPLACEMENTS keys (those stay
-    the deprecation sweep's business alone) instead has its registry row
+    DEPRECATED_SENSOR_REPLACEMENTS' OLD keys (those no longer correspond to
+    any live description as of v2026.9.0 — this guard is now vacuous but
+    stays as a harmless belt-and-braces check) instead has its registry row
     disabled and hidden — INTEGRATION-owned, stamped via
-    deprecation.async_merge_entity_options so the sweep's own stamp on
-    unrelated entities is never disturbed — before async_add_entities runs.
+    deprecation.async_merge_entity_options — before async_add_entities runs.
     Home Assistant's entity platform never instantiates an entity whose
     registry row is already disabled, so the sensor stays out of the state
     machine without losing its history or settings. A fresh install (or a
@@ -198,10 +198,9 @@ async def async_setup_entry(
     async_add_entities — no restart required. Turning the option back off
     restores every row this mechanism ever stamped, in one setup pass.
 
-    After entities are added, async_check_deprecated_entities sweeps every
-    pre-v2026.7.1 sensor still present: unused ones are disabled, used ones
-    are hidden (never both), with a repair issue naming the evidence found
-    for anything still in use — see deprecation.py for the full detector.
+    After entities are added, async_check_deprecated_entities clears any
+    leftover pre-2026.9.0 deprecation issues for this entry and runs the
+    entity-ID reclaim detector — see deprecation.py for the full detail.
     When any marine service is configured, async_check_marine_device_move
     similarly raises (or clears) a repair issue for any DEVICE-based
     automation/script still targeting the old location device for marine
@@ -308,8 +307,7 @@ class WeatherSensor(MetServiceEntity, SensorEntity):
     # (tide_direction, warning_details) stay live in the state machine but
     # are never written to the recorder. Matching is by attribute name
     # across the whole class, so these names must stay unique to their
-    # carriers — in particular the deprecated weather_warnings sensor's
-    # "warnings" attribute must keep recording, hence "active_warnings".
+    # carriers.
     _unrecorded_attributes = frozenset({"tide_table", "active_warnings"})
     entity_description: WeatherSensorEntityDescription
 

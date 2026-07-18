@@ -36,14 +36,6 @@ from homeassistant.helpers.typing import StateType
 _LOGGER = logging.getLogger(__name__)
 
 
-_MOON_PHASE_NAMES: dict[str, str] = {
-    "NEW": "New Moon",
-    "FIRST": "First Quarter",
-    "FULL": "Full Moon",
-    "LAST": "Last Quarter",
-}
-
-
 def _warn_once(logged: set[str], category: str, raw: str) -> None:
     """Log one warning per runtime per unmapped raw value in a category.
 
@@ -155,9 +147,8 @@ def _warning_severity(name: str) -> int:
 def _warnings_state(data: Any) -> str:
     """Most severe warning name, with a (+N more) suffix when several are active.
 
-    Used as the headline state of the deprecated weather_warnings sensor and
-    as the "headline" attribute on the warning_level ENUM sensor — kept as
-    its own helper (rather than inlined) so its 255-char truncation stays
+    Used as the "headline" attribute on the warning_level ENUM sensor — kept
+    as its own helper (rather than inlined) so its 255-char truncation stays
     independently testable.
     """
     warnings = data.warnings_list
@@ -486,18 +477,6 @@ current_condition_sensor_descriptions_public = [
         unit_fn=lambda _: PERCENTAGE,
         value_fn=lambda data, _: _safe_int(data.humidity),
     ),
-    # Deprecated — superseded by uv_risk; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="uvIndex",
-        translation_key="uv_index",
-        name="UV Index (deprecated)",
-        seasonal=True,
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: cast(
-            str, data.uv_index.replace("status-", "") if data.uv_index else None
-        ),
-    ),
     WeatherSensorEntityDescription(
         key="uv_risk",
         translation_key="uv_risk",
@@ -646,16 +625,6 @@ current_condition_sensor_descriptions_public = [
             ),
         },
     ),
-    # Deprecated — superseded by pressure_trend; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="pressureTendencyTrend",
-        translation_key="pressure_tendency_trend",
-        name="Pressure Tendency Trend (deprecated)",
-        exists_fn=_has_observations,
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: cast(str, data.pressure_trend),
-    ),
     WeatherSensorEntityDescription(
         key="pressure_trend",
         translation_key="pressure_trend",
@@ -689,48 +658,6 @@ current_condition_sensor_descriptions_public = [
             else {}
         ),
     ),
-    # Deprecated — superseded by pollen; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="pollen_levels",
-        translation_key="pollen_levels",
-        name="Pollen Levels (deprecated)",
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: cast(str, data.pollen_level),
-    ),
-    # Deprecated — superseded by pollen; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="pollen_type",
-        translation_key="pollen_type",
-        name="Pollen Type (deprecated)",
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: (
-            cast(
-                str,
-                ". ".join(
-                    i.capitalize()
-                    for i in data.pollen_type.lstrip(" ")[0:254].split(". ")
-                ),
-            )
-            if data.pollen_type
-            else None
-        ),
-    ),
-    # Deprecated — superseded by warning_level; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="weather_warnings",
-        translation_key="weather_warnings",
-        name="MetService Weather Warnings (deprecated)",
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: (
-            (data.weather_warnings[:252] + "...")
-            if len(data.weather_warnings) > 255
-            else data.weather_warnings
-        ),
-        attr_fn=lambda data: {"warnings": data.weather_warnings},
-    ),
     WeatherSensorEntityDescription(
         key="warning_level",
         translation_key="warning_level",
@@ -754,16 +681,6 @@ current_condition_sensor_descriptions_public = [
         value_fn=lambda data, _: len(data.warnings_list),
         attr_fn=lambda data: {"active_warnings": data.warnings_list},
     ),
-    # Deprecated — superseded by fire_season_status; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="fire_season",
-        translation_key="fire_season",
-        name="Fire Season (deprecated)",
-        seasonal=True,
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: cast(str, data.fire_season),
-    ),
     WeatherSensorEntityDescription(
         key="fire_season_status",
         translation_key="fire_season_status",
@@ -777,16 +694,6 @@ current_condition_sensor_descriptions_public = [
             if _fire_season_state(data.fire_season_status) is not None
             else {}
         ),
-    ),
-    # Deprecated — superseded by fire_danger_level; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="fire_danger",
-        translation_key="fire_danger",
-        name="Fire Danger (deprecated)",
-        seasonal=True,
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: cast(str, data.fire_danger),
     ),
     WeatherSensorEntityDescription(
         key="fire_danger_level",
@@ -1005,18 +912,6 @@ current_condition_sensor_descriptions_public = [
         value_fn=lambda data, _: _safe_int(data.surf_period),
     ),
     # --- Wind and clothing (from currentConditions module) ---
-    # Deprecated — superseded by wind_strength_level; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="wind_strength",
-        translation_key="wind_strength",
-        name="Wind Strength (deprecated)",
-        exists_fn=_has_observations,
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: (
-            cast(str, data.wind_strength) if data.wind_strength else None
-        ),
-    ),
     WeatherSensorEntityDescription(
         key="wind_strength_level",
         translation_key="wind_strength_level",
@@ -1132,15 +1027,6 @@ current_condition_sensor_descriptions_public = [
         ),
     ),
     # --- Sun and moon (from sunAndMoon module) ---
-    # Deprecated — superseded by sunrise_at; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="sunrise",
-        translation_key="sunrise",
-        name="Sunrise (deprecated)",
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: cast(str, data.sunrise) if data.sunrise else None,
-    ),
     WeatherSensorEntityDescription(
         key="sunrise_at",
         translation_key="sunrise_at",
@@ -1152,15 +1038,6 @@ current_condition_sensor_descriptions_public = [
             else None
         ),
         attr_fn=lambda data: {"display": data.sunrise} if data.sunrise else {},
-    ),
-    # Deprecated — superseded by sunset_at; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="sunset",
-        translation_key="sunset",
-        name="Sunset (deprecated)",
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: cast(str, data.sunset) if data.sunset else None,
     ),
     WeatherSensorEntityDescription(
         key="sunset_at",
@@ -1174,15 +1051,6 @@ current_condition_sensor_descriptions_public = [
         ),
         attr_fn=lambda data: {"display": data.sunset} if data.sunset else {},
     ),
-    # Deprecated — superseded by moonrise_at; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="moonrise",
-        translation_key="moonrise",
-        name="Moonrise (deprecated)",
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: cast(str, data.moonrise) if data.moonrise else None,
-    ),
     WeatherSensorEntityDescription(
         key="moonrise_at",
         translation_key="moonrise_at",
@@ -1195,15 +1063,6 @@ current_condition_sensor_descriptions_public = [
         ),
         attr_fn=lambda data: {"display": data.moonrise} if data.moonrise else {},
     ),
-    # Deprecated — superseded by moonset_at; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="moonset",
-        translation_key="moonset",
-        name="Moonset (deprecated)",
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: cast(str, data.moonset) if data.moonset else None,
-    ),
     WeatherSensorEntityDescription(
         key="moonset_at",
         translation_key="moonset_at",
@@ -1215,22 +1074,6 @@ current_condition_sensor_descriptions_public = [
             else None
         ),
         attr_fn=lambda data: {"display": data.moonset} if data.moonset else {},
-    ),
-    # Deprecated — superseded by moon_phase_current; keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="moon_phase",
-        translation_key="moon_phase",
-        name="Moon Phase (deprecated)",
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        value_fn=lambda data, _: (
-            _MOON_PHASE_NAMES.get(
-                cast(str, data.moon_phase), cast(str, data.moon_phase)
-            )
-            if data.moon_phase
-            else None
-        ),
-        attr_fn=lambda data: {"raw_phase": data.moon_phase} if data.moon_phase else {},
     ),
     WeatherSensorEntityDescription(
         key="moon_phase_current",
@@ -1254,20 +1097,5 @@ current_condition_sensor_descriptions_public = [
                 else {}
             ),
         },
-    ),
-    # Deprecated — superseded by moon_phase_current's next_phase_at attribute;
-    # keeps its v2026.7.0 behaviour for existing installs.
-    WeatherSensorEntityDescription(
-        key="moon_phase_date",
-        translation_key="moon_phase_date",
-        name="Next Moon Phase Date (deprecated)",
-        entity_registry_enabled_default=False,
-        entity_registry_visible_default=False,
-        device_class=SensorDeviceClass.TIMESTAMP,
-        value_fn=lambda data, _: (
-            datetime.datetime.fromisoformat(data.moon_phase_date)
-            if isinstance(data.moon_phase_date, str)
-            else None
-        ),
     ),
 ]

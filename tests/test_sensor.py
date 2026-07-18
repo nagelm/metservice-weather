@@ -244,10 +244,9 @@ def test_warnings_state_embedded_newline_survives_in_attribute():
 def test_warnings_state_attr_count_matches_list_length():
     """The attribute count matches the number of active warnings.
 
-    Targets the current warning_level ENUM sensor, whose attributes are
-    fully flat (headline + count) — the structured list moved to the
-    opt-in warning_details carrier, and the deprecated weather_warnings
-    sensor keeps its v2026.7.0 shape (a single joined "warnings" string).
+    Targets the warning_level ENUM sensor, whose attributes are fully flat
+    (headline + count) — the structured list moved to the opt-in
+    warning_details carrier instead.
     """
     warnings = [
         {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
@@ -331,12 +330,12 @@ def test_non_marine_descriptions_default_to_location_device():
 # ---------------------------------------------------------------------------
 
 
-def test_pollen_sensor_coexists_with_resurrected_deprecated_keys():
-    """The "pollen" ENUM sensor coexists with the resurrected, deprecated pollen_levels/pollen_type sensors."""
+def test_pollen_sensor_present_and_deprecated_siblings_removed():
+    """The "pollen" ENUM sensor is present; pollen_levels/pollen_type were removed in v2026.9.0."""
     keys = {d.key for d in current_condition_sensor_descriptions_public}
-    assert "pollen_levels" in keys
-    assert "pollen_type" in keys
     assert "pollen" in keys
+    assert "pollen_levels" not in keys
+    assert "pollen_type" not in keys
 
 
 def test_pollen_sensor_is_enum_with_four_options():
@@ -397,47 +396,6 @@ def test_pollen_sensor_attrs_empty_when_state_unknown():
     data = MetServicePublicData()
     assert desc.value_fn(data, "metric") is None
     assert desc.attr_fn(data) == {}
-
-
-# ---------------------------------------------------------------------------
-# Test: deprecated pollen_levels/pollen_type sensors keep their v2026.7.0
-# behaviour (resurrected for existing installs)
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_pollen_levels_is_hidden_and_disabled():
-    """The resurrected pollen_levels sensor is disabled and hidden."""
-    desc = _desc("pollen_levels")
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-
-
-def test_deprecated_pollen_levels_value():
-    """pollen_levels passes through the raw pollen_level field verbatim."""
-    desc = _desc("pollen_levels")
-    data = MetServicePublicData(pollen_level="Low")
-    assert desc.value_fn(data, "metric") == "Low"
-
-
-def test_deprecated_pollen_type_is_hidden_and_disabled():
-    """The resurrected pollen_type sensor is disabled and hidden."""
-    desc = _desc("pollen_type")
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-
-
-def test_deprecated_pollen_type_value_capitalized_join():
-    """pollen_type capitalizes each ". "-separated segment, matching v2026.7.0."""
-    desc = _desc("pollen_type")
-    data = MetServicePublicData(pollen_type="grass. tree")
-    assert desc.value_fn(data, "metric") == "Grass. Tree"
-
-
-def test_deprecated_pollen_type_none_when_absent():
-    """A missing pollen_type maps to None."""
-    desc = _desc("pollen_type")
-    data = MetServicePublicData(pollen_type=None)
-    assert desc.value_fn(data, "metric") is None
 
 
 # ---------------------------------------------------------------------------
@@ -747,9 +705,9 @@ async def test_setup_entry_rural_skips_observation_sensors(hass):
         FIELD_WINDDIR,
         FIELD_HUMIDITY,
         FIELD_PRESSURE,
-        "wind_strength",
+        "wind_strength_level",
         "rainfall",
-        "pressureTendencyTrend",
+        "pressure_trend",
         "temperatureFeelsLike",
         "breakdown_morning",
         "breakdown_afternoon",
@@ -762,8 +720,8 @@ async def test_setup_entry_rural_skips_observation_sensors(hass):
         "temperature_today_high",
         "temperature_today_low",
         "tomorrow_temp_high",
-        "weather_warnings",
-        "uvIndex",
+        "warning_level",
+        "uv_risk",
     }
     assert included.issubset(keys)
 
@@ -814,9 +772,9 @@ async def test_setup_entry_towns_creates_observation_sensors(hass):
         FIELD_WINDDIR,
         FIELD_HUMIDITY,
         FIELD_PRESSURE,
-        "wind_strength",
+        "wind_strength_level",
         "rainfall",
-        "pressureTendencyTrend",
+        "pressure_trend",
         "temperatureFeelsLike",
         "breakdown_morning",
         "breakdown_afternoon",
@@ -856,9 +814,9 @@ async def test_setup_entry_removes_stale_registry_entries(hass):
     stale = ent_reg.async_get_or_create(
         "sensor", DOMAIN, f"{loc}_{FIELD_TEMP}".lower(), config_entry=entry
     )
-    # weather_warnings is ungated, so it is always (re)created.
+    # warning_level is ungated, so it is always (re)created.
     keep = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{loc}_weather_warnings".lower(), config_entry=entry
+        "sensor", DOMAIN, f"{loc}_warning_level".lower(), config_entry=entry
     )
     weather_ent = ent_reg.async_get_or_create(
         "weather", DOMAIN, f"{loc}_weather".lower(), config_entry=entry
@@ -876,8 +834,8 @@ async def test_setup_entry_removes_stale_registry_entries(hass):
     assert ent_reg.async_get(weather_ent.entity_id) is not None
 
 
-async def test_setup_entry_keeps_resurrected_pollen_registry_entries(hass):
-    """pollen_levels/pollen_type are resurrected (deprecated), so pre-existing registry rows are kept alongside pollen."""
+async def test_setup_entry_removes_deprecated_pollen_registry_entries(hass):
+    """pollen_levels/pollen_type were removed in v2026.9.0, so pre-existing registry rows are now stale and pruned; pollen itself is still created."""
     from custom_components.metservice_weather.sensor import async_setup_entry
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from homeassistant.helpers import entity_registry as er
@@ -915,11 +873,11 @@ async def test_setup_entry_keeps_resurrected_pollen_registry_entries(hass):
 
     await async_setup_entry(hass, entry, add_entities)
 
-    assert ent_reg.async_get(existing_levels.entity_id) is not None
-    assert ent_reg.async_get(existing_type.entity_id) is not None
+    assert ent_reg.async_get(existing_levels.entity_id) is None
+    assert ent_reg.async_get(existing_type.entity_id) is None
     unique_ids = {s.unique_id for s in added}
-    assert f"{loc}_pollen_levels".lower() in unique_ids
-    assert f"{loc}_pollen_type".lower() in unique_ids
+    assert f"{loc}_pollen_levels".lower() not in unique_ids
+    assert f"{loc}_pollen_type".lower() not in unique_ids
     assert f"{loc}_pollen".lower() in unique_ids
 
 
@@ -1022,7 +980,7 @@ def test_next_rain_at_attrs_empty_without_forecast_data():
 
 
 # ---------------------------------------------------------------------------
-# Test: UV ENUM sensor (uvIndex, now sourced from uv_alert_level)
+# Test: UV ENUM sensor (uv_risk, sourced from uv_alert_level)
 # ---------------------------------------------------------------------------
 
 
@@ -1104,40 +1062,6 @@ def test_uv_risk_description_attrs_empty_when_state_none():
     data = MetServicePublicData()
     assert desc.value_fn(data, "metric") is None
     assert desc.attr_fn(data) == {}
-
-
-# ---------------------------------------------------------------------------
-# Test: deprecated uvIndex sensor keeps its v2026.7.0 raw-passthrough behaviour
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_uv_index_is_seasonal_and_hidden():
-    """The deprecated uvIndex sensor stays seasonal but is disabled/hidden."""
-    desc = _desc("uvIndex")
-    assert desc.seasonal is True
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-
-
-def test_deprecated_uv_index_strips_legacy_status_prefix():
-    """The deprecated uvIndex sensor still strips the legacy 'status-' prefix."""
-    desc = _desc("uvIndex")
-    data = MetServicePublicData(uv_index="status-moderate")
-    assert desc.value_fn(data, "metric") == "moderate"
-
-
-def test_deprecated_uv_index_passes_through_unprefixed_value():
-    """A raw uv_index value without the legacy prefix passes straight through."""
-    desc = _desc("uvIndex")
-    data = MetServicePublicData(uv_index="Low")
-    assert desc.value_fn(data, "metric") == "Low"
-
-
-def test_deprecated_uv_index_none_when_absent():
-    """A missing uv_index maps to None."""
-    desc = _desc("uvIndex")
-    data = MetServicePublicData(uv_index=None)
-    assert desc.value_fn(data, "metric") is None
 
 
 # ---------------------------------------------------------------------------
@@ -1300,81 +1224,10 @@ def test_warning_details_zero_when_clear():
 
 
 def test_carrier_payload_attributes_are_recorder_exempt():
-    """The two machine-payload attribute names are excluded from the recorder.
-
-    Matching is by attribute name class-wide, so the set must never contain
-    "warnings" — that would silently stop recording the deprecated
-    weather_warnings sensor's frozen attribute.
-    """
+    """The two machine-payload attribute names are excluded from the recorder."""
     assert WeatherSensor._unrecorded_attributes == frozenset(
         {"tide_table", "active_warnings"}
     )
-
-
-# ---------------------------------------------------------------------------
-# Test: deprecated weather_warnings sensor keeps its exact v2026.7.0
-# behaviour — the full joined `weather_warnings` string (not the
-# warnings_list-derived headline used by the new warning_level sensor).
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_weather_warnings_is_hidden_and_disabled():
-    """The deprecated weather_warnings sensor is disabled and hidden."""
-    desc = _desc("weather_warnings")
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    assert desc.device_class is None
-
-
-def test_deprecated_weather_warnings_state_is_full_joined_text():
-    """The deprecated sensor's state is the full joined weather_warnings text.
-
-    v2026.7.0 read the pre-joined `weather_warnings` string field verbatim —
-    not the structured warnings_list used by the new warning_level sensor.
-    """
-    desc = _desc("weather_warnings")
-    data = MetServicePublicData(
-        weather_warnings="Strong Wind Watch. Strong Wind Warning - Orange."
-    )
-    assert (
-        desc.value_fn(data, "metric")
-        == "Strong Wind Watch. Strong Wind Warning - Orange."
-    )
-    attrs = desc.attr_fn(data)
-    assert attrs == {"warnings": "Strong Wind Watch. Strong Wind Warning - Orange."}
-    assert "count" not in attrs
-    assert "headline" not in attrs
-
-
-def test_deprecated_weather_warnings_no_warnings():
-    """No active warnings falls back to the 'No warnings' default, matching v2026.7.0."""
-    desc = _desc("weather_warnings")
-    data = MetServicePublicData()  # weather_warnings defaults to "No warnings"
-    assert desc.value_fn(data, "metric") == "No warnings"
-    assert desc.attr_fn(data) == {"warnings": "No warnings"}
-
-
-def test_deprecated_weather_warnings_truncates_to_255():
-    """v2026.7.0's original string-truncation: [:252] + "..." when over 255 chars.
-
-    This is distinct from the new warning_level headline's plain [:255]
-    slice — v2026.7.0 appended an ellipsis instead of hard-cutting.
-    """
-    desc = _desc("weather_warnings")
-    long_text = "Severe Weather Warning - Red. " + ("x" * 300)
-    data = MetServicePublicData(weather_warnings=long_text)
-    state = desc.value_fn(data, "metric")
-    assert len(state) == 255
-    assert state == long_text[:252] + "..."
-    assert desc.attr_fn(data) == {"warnings": long_text}
-
-
-def test_deprecated_weather_warnings_at_or_under_255_not_truncated():
-    """weather_warnings text at or under 255 chars passes through unchanged."""
-    desc = _desc("weather_warnings")
-    exact_255 = "x" * 255
-    data = MetServicePublicData(weather_warnings=exact_255)
-    assert desc.value_fn(data, "metric") == exact_255
 
 
 # ---------------------------------------------------------------------------
@@ -1413,27 +1266,6 @@ def test_pressure_trend_description_is_enum():
     assert desc.options == ["rising", "falling", "stable"]
     data = MetServicePublicData(pressure_trend="Rising")
     assert desc.value_fn(data, "metric") == "rising"
-
-
-# ---------------------------------------------------------------------------
-# Test: deprecated pressureTendencyTrend sensor keeps its v2026.7.0 raw
-# passthrough behaviour
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_pressure_tendency_trend_is_hidden_and_disabled():
-    """The deprecated pressureTendencyTrend sensor is disabled and hidden."""
-    desc = _desc("pressureTendencyTrend")
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    assert desc.device_class is None
-
-
-def test_deprecated_pressure_tendency_trend_raw_passthrough():
-    """The deprecated sensor passes the raw pressure trend straight through."""
-    desc = _desc("pressureTendencyTrend")
-    data = MetServicePublicData(pressure_trend="Rising")
-    assert desc.value_fn(data, "metric") == "Rising"
 
 
 # ---------------------------------------------------------------------------
@@ -1488,33 +1320,6 @@ def test_wind_strength_level_description_is_enum():
 
 
 # ---------------------------------------------------------------------------
-# Test: deprecated wind_strength sensor keeps its v2026.7.0 raw text
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_wind_strength_is_hidden_and_disabled():
-    """The deprecated wind_strength sensor is disabled and hidden."""
-    desc = _desc("wind_strength")
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    assert desc.device_class is None
-
-
-def test_deprecated_wind_strength_raw_passthrough():
-    """The deprecated sensor passes the raw wind strength text straight through."""
-    desc = _desc("wind_strength")
-    data = MetServicePublicData(wind_strength="Light winds")
-    assert desc.value_fn(data, "metric") == "Light winds"
-
-
-def test_deprecated_wind_strength_none_when_absent():
-    """A missing wind strength maps to None."""
-    desc = _desc("wind_strength")
-    data = MetServicePublicData(wind_strength=None)
-    assert desc.value_fn(data, "metric") is None
-
-
-# ---------------------------------------------------------------------------
 # Test: fire_season ENUM sensor
 # ---------------------------------------------------------------------------
 
@@ -1565,27 +1370,6 @@ def test_fire_season_status_description_attrs_empty_when_state_none():
     data = MetServicePublicData()
     assert desc.value_fn(data, "metric") is None
     assert desc.attr_fn(data) == {}
-
-
-# ---------------------------------------------------------------------------
-# Test: deprecated fire_season sensor keeps its v2026.7.0 raw text
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_fire_season_is_seasonal_and_hidden():
-    """The deprecated fire_season sensor stays seasonal but is disabled/hidden."""
-    desc = _desc("fire_season")
-    assert desc.seasonal is True
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    assert desc.device_class is None
-
-
-def test_deprecated_fire_season_raw_passthrough():
-    """The deprecated sensor passes the raw fire_season short text straight through."""
-    desc = _desc("fire_season")
-    data = MetServicePublicData(fire_season="Restricted")
-    assert desc.value_fn(data, "metric") == "Restricted"
 
 
 # ---------------------------------------------------------------------------
@@ -1684,27 +1468,6 @@ def test_fire_danger_level_description_attrs_empty_when_state_none():
     data = MetServicePublicData()
     assert desc.value_fn(data, "metric") is None
     assert desc.attr_fn(data) == {}
-
-
-# ---------------------------------------------------------------------------
-# Test: deprecated fire_danger sensor keeps its v2026.7.0 verbatim text
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_fire_danger_is_seasonal_and_hidden():
-    """The deprecated fire_danger sensor stays seasonal but is disabled/hidden."""
-    desc = _desc("fire_danger")
-    assert desc.seasonal is True
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    assert desc.device_class is None
-
-
-def test_deprecated_fire_danger_raw_passthrough():
-    """The deprecated sensor passes the raw fire_danger label straight through."""
-    desc = _desc("fire_danger")
-    data = MetServicePublicData(fire_danger="Moderate")
-    assert desc.value_fn(data, "metric") == "Moderate"
 
 
 # ---------------------------------------------------------------------------
@@ -1819,35 +1582,6 @@ def test_moon_phase_current_description_none_safe():
 
 
 # ---------------------------------------------------------------------------
-# Test: deprecated moon_phase sensor keeps its v2026.7.0 display-name behaviour
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_moon_phase_is_hidden_and_disabled():
-    """The deprecated moon_phase sensor is disabled and hidden."""
-    desc = _desc("moon_phase")
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    assert desc.device_class is None
-
-
-def test_deprecated_moon_phase_display_name_and_raw_attr():
-    """value_fn returns the display name; attr_fn keeps the raw phase token."""
-    desc = _desc("moon_phase")
-    data = MetServicePublicData(moon_phase="FULL")
-    assert desc.value_fn(data, "metric") == "Full Moon"
-    assert desc.attr_fn(data) == {"raw_phase": "FULL"}
-
-
-def test_deprecated_moon_phase_none_safe():
-    """A missing moon phase token is None-safe, with no attrs."""
-    desc = _desc("moon_phase")
-    data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
-    assert desc.attr_fn(data) == {}
-
-
-# ---------------------------------------------------------------------------
 # Test: sunrise_at/sunset_at/moonrise_at/moonset_at are TIMESTAMP sensors
 # ---------------------------------------------------------------------------
 
@@ -1928,59 +1662,6 @@ def test_moonset_at_description_none_safe():
     data = MetServicePublicData()
     assert desc.value_fn(data, "metric") is None
     assert desc.attr_fn(data) == {}
-
-
-# ---------------------------------------------------------------------------
-# Test: deprecated sunrise/sunset/moonrise/moonset sensors keep their
-# v2026.7.0 plain am/pm string state, with no device_class
-# ---------------------------------------------------------------------------
-
-
-def test_deprecated_sunrise_plain_string_state_no_device_class():
-    """The deprecated sunrise sensor is a plain string with no device_class."""
-    desc = _desc("sunrise")
-    assert desc.device_class is None
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    data = MetServicePublicData(sunrise="7:12am")
-    assert desc.value_fn(data, "metric") == "7:12am"
-
-
-def test_deprecated_sunrise_none_when_absent():
-    """A missing sunrise string maps to None."""
-    desc = _desc("sunrise")
-    data = MetServicePublicData(sunrise=None)
-    assert desc.value_fn(data, "metric") is None
-
-
-def test_deprecated_sunset_plain_string_state_no_device_class():
-    """The deprecated sunset sensor is a plain string with no device_class."""
-    desc = _desc("sunset")
-    assert desc.device_class is None
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    data = MetServicePublicData(sunset="5:23pm")
-    assert desc.value_fn(data, "metric") == "5:23pm"
-
-
-def test_deprecated_moonrise_plain_string_state_no_device_class():
-    """The deprecated moonrise sensor is a plain string with no device_class."""
-    desc = _desc("moonrise")
-    assert desc.device_class is None
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    data = MetServicePublicData(moonrise="8:00pm")
-    assert desc.value_fn(data, "metric") == "8:00pm"
-
-
-def test_deprecated_moonset_plain_string_state_no_device_class():
-    """The deprecated moonset sensor is a plain string with no device_class."""
-    desc = _desc("moonset")
-    assert desc.device_class is None
-    assert desc.entity_registry_enabled_default is False
-    assert desc.entity_registry_visible_default is False
-    data = MetServicePublicData(moonset="9:00am")
-    assert desc.value_fn(data, "metric") == "9:00am"
 
 
 # ---------------------------------------------------------------------------
@@ -2153,6 +1834,13 @@ def test_tides_low_description_attrs_match_value_fn_selection():
 # Test: entity_registry default-flag policy across the whole fork
 # ---------------------------------------------------------------------------
 
+# The 14 OLD keys deprecated by the v2026.7.1 fork — removed outright in
+# v2026.9.0 (see weather_current_conditions_sensors.py), so no live
+# WeatherSensorEntityDescription exists for any of them any more. This set
+# stays purely as a key-name fixture for
+# test_fork_key_sets_are_disjoint_and_cover_all_deprecated_keys below —
+# their entity_registry_enabled_default/visible_default flags are no
+# longer testable since the descriptions themselves are gone.
 _DEPRECATED_FORK_KEYS = {
     "uvIndex",
     "weather_warnings",
@@ -2186,12 +1874,10 @@ _NEW_FORK_KEYS = {
 _OPT_IN_RAIN_KEYS = {"rain_next_8_hours", "rain_next_24_hours", "next_rain_at"}
 
 
-def test_deprecated_fork_keys_are_disabled_and_hidden_by_default():
-    """Every deprecated fork-table sensor is disabled and hidden by default (existing registry rows stay enabled)."""
-    for key in _DEPRECATED_FORK_KEYS:
-        desc = _desc(key)
-        assert desc.entity_registry_enabled_default is False, key
-        assert desc.entity_registry_visible_default is False, key
+def test_deprecated_fork_keys_no_longer_have_live_descriptions():
+    """Every deprecated fork-table key was removed outright in v2026.9.0 — no live description remains."""
+    live_keys = {d.key for d in current_condition_sensor_descriptions_public}
+    assert live_keys.isdisjoint(_DEPRECATED_FORK_KEYS)
 
 
 def test_new_fork_keys_are_enabled_and_visible_by_default():
