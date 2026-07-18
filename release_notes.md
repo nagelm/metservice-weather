@@ -1,3 +1,11 @@
+## v2026.8.0 (draft — release/2026.8 branch)
+
+### Deprecation repairs escalate to errors
+
+The 14 sensors deprecated in v2026.7.1 are removed in **v2026.9.0** — one release from now. The "deprecated sensor still in use" repair (raised only when something of yours actually references one) is therefore now **error** severity instead of a warning. Nothing else about the deprecation machinery changes: unused deprecated sensors were already disabled, used ones hidden, and your own enable/hide choices are never overridden. Migrate anything the repairs name to the replacement sensors before 2026.9.0.
+
+---
+
 ## v2026.7.1
 
 > **If HACS fails to download this update** with an error mentioning `custom_components/None/manifest.json`, HACS is holding stale repository data. Fix: Settings → Devices & services → HACS → ⋮ → **Reload** (or restart Home Assistant), then retry the download.

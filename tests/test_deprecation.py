@@ -256,7 +256,8 @@ async def test_issue_created_when_deprecated_entity_referenced(hass):
     assert issue.translation_placeholders["entity_id"] == reg_entry.entity_id
     assert issue.translation_placeholders["replacement_key"] == "UV index"
     assert "automation.check_uv" in issue.translation_placeholders["evidence"]
-    assert issue.severity == ir.IssueSeverity.WARNING
+    # ERROR as of the 2026.8 line — removal in 2026.9.0 is one release away.
+    assert issue.severity == ir.IssueSeverity.ERROR
     assert issue.is_fixable is False
 
 
