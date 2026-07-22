@@ -1,4 +1,4 @@
 # Test harness — keep this pair matched: each pytest-homeassistant-custom-component
 # release pins one exact Home Assistant version (Dependabot keeps both fresh).
 homeassistant==2026.7.2
-pytest-homeassistant-custom-component==0.13.346
+pytest-homeassistant-custom-component==0.13.347
