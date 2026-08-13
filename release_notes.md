@@ -1,4 +1,4 @@
-## v2026.8.0 (draft — release/2026.8 branch)
+## v2026.8.0
 
 ### Deprecation repairs escalate to errors
 
