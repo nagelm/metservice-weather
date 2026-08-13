@@ -2,7 +2,9 @@
 
 ### Deprecation of old sensors
 
-The 14 sensors deprecated in v2026.7.1 escalate from 'warning' to 'error' notifications if they are still in use. Please migrate anything mentioned in the repair notices to the equivalent replacement sensors before 2026.9.0. If you don't have any repair notifications then you don't need to do anything.
+The 14 sensors deprecated in v2026.7.1 escalate from 'warning' to 'error' notifications if they are still in use. Please migrate anything mentioned in the repair notices to the equivalent replacement sensors before 2026.9.0.
+
+If you don't have any repair notifications then you don't need to do anything.
 
 ---
 
