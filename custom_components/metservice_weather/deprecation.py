@@ -512,13 +512,18 @@ def _create_or_refresh_deprecated_issue(
     new_key: str,
     signals: dict[str, Any],
 ) -> None:
-    """Create/refresh the per-entity "still in use" repair issue with current evidence."""
+    """Create/refresh the per-entity "still in use" repair issue with current evidence.
+
+    ERROR severity as of the 2026.8 line: removal of the deprecated set in
+    2026.9.0 is one release away, so a still-used deprecated sensor is now an
+    action-required condition, not a heads-up.
+    """
     ir.async_create_issue(
         hass,
         DOMAIN,
         issue_id,
         is_fixable=False,
-        severity=ir.IssueSeverity.WARNING,
+        severity=ir.IssueSeverity.ERROR,
         translation_key="deprecated_entity",
         learn_more_url=_LEARN_MORE_URL,
         translation_placeholders={
