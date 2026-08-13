@@ -1,9 +1,5 @@
 ## v2026.8.0
 
-### Housekeeping updates
-
-Development and CI dependencies refreshed: the test suite now validates against Home Assistant core 2026.8.1, and the linting, tooling, and GitHub Actions versions are all current. None of this ships to your install — the integration has no runtime dependencies.
-
 ### Deprecation of old sensors
 
 The 14 sensors deprecated in v2026.7.1 escalate from 'warning' to 'error' notifications if they are still in use. Please migrate anything mentioned in the repair notices to the equivalent replacement sensors before 2026.9.0. If you don't have any repair notifications then you don't need to do anything.
