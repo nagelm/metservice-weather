@@ -1,8 +1,12 @@
 ## v2026.8.0
 
-### Deprecation repairs escalate to errors
+### Housekeeping updates
 
-The 14 sensors deprecated in v2026.7.1 are removed in **v2026.9.0** — one release from now. The "deprecated sensor still in use" repair (raised only when something of yours actually references one) is therefore now **error** severity instead of a warning. Nothing else about the deprecation machinery changes: unused deprecated sensors were already disabled, used ones hidden, and your own enable/hide choices are never overridden. Migrate anything the repairs name to the replacement sensors before 2026.9.0.
+Development and CI dependencies refreshed: the test suite now validates against Home Assistant core 2026.8.1, and the linting, tooling, and GitHub Actions versions are all current. None of this ships to your install — the integration has no runtime dependencies.
+
+### Deprecation of old sensors
+
+The 14 sensors deprecated in v2026.7.1 escalate from 'warning' to 'error' notifications if they are still in use. Please migrate anything mentioned in the repair notices to the equivalent replacement sensors before 2026.9.0. If you don't have any repair notifications then you don't need to do anything.
 
 ---
 
