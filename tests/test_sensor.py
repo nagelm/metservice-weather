@@ -37,7 +37,10 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     _UNKNOWN_MOON_PHASE_LOGGED,
     current_condition_sensor_descriptions_public,
 )
-from custom_components.metservice_weather.coordinator_types import MetServicePublicData
+from custom_components.metservice_weather.coordinator_types import (
+    DailyEntry,
+    MetServicePublicData,
+)
 
 
 def _desc(key: str) -> WeatherSensorEntityDescription:
@@ -1300,15 +1303,62 @@ def test_warning_details_zero_when_clear():
 
 
 def test_carrier_payload_attributes_are_recorder_exempt():
-    """The two machine-payload attribute names are excluded from the recorder.
+    """The machine-payload attribute names are excluded from the recorder.
 
     Matching is by attribute name class-wide, so the set must never contain
     "warnings" — that would silently stop recording the deprecated
     weather_warnings sensor's frozen attribute.
     """
     assert WeatherSensor._unrecorded_attributes == frozenset(
-        {"tide_table", "active_warnings"}
+        {"tide_table", "active_warnings", "daily_conditions"}
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: condition_today raw-token sensor (issue #33)
+# ---------------------------------------------------------------------------
+
+
+def test_condition_today_state_is_raw_token_verbatim():
+    """State is MetService's un-mapped token, -night variants included."""
+    desc = _desc("condition_today")
+    data = MetServicePublicData(condition="few-showers")
+    assert desc.value_fn(data, "metric") == "few-showers"
+    data = MetServicePublicData(condition="partly-cloudy-night")
+    assert desc.value_fn(data, "metric") == "partly-cloudy-night"
+
+
+def test_condition_today_none_without_condition():
+    """No condition in the payload: state None, stable empty-list attribute."""
+    desc = _desc("condition_today")
+    data = MetServicePublicData()
+    assert desc.value_fn(data, "metric") is None
+    assert desc.attr_fn(data) == {"daily_conditions": []}
+
+
+def test_condition_today_daily_conditions_attribute_is_date_keyed_and_raw():
+    """daily_conditions carries the pre-mapping token per day, keyed by date.
+
+    Entries without a condition are dropped; an entry without a datetime
+    keeps its token with date None rather than being silently lost.
+    """
+    desc = _desc("condition_today")
+    data = MetServicePublicData(
+        condition="fine",
+        daily_entries=[
+            DailyEntry(datetime="2026-09-01T00:00:00+12:00", condition="fine"),
+            DailyEntry(datetime="2026-09-02T00:00:00+12:00", condition="few-showers"),
+            DailyEntry(datetime="2026-09-03T00:00:00+12:00", condition=None),
+            DailyEntry(datetime=None, condition="frost"),
+        ],
+    )
+    assert desc.attr_fn(data) == {
+        "daily_conditions": [
+            {"date": "2026-09-01", "condition": "fine"},
+            {"date": "2026-09-02", "condition": "few-showers"},
+            {"date": None, "condition": "frost"},
+        ]
+    }
 
 
 # ---------------------------------------------------------------------------

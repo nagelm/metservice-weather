@@ -54,6 +54,7 @@ Earlier versions of this integration included an option to use the MetService mo
 | Rain last hour | mm recorded at the station over the trailing hour — rises and falls with the rain, 0 when dry (not a daily total) |
 | UV index | Enum: `low` / `moderate` / `high` / `very_high` / `extreme`; advice + protection window as attributes |
 | Weather description | Plain-English forecast text |
+| Condition today | MetService's raw condition token verbatim (`few-showers`, `fine-night`, …) for custom cards that render MetService-accurate icons; `daily_conditions` attribute carries the raw token per 7-day forecast day, keyed by date (not recorded in the database) |
 
 **Sub-day forecast**
 

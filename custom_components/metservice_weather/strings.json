@@ -343,6 +343,9 @@
       "temperature_today_low": {
         "name": "Low temperature today"
       },
+      "condition_today": {
+        "name": "Condition today"
+      },
       "tomorrow_condition": {
         "name": "Condition tomorrow"
       },

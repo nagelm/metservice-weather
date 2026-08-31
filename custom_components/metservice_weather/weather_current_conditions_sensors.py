@@ -1050,6 +1050,32 @@ current_condition_sensor_descriptions_public = [
         ),
         value_fn=lambda data, _: _safe_float(data.temp_today_low),
     ),
+    WeatherSensorEntityDescription(
+        key="condition_today",
+        translation_key="condition_today",
+        name="Condition today",
+        # State is MetService's raw condition token verbatim (few-showers,
+        # fine, partly-cloudy-night, ...), NOT the HA-mapped value the
+        # weather entity reports — custom cards use it to render the icon
+        # MetService actually draws. Tokens keep their -night variants, so
+        # the state flips at dawn/dusk by design. daily_conditions carries
+        # the same pre-mapping token for each 7-day forecast day; it is
+        # date-keyed because entry 0 can lag the wall-clock date by up to
+        # one poll after midnight — consumers must match on date, never on
+        # index. The list is excluded from the recorder via
+        # WeatherSensor._unrecorded_attributes.
+        value_fn=lambda data, _: cast(str, data.condition) if data.condition else None,
+        attr_fn=lambda data: {
+            "daily_conditions": [
+                {
+                    "date": entry.datetime[:10] if entry.datetime else None,
+                    "condition": entry.condition,
+                }
+                for entry in data.daily_entries
+                if entry.condition
+            ]
+        },
+    ),
     # --- Tomorrow's forecast (injected from 7-day data) ---
     WeatherSensorEntityDescription(
         key="tomorrow_condition",
