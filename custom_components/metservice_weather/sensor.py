@@ -237,6 +237,25 @@ async def async_setup_entry(
             await async_check_removed_entity(hass, entry, coordinator, reg_entry)
             ent_reg.async_remove(reg_entry.entity_id)
 
+    # warning_details became enabled-by-default in 2026.9 (GH issue #32),
+    # but entity_registry_enabled_default only applies at first
+    # registration — installs that registered the row disabled under the
+    # old opt-in default keep it forever without this. Clear an
+    # INTEGRATION-owned disable (the old default's marker) so those
+    # installs pick up the new default too; a USER-owned disable is the
+    # user's own choice and is never overridden. Runs before
+    # async_add_entities so the sensor goes live this same setup.
+    wd_entity_id = ent_reg.async_get_entity_id(
+        SENSOR_DOMAIN, DOMAIN, f"{coordinator.location}_warning_details".lower()
+    )
+    if wd_entity_id is not None:
+        wd_entry = ent_reg.async_get(wd_entity_id)
+        if (
+            wd_entry is not None
+            and wd_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+        ):
+            ent_reg.async_update_entity(wd_entity_id, disabled_by=None)
+
     stamped_seasonal: dict[str, WeatherSensorEntityDescription] = {}
     if auto_hide_seasonal:
         for sensor in sensors:

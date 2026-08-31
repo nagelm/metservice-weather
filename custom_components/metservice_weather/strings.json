@@ -182,11 +182,11 @@
       "warning_level": {
         "name": "Warnings",
         "state": {
-          "none": "None",
+          "none": "No warnings",
           "watch": "Watch",
           "warning": "Warning",
-          "orange": "Orange",
-          "red": "Red"
+          "orange": "Orange warning",
+          "red": "Red warning"
         },
         "state_attributes": {
           "headline": {
@@ -446,7 +446,7 @@
   "issues": {
     "deprecated_entity": {
       "title": "Deprecated sensor {entity_id} is still in use",
-      "description": "The {entity_id} sensor keeps its v2026.7.0 behaviour for existing installs, but it is deprecated and superseded by the {replacement_key} sensor. It is currently in use — evidence: {evidence}. Please update these to use {replacement_key} — {entity_id} is planned for removal in version 2026.9.0."
+      "description": "The {entity_id} sensor keeps its v2026.7.0 behaviour for existing installs, but it is deprecated and superseded by the {replacement_key} sensor. It is currently in use — evidence: {evidence}. Please update these to use {replacement_key} — {entity_id} is planned for removal in version 2026.9.0.{detail_hint}"
     },
     "hidden_deprecated": {
       "title": "Deprecated sensors hidden automatically",

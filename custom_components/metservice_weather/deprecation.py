@@ -164,6 +164,22 @@ def _replacement_display_name(key: str) -> str:
     return _REPLACEMENT_DISPLAY_NAMES.get(key, _friendly_key(key))
 
 
+# Extra sentence appended to the deprecated_entity repair text, keyed by
+# replacement key, for deprecations where the single {replacement_key}
+# pointer doesn't cover everything the old sensor offered. GH issue #32:
+# users migrating off weather_warnings were pointed only at the Warnings
+# enum and never learned the full warning text lives on Warning details.
+# Values must start with a leading space (the template places {detail_hint}
+# flush against the preceding sentence); keys without an entry get "".
+_REPLACEMENT_DETAIL_HINTS: dict[str, str] = {
+    "warning_level": (
+        " For the full warning text, use the Warning details sensor instead — "
+        "its active_warnings attribute carries every active warning's name, "
+        "detail text, and threat period, untruncated."
+    ),
+}
+
+
 def _format_references(references: list[str]) -> str:
     """Comma-join reference entity_ids, capped with a "+N more" suffix."""
     if len(references) <= _MAX_LISTED_REFERENCES:
@@ -530,6 +546,7 @@ def _create_or_refresh_deprecated_issue(
             "entity_id": entity_id,
             "replacement_key": _replacement_display_name(new_key),
             "evidence": _format_evidence(signals),
+            "detail_hint": _REPLACEMENT_DETAIL_HINTS.get(new_key, ""),
         },
     )
 

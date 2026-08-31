@@ -82,8 +82,8 @@ Earlier versions of this integration included an option to use the MetService mo
 | Clothes drying next good day | Day name when today is a washout |
 | Fire season | Enum: `open` / `restricted` / `prohibited` (FENZ) |
 | Fire danger | Enum: `low` → `extreme` (NIWA index) |
-| Warnings | Severity enum: `none` / `watch` / `warning` / `orange` / `red`; `headline` + `count` attributes |
-| Warning details *(disabled by default)* | State = active warning count; `active_warnings` attribute carries the full structured list (not recorded in the database) |
+| Warnings | Severity enum: `none` / `watch` / `warning` / `orange` / `red` (`warning` is a fallback bucket for colour-less warning names, not an official MetService tier); attributes: `headline`, `count`, and `severity_level` — the state as an ordered number (`0` none … `4` red) for `numeric_state` triggers |
+| Warning details | State = active warning count; `active_warnings` attribute carries the full structured list — every warning's name, untruncated text, and threat period (not recorded in the database) |
 
 **Sunrise / sunset / moon**
 
@@ -153,6 +153,61 @@ state_content:
 
 The same pattern works for Pollen (`low_allergens`) and the tide sensors
 (`height_m`) — swap `headline` in `state_content` for the attribute you want.
+
+### Displaying full warning text
+
+The **Warning details** sensor's `active_warnings` attribute carries every
+active warning in full — name, untruncated detail text, and threat period.
+A list attribute needs a markdown card rather than a tile; this one renders
+each warning as its own block and disappears cleanly when nothing is active:
+
+```yaml
+type: markdown
+content: |
+  {% for w in state_attr('sensor.<device>_warning_details', 'active_warnings') or [] %}
+  **{{ w.name }}** ({{ w.threat_period }})
+  {{ w.text }}
+  {% if not loop.last %}---{% endif %}
+  {% endfor %}
+  {% if not state_attr('sensor.<device>_warning_details', 'active_warnings') %}No active warnings{% endif %}
+```
+
+### Warning automations
+
+**One-click notifications:** import the ready-made blueprint — it notifies
+with every active warning's full text when a warning is issued or upgraded
+(including an additional warning arriving while a more severe one is already
+active), filtered to your chosen minimum severity:
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fnagelm%2Fmetservice-weather%2Fmain%2Fblueprints%2Fautomation%2Fmetservice_weather%2Fwarning_notifications.yaml)
+
+Rolling your own instead: for "orange or worse" thresholds, the Warnings sensor's `severity_level`
+attribute mirrors the enum state as an ordered number (`0` none / `1` watch /
+`2` warning / `3` orange / `4` red), so a `numeric_state` trigger works:
+
+```yaml
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.<device>_weather_warning_level   # entity id may vary
+    attribute: severity_level
+    above: 2   # orange or red
+```
+
+The Warnings enum state only changes when the *most severe* level changes —
+a second, lower-severity warning arriving while a worse one is active moves
+only the `count` attribute. To catch every new warning, trigger on that:
+
+```yaml
+trigger:
+  - platform: state
+    entity_id: sensor.<device>_weather_warning_level   # entity id may vary
+    attribute: count
+```
+
+Note on the `warning` state/level: MetService's official severe-weather
+scale is Watch → Orange → Red. The `warning` value is this integration's
+fallback bucket for products whose name says "Warning" without a colour
+(road, frost, and marine warnings) — it is not a fourth MetService tier.
 
 ### Weather entity
 

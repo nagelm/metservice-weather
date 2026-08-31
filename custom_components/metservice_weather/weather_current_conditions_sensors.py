@@ -141,7 +141,14 @@ def _tide_table_attr(data: Any) -> dict[str, Any]:
 
 
 def _warning_severity(name: str) -> int:
-    """Rank a MetService warning name: Red > Orange > other Warning > Watch."""
+    """Rank a MetService warning name: Red > Orange > other Warning > Watch.
+
+    Rank 1 ("other Warning") is a fallback bucket, not a real MetService
+    tier: the official severe-weather scale is Watch → Orange → Red only.
+    Names that say "warning" without a colour word (road/frost/marine
+    products from the rural warnings feed) land here so they outrank a
+    Watch without claiming Orange status. See the README's warnings notes.
+    """
     lowered = name.lower()
     if "red" in lowered:
         return 3
@@ -150,6 +157,20 @@ def _warning_severity(name: str) -> int:
     if "warning" in lowered:
         return 1
     return 0
+
+
+def _warnings_severity_number(data: Any) -> int:
+    """Numeric severity: 0 none / 1 watch / 2 warning / 3 orange / 4 red.
+
+    One above the _warning_severity rank of the most severe active warning,
+    reserving 0 for quiet. Carried as warning_level's severity_level
+    attribute so numeric_state triggers ("above: 2" = orange or worse) can
+    order what the ENUM's string states cannot.
+    """
+    warnings = data.warnings_list
+    if not warnings:
+        return 0
+    return 1 + max(_warning_severity(w.get("name", "")) for w in warnings)
 
 
 def _warnings_state(data: Any) -> str:
@@ -738,19 +759,28 @@ current_condition_sensor_descriptions_public = [
         device_class=SensorDeviceClass.ENUM,
         options=["none", "watch", "warning", "orange", "red"],
         value_fn=lambda data, _: _warnings_enum_state(data),
+        # severity_level is the enum state as an ordered number (GH #32):
+        # ENUM states carry no ordering, so "orange or worse" automations
+        # use a numeric_state trigger on this attribute ("above: 2"). It
+        # changes only when the state does, so it costs no extra recorder
+        # writes — the attribute row was being rewritten anyway.
         attr_fn=lambda data: {
             "headline": _warnings_state(data),
             "count": len(data.warnings_list),
+            "severity_level": _warnings_severity_number(data),
         },
     ),
     WeatherSensorEntityDescription(
         key="warning_details",
         translation_key="warning_details",
         name="Warning details",
-        # Opt-in carrier for the structured warning payload (full text, no
-        # truncation, for notification automations). The list is excluded
-        # from the recorder via WeatherSensor._unrecorded_attributes.
-        entity_registry_enabled_default=False,
+        # Carrier for the structured warning payload (full text, no
+        # truncation, for notification automations and cards). The list is
+        # excluded from the recorder via WeatherSensor._unrecorded_attributes,
+        # so keeping it enabled costs no database growth. Enabled by default
+        # since 2026.9 (GH issue #32 — migrating users couldn't find the
+        # warning text while this was opt-in); installs that registered it
+        # disabled under an earlier version keep their existing registry row.
         value_fn=lambda data, _: len(data.warnings_list),
         attr_fn=lambda data: {"active_warnings": data.warnings_list},
     ),

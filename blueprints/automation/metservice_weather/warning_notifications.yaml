@@ -1,0 +1,92 @@
+blueprint:
+  name: MetService warning notifications
+  description: >-
+    Send a notification with the full warning text whenever a MetService
+    weather warning is issued or upgraded — including an additional warning
+    arriving while a more severe one is already active (which changes only
+    the Warnings sensor's `count` attribute, not its state).
+
+
+    Pick your location's **Warnings** sensor, its **Warning details**
+    companion (enabled by default since v2026.9.0), a minimum severity, and
+    what to do. Inside your actions, `title` holds the warnings headline and
+    `message` holds every active warning's full name, threat period, and
+    untruncated text.
+  domain: automation
+  source_url: https://github.com/nagelm/metservice-weather/blob/main/blueprints/automation/metservice_weather/warning_notifications.yaml
+  input:
+    warning_sensor:
+      name: Warnings sensor
+      description: The location's Warnings severity sensor (state none/watch/warning/orange/red).
+      selector:
+        entity:
+          filter:
+            - integration: metservice_weather
+              domain: sensor
+    details_sensor:
+      name: Warning details sensor
+      description: The same location's Warning details sensor (carries the active_warnings list).
+      selector:
+        entity:
+          filter:
+            - integration: metservice_weather
+              domain: sensor
+    min_severity:
+      name: Minimum severity
+      description: "Notify only at or above this level: 1 watch, 2 warning (marine/road products), 3 orange, 4 red."
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 4
+          step: 1
+          mode: slider
+    notify_actions:
+      name: Notification actions
+      description: >-
+        What to run when a warning is issued or upgraded. Use `{{ title }}`
+        and `{{ message }}` in your notify action's fields.
+      selector:
+        action: {}
+
+variables:
+  warning_sensor: !input warning_sensor
+  details_sensor: !input details_sensor
+  min_severity: !input min_severity
+
+trigger:
+  # A bare state trigger also fires on attribute-only changes, so one
+  # trigger covers both a severity change and a count-only change.
+  - platform: state
+    entity_id: !input warning_sensor
+
+condition:
+  - condition: template
+    # Fire only when something got worse or something new arrived:
+    # severity_level rose, or count rose while at/above the chosen level.
+    value_template: >-
+      {% set old = trigger.from_state %}
+      {% set new = trigger.to_state %}
+      {{ old is not none and new is not none
+         and new.state not in ('unknown', 'unavailable')
+         and (new.attributes.severity_level | int(0)) >= (min_severity | int(1))
+         and (
+           (new.attributes.severity_level | int(0)) > (old.attributes.severity_level | int(0))
+           or (new.attributes.count | int(0)) > (old.attributes.count | int(0))
+         ) }}
+
+action:
+  - variables:
+      title: "{{ state_attr(warning_sensor, 'headline') or 'Weather warning' }}"
+      message: >-
+        {% for w in state_attr(details_sensor, 'active_warnings') or [] -%}
+        {{ w.name }}{% if w.threat_period %} ({{ w.threat_period }}){% endif %}: {{ w.text }}
+        {% if not loop.last %}
+
+        {% endif %}
+        {%- endfor %}
+  - choose: []
+    default: !input notify_actions
+
+mode: queued
+max: 5
