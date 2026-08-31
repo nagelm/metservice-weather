@@ -255,6 +255,8 @@ async def test_issue_created_when_deprecated_entity_referenced(hass):
     assert issue is not None
     assert issue.translation_placeholders["entity_id"] == reg_entry.entity_id
     assert issue.translation_placeholders["replacement_key"] == "UV index"
+    # No extra detail pointer for uvIndex — the hint placeholder stays empty.
+    assert issue.translation_placeholders["detail_hint"] == ""
     assert "automation.check_uv" in issue.translation_placeholders["evidence"]
     # ERROR as of the 2026.8 line — removal in 2026.9.0 is one release away.
     assert issue.severity == ir.IssueSeverity.ERROR
@@ -290,6 +292,9 @@ async def test_issue_combines_automation_and_script_references(hass):
     assert "automation.storm_alert" in issue.translation_placeholders["evidence"]
     assert "script.notify_warnings" in issue.translation_placeholders["evidence"]
     assert issue.translation_placeholders["replacement_key"] == "Warnings"
+    # GH #32: the weather_warnings repair must also point at Warning details.
+    assert "Warning details" in issue.translation_placeholders["detail_hint"]
+    assert "active_warnings" in issue.translation_placeholders["detail_hint"]
 
 
 async def test_issue_cleared_when_no_longer_referenced(hass):

@@ -1280,10 +1280,10 @@ def test_warning_level_description_headline_truncates_to_255():
 # ---------------------------------------------------------------------------
 
 
-def test_warning_details_is_optin_carrier_with_count_state():
-    """warning_details is disabled by default; state = active warning count."""
+def test_warning_details_is_default_enabled_carrier_with_count_state():
+    """warning_details is enabled by default (GH #32); state = warning count."""
     desc = _desc("warning_details")
-    assert desc.entity_registry_enabled_default is False
+    assert desc.entity_registry_enabled_default is True
     assert desc.device == "location"
     warnings = [
         {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
@@ -1300,6 +1300,119 @@ def test_warning_details_zero_when_clear():
     data = MetServicePublicData(warnings_list=[])
     assert desc.value_fn(data, "metric") == 0
     assert desc.attr_fn(data) == {"active_warnings": []}
+
+
+def _warning_details_migration_harness(hass, disabled_by):
+    """Entry + pre-existing warning_details registry row with the given disable."""
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.metservice_weather.const import DOMAIN
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+    entry.runtime_data = coord
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{coord.location}_warning_details".lower(),
+        config_entry=entry,
+        disabled_by=disabled_by,
+    )
+    return entry, ent_reg, reg_entry.entity_id
+
+
+async def test_warning_details_default_disable_cleared_on_setup(hass):
+    """A pre-2026.9 default-disabled row is re-enabled on setup (GH #32).
+
+    entity_registry_enabled_default only applies at first registration, so
+    installs that registered warning_details under the old opt-in default
+    carry disabled_by=INTEGRATION forever without this migration.
+    """
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.metservice_weather.sensor import async_setup_entry
+
+    entry, ent_reg, entity_id = _warning_details_migration_harness(
+        hass, er.RegistryEntryDisabler.INTEGRATION
+    )
+    await async_setup_entry(hass, entry, lambda *a, **k: None)
+    assert ent_reg.async_get(entity_id).disabled_by is None
+
+
+async def test_warning_details_user_disable_preserved_on_setup(hass):
+    """A USER-owned disable is the user's own choice — never overridden."""
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.metservice_weather.sensor import async_setup_entry
+
+    entry, ent_reg, entity_id = _warning_details_migration_harness(
+        hass, er.RegistryEntryDisabler.USER
+    )
+    await async_setup_entry(hass, entry, lambda *a, **k: None)
+    assert ent_reg.async_get(entity_id).disabled_by == er.RegistryEntryDisabler.USER
+
+
+# ---------------------------------------------------------------------------
+# Test: warning_level severity_level numeric attribute (GH issue #32)
+# ---------------------------------------------------------------------------
+
+
+def test_severity_level_attribute_zero_when_clear():
+    """Quiet period reads severity_level 0 alongside the "none" state."""
+    desc = _desc("warning_level")
+    data = MetServicePublicData(warnings_list=[])
+    assert desc.attr_fn(data)["severity_level"] == 0
+
+
+def test_severity_level_attribute_tracks_most_severe_warning():
+    """Numeric scale is one above the internal rank: watch 1 ... red 4."""
+    desc = _desc("warning_level")
+    cases = [
+        ("Strong Wind Watch", 1),
+        ("Road Snowfall Warning", 2),
+        ("Heavy Rain Warning - Orange", 3),
+        ("Severe Weather Warning - Red", 4),
+    ]
+    for name, expected in cases:
+        data = MetServicePublicData(
+            warnings_list=[
+                {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
+                {"name": name, "text": "b", "threat_period": "Today"},
+            ]
+        )
+        assert desc.attr_fn(data)["severity_level"] == expected, name
+
+
+def test_severity_level_attribute_orders_consistently_with_enum_state():
+    """Every enum state maps to the matching severity_level number."""
+    desc = _desc("warning_level")
+    order = {"none": 0, "watch": 1, "warning": 2, "orange": 3, "red": 4}
+    datasets = [MetServicePublicData(warnings_list=[])] + [
+        MetServicePublicData(
+            warnings_list=[{"name": name, "text": "t", "threat_period": "Today"}]
+        )
+        for name in (
+            "Strong Wind Watch",
+            "Road Snowfall Warning",
+            "Heavy Rain Warning - Orange",
+            "Severe Weather Warning - Red",
+        )
+    ]
+    for data in datasets:
+        state = desc.value_fn(data, "metric")
+        assert desc.attr_fn(data)["severity_level"] == order[state]
 
 
 def test_carrier_payload_attributes_are_recorder_exempt():
