@@ -155,6 +155,9 @@
       "temperature_today_low": {
         "default": "mdi:thermometer"
       },
+      "condition_today": {
+        "default": "mdi:weather-partly-cloudy"
+      },
       "tomorrow_condition": {
         "default": "mdi:weather-partly-cloudy"
       },
