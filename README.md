@@ -174,7 +174,14 @@ content: |
 
 ### Warning automations
 
-For "orange or worse" thresholds, the Warnings sensor's `severity_level`
+**One-click notifications:** import the ready-made blueprint — it notifies
+with every active warning's full text when a warning is issued or upgraded
+(including an additional warning arriving while a more severe one is already
+active), filtered to your chosen minimum severity:
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fnagelm%2Fmetservice-weather%2Fmain%2Fblueprints%2Fautomation%2Fmetservice_weather%2Fwarning_notifications.yaml)
+
+Rolling your own instead: for "orange or worse" thresholds, the Warnings sensor's `severity_level`
 attribute mirrors the enum state as an ordered number (`0` none / `1` watch /
 `2` warning / `3` orange / `4` red), so a `numeric_state` trigger works:
 
