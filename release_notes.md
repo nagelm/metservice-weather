@@ -1,3 +1,26 @@
+## v2026.9.0 (draft — removal work not yet implemented)
+
+### The deprecated sensors are removed
+
+The 14 sensors deprecated in v2026.7.1 (old UV Index, Weather Warnings, Pressure Tendency Trend, Wind Strength, Fire Season/Danger, Moon Phase, Next Moon Phase Date, the sunrise/sunset/moonrise/moonset text strings, Pollen Levels/Type) are now removed, completing the plan announced in v2026.7.1 and escalated in v2026.8.0. Anything still referencing one gets a repair naming the reference and the replacement sensor — the same guidance the deprecation notices have shown for two releases.
+
+If you migrated already (or never had repair notifications), nothing changes for you.
+
+### Weather warnings (#32)
+
+Warnings live on two sensors:
+
+- **Warnings** — the severity: state `none` / `watch` / `warning` / `orange` / `red`. For automations, the `severity_level` attribute (0–4) gives "orange or worse" numeric thresholds, and the `count` attribute catches an extra warning arriving while a worse one is active.
+- **Warning details** — the text: state is the active count; the `active_warnings` attribute holds every warning's name, threat period, and full untruncated text. Enabled by default from this release (your own disable is kept).
+
+To show the text on a dashboard, copy the markdown card from the README. For notifications, import the one-click blueprint from the README. Existing automations are unaffected — state values are unchanged, only the displayed labels improved ("Orange warning" instead of "Orange").
+
+### Raw MetService condition tokens for custom cards (#33)
+
+A new **Condition today** sensor (`sensor.<location>_condition_today`) reports MetService's raw, un-mapped condition token verbatim (`few-showers`, `fine`, `partly-cloudy-night`, …) — so a custom card can draw the icon MetService actually shows instead of Home Assistant's nearest equivalent. Its `daily_conditions` attribute carries the raw token for each day of the 7-day forecast, keyed by date (match on `date`, not list position). The list is excluded from the recorder, so it costs no database growth; the weather entity's standard conditions are unchanged, so stock cards keep working.
+
+---
+
 ## v2026.8.0
 
 ### Deprecation of old sensors
