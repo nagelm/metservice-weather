@@ -436,14 +436,14 @@
         "step": {
           "confirm": {
             "title": "Rename {count} entity ID(s)?",
-            "description": "These sensors are on suffixed entity IDs because their canonical IDs were taken by deprecated sensors when v2026.7.1 introduced them. The deprecated sensors were removed in v2026.9.0, so the canonical IDs are free:\n\n{renames}\n\nNothing was found referencing the current IDs (automations, scripts, scenes, groups, dashboards, helpers, voice assistants, and HomeKit were all checked), and history and settings move with each rename. Consumers outside Home Assistant (REST/WebSocket clients) can't be detected — update any you have afterwards. Prefer to keep the current IDs? Ignore this repair, or rename individual sensors yourself from Settings > Devices & services > Entities. Select **Submit** to rename them all."
+            "description": "A deprecated sensor held the canonical ID, so these landed on suffixed ones. The deprecated sensors are gone and nothing references the current IDs:\n\n{renames}\n\nHistory and settings move with the rename. Prefer the current IDs? **Ignore** this repair instead."
           }
         }
       }
     },
     "entity_id_reclaim_referenced": {
       "title": "{count} MetService sensor(s) could reclaim their entity IDs, but they're in use",
-      "description": "These sensors are on suffixed entity IDs whose canonical form is now free (the deprecated sensor that held it was removed in v2026.9.0), but they're still referenced:\n\n{details}\n\nHome Assistant only rewrites automations for renames made from the UI, so an automatic rename would silently break these references. If you want the canonical IDs, rename each sensor yourself from Settings > Devices & services > Entities, then update the references. This notice clears itself once nothing is left to reclaim."
+      "description": "These sensors could take their now-free canonical IDs, but something still references them:\n\n{details}\n\nAn automatic rename would break those references — rename each sensor yourself from Settings > Devices & services > Entities once you've updated them. This notice clears itself when nothing is left to reclaim."
     }
   }
 }
