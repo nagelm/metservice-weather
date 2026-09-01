@@ -432,7 +432,6 @@
     },
     "entity_id_reclaim": {
       "title": "{sensor_name} can reclaim its entity ID",
-      "description": "The {sensor_name} sensor is currently {current_entity_id} because its canonical ID was taken by a deprecated sensor that has since been removed in v2026.9.0. That ID, {new_entity_id}, is now free and nothing currently references {current_entity_id}. Select **Fix** to rename it — its history and settings move with it.",
       "fix_flow": {
         "step": {
           "confirm": {
