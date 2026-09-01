@@ -40,10 +40,13 @@ _SCRIPTS_PATCH = "custom_components.metservice_weather.deprecation.scripts_with_
 
 # uv_risk is used as the representative replacement key throughout: its
 # description.name is "UV index", so slugify("Napier UV index") ->
-# "napier_uv_index" is the canonical entity_id every test below targets.
+# "napier_uv_index" is the canonical entity_id every test below targets,
+# and "napier_uv_index_2" is the suffixed id HA would have minted when the
+# deprecated sensor's row held the canonical one at v2026.7.1.
 _RECLAIM_KEY = "uv_risk"
 _RECLAIM_SENSOR_NAME = "UV index"
 _CANONICAL_ENTITY_ID = "sensor.napier_uv_index"
+_SUFFIXED_OBJECT_ID = "napier_uv_index_2"
 
 
 def _make_coordinator(hass) -> WeatherUpdateCoordinator:
@@ -95,7 +98,7 @@ def _make_suffixed_row(
     coord: WeatherUpdateCoordinator,
     *,
     key: str = _RECLAIM_KEY,
-    suggested_object_id: str = "napier_uv_risk_2",
+    suggested_object_id: str = _SUFFIXED_OBJECT_ID,
     with_device: bool = True,
 ) -> er.RegistryEntry:
     """Create a suffixed registry row for `key`, simulating the v2026.7.1 collision.
@@ -115,12 +118,12 @@ def _make_suffixed_row(
     )
 
 
-def _fixable_issue_id(entry: MockConfigEntry, key: str = _RECLAIM_KEY) -> str:
-    return f"entity_id_reclaim_{entry.entry_id}_{key}"
+def _fixable_issue_id(entry: MockConfigEntry) -> str:
+    return f"entity_id_reclaim_{entry.entry_id}"
 
 
-def _referenced_issue_id(entry: MockConfigEntry, key: str = _RECLAIM_KEY) -> str:
-    return f"entity_id_reclaim_referenced_{entry.entry_id}_{key}"
+def _referenced_issue_id(entry: MockConfigEntry) -> str:
+    return f"entity_id_reclaim_referenced_{entry.entry_id}"
 
 
 async def _async_setup_full(
@@ -174,12 +177,17 @@ async def test_fixable_issue_raised_when_canonical_free_and_unreferenced(hass):
     assert issue is not None
     assert issue.is_fixable is True
     assert issue.severity == ir.IssueSeverity.WARNING
-    assert issue.translation_placeholders["current_entity_id"] == reg_entry.entity_id
-    assert issue.translation_placeholders["new_entity_id"] == _CANONICAL_ENTITY_ID
-    assert issue.translation_placeholders["sensor_name"] == _RECLAIM_SENSOR_NAME
+    assert issue.translation_placeholders["count"] == "1"
+    assert reg_entry.entity_id in issue.translation_placeholders["renames"]
+    assert _CANONICAL_ENTITY_ID in issue.translation_placeholders["renames"]
     assert issue.data == {
-        "current_entity_id": reg_entry.entity_id,
-        "new_entity_id": _CANONICAL_ENTITY_ID,
+        "renames": [
+            {
+                "current_entity_id": reg_entry.entity_id,
+                "new_entity_id": _CANONICAL_ENTITY_ID,
+                "sensor_name": _RECLAIM_SENSOR_NAME,
+            }
+        ]
     }
     assert (
         ir.async_get(hass).async_get_issue(DOMAIN, _referenced_issue_id(entry)) is None
@@ -255,10 +263,10 @@ async def test_referenced_issue_raised_and_entity_id_unchanged(hass):
     assert issue is not None
     assert issue.is_fixable is False
     assert issue.severity == ir.IssueSeverity.WARNING
-    assert "automation.uv_check" in issue.translation_placeholders["references"]
-    assert issue.translation_placeholders["current_entity_id"] == reg_entry.entity_id
-    assert issue.translation_placeholders["new_entity_id"] == _CANONICAL_ENTITY_ID
-    assert issue.translation_placeholders["sensor_name"] == _RECLAIM_SENSOR_NAME
+    assert issue.translation_placeholders["count"] == "1"
+    assert "automation.uv_check" in issue.translation_placeholders["details"]
+    assert reg_entry.entity_id in issue.translation_placeholders["details"]
+    assert _CANONICAL_ENTITY_ID in issue.translation_placeholders["details"]
     assert ir.async_get(hass).async_get_issue(DOMAIN, _fixable_issue_id(entry)) is None
 
     ent_reg = er.async_get(hass)
@@ -373,7 +381,7 @@ async def test_self_clear_when_replacement_description_missing(hass):
 
     assert (
         ir.async_get(hass).async_get_issue(
-            DOMAIN, f"entity_id_reclaim_{entry.entry_id}_ghost_replacement"
+            DOMAIN, f"entity_id_reclaim_{entry.entry_id}"
         )
         is None
     )
@@ -431,8 +439,13 @@ async def test_self_clear_when_row_becomes_canonical(hass):
         severity=ir.IssueSeverity.WARNING,
         translation_key="entity_id_reclaim",
         data={
-            "current_entity_id": reg_entry.entity_id,
-            "new_entity_id": _CANONICAL_ENTITY_ID,
+            "renames": [
+                {
+                    "current_entity_id": reg_entry.entity_id,
+                    "new_entity_id": _CANONICAL_ENTITY_ID,
+                    "sensor_name": _RECLAIM_SENSOR_NAME,
+                }
+            ]
         },
     )
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
@@ -461,8 +474,13 @@ async def test_self_clear_when_row_becomes_canonical(hass):
 async def test_fix_flow_is_noop_when_row_already_gone(hass):
     """If the entity_id disappears between the issue being raised and Fix being clicked, the flow no-ops instead of erroring."""
     flow = EntityIdReclaimRepairFlow(
-        current_entity_id="sensor.napier_uv_risk_2",
-        new_entity_id=_CANONICAL_ENTITY_ID,
+        renames=[
+            {
+                "current_entity_id": "sensor." + _SUFFIXED_OBJECT_ID,
+                "new_entity_id": _CANONICAL_ENTITY_ID,
+                "sensor_name": _RECLAIM_SENSOR_NAME,
+            }
+        ]
     )
     flow.hass = hass
 
@@ -470,3 +488,158 @@ async def test_fix_flow_is_noop_when_row_already_gone(hass):
 
     assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert er.async_get(hass).async_get(_CANONICAL_ENTITY_ID) is None
+
+
+# ---------------------------------------------------------------------------
+# Suffix-only scope: old-era ids are never candidates (user directive —
+# don't propose renames toward names those entities never tried to mint)
+# ---------------------------------------------------------------------------
+
+
+async def test_no_issue_for_old_era_non_suffixed_id(hass):
+    """An id that differs from canonical without a numeric suffix is left alone.
+
+    e.g. sensor.outside_napier_uv_risk (area/naming-era prefix) — a rename
+    to sensor.napier_uv_index would be canonicalization, not reclamation.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+    _make_suffixed_row(hass, entry, coord, suggested_object_id="outside_napier_uv_risk")
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=[]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, _fixable_issue_id(entry)) is None
+    assert (
+        ir.async_get(hass).async_get_issue(DOMAIN, _referenced_issue_id(entry)) is None
+    )
+
+
+# ---------------------------------------------------------------------------
+# Consolidation: many candidates -> one issue per entry, one Fix for all
+# ---------------------------------------------------------------------------
+
+
+async def test_multiple_candidates_consolidate_into_one_fixable_issue(hass):
+    """Two suffixed rows produce ONE fixable issue whose fix renames both."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+    uv_row = _make_suffixed_row(hass, entry, coord)
+    moon_row = _make_suffixed_row(
+        hass,
+        entry,
+        coord,
+        key="moon_phase_current",
+        suggested_object_id="napier_moon_phase_2",
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=[]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await _async_setup_full(hass, entry, MetServicePublicData())
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, _fixable_issue_id(entry))
+    assert issue is not None
+    assert issue.translation_placeholders["count"] == "2"
+    assert uv_row.entity_id in issue.translation_placeholders["renames"]
+    assert moon_row.entity_id in issue.translation_placeholders["renames"]
+    assert len(issue.data["renames"]) == 2
+
+    assert await async_setup_component(hass, "repairs", {})
+    await hass.async_block_till_done()
+    flow_manager = hass.data["repairs"]["flow_manager"]
+    result = await flow_manager.async_init(
+        DOMAIN, data={"issue_id": _fixable_issue_id(entry)}
+    )
+    result = await flow_manager.async_configure(result["flow_id"], user_input={})
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+
+    ent_reg = er.async_get(hass)
+    assert ent_reg.async_get(_CANONICAL_ENTITY_ID) is not None
+    assert ent_reg.async_get("sensor.napier_moon_phase") is not None
+    assert ent_reg.async_get(uv_row.entity_id) is None
+    assert ent_reg.async_get(moon_row.entity_id) is None
+
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_mixed_referenced_and_unreferenced_split_across_both_issues(hass):
+    """Referenced candidates land in the notice; unreferenced ones in the fixable batch."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+    uv_row = _make_suffixed_row(hass, entry, coord)
+    moon_row = _make_suffixed_row(
+        hass,
+        entry,
+        coord,
+        key="moon_phase_current",
+        suggested_object_id="napier_moon_phase_2",
+    )
+
+    def _autos(hass_, entity_id):
+        return ["automation.moon_watch"] if entity_id == moon_row.entity_id else []
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, side_effect=_autos),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_deprecated_entities(hass, entry, coord)
+
+    reg = ir.async_get(hass)
+    fixable = reg.async_get_issue(DOMAIN, _fixable_issue_id(entry))
+    referenced = reg.async_get_issue(DOMAIN, _referenced_issue_id(entry))
+    assert fixable is not None and referenced is not None
+    assert fixable.translation_placeholders["count"] == "1"
+    assert uv_row.entity_id in fixable.translation_placeholders["renames"]
+    assert moon_row.entity_id not in fixable.translation_placeholders["renames"]
+    assert referenced.translation_placeholders["count"] == "1"
+    assert moon_row.entity_id in referenced.translation_placeholders["details"]
+    assert "automation.moon_watch" in referenced.translation_placeholders["details"]
+
+
+async def test_legacy_a4_per_key_issues_are_retired(hass):
+    """The a4-era one-issue-per-key generation is deleted on every run."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    for legacy_id in (
+        f"entity_id_reclaim_{entry.entry_id}_uv_risk",
+        f"entity_id_reclaim_referenced_{entry.entry_id}_warning_level",
+    ):
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            legacy_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="entity_id_reclaim_referenced",
+        )
+
+    await async_check_deprecated_entities(hass, entry, coord)
+
+    reg = ir.async_get(hass)
+    assert (
+        reg.async_get_issue(DOMAIN, f"entity_id_reclaim_{entry.entry_id}_uv_risk")
+        is None
+    )
+    assert (
+        reg.async_get_issue(
+            DOMAIN, f"entity_id_reclaim_referenced_{entry.entry_id}_warning_level"
+        )
+        is None
+    )

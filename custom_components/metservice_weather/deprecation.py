@@ -61,6 +61,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Iterable
 from typing import Any
 
@@ -860,27 +861,36 @@ _REPLACEMENT_DESCRIPTIONS_BY_KEY: dict[str, WeatherSensorEntityDescription] = {
 }
 
 
-def _reclaim_issue_id(entry_id: str, key: str) -> str:
-    """Return the fixable entity_id_reclaim issue_id for a replacement key."""
-    return f"entity_id_reclaim_{entry_id}_{key}"
+def _reclaim_issue_id(entry_id: str) -> str:
+    """Return the per-entry consolidated fixable entity_id_reclaim issue_id."""
+    return f"entity_id_reclaim_{entry_id}"
 
 
-def _reclaim_referenced_issue_id(entry_id: str, key: str) -> str:
-    """Return the non-fixable entity_id_reclaim_referenced issue_id for a replacement key."""
-    return f"entity_id_reclaim_referenced_{entry_id}_{key}"
+def _reclaim_referenced_issue_id(entry_id: str) -> str:
+    """Return the per-entry consolidated non-fixable reclaim issue_id."""
+    return f"entity_id_reclaim_referenced_{entry_id}"
 
 
-def _clear_reclaim_issues(hass: HomeAssistant, entry_id: str, key: str) -> None:
-    """Delete both the fixable and non-fixable reclaim issue variants for key.
+def _clear_legacy_per_key_reclaim_issues(hass: HomeAssistant, entry_id: str) -> None:
+    """Delete the per-key reclaim issues an a4-era run may have left behind.
 
-    Called for every short-circuit ("nothing to reclaim right now") branch
-    in async_check_entity_id_reclaim, so a key that was previously flagged
-    self-clears the instant the underlying condition stops being true —
-    row removed, already canonical, or the canonical id got taken by
-    something else in the meantime.
+    v2026.9.0a4 raised one issue per replacement key (21 on a two-location
+    install — the noise that motivated the consolidated design); every run
+    retires that whole generation before the per-entry issues are decided.
     """
-    ir.async_delete_issue(hass, DOMAIN, _reclaim_issue_id(entry_id, key))
-    ir.async_delete_issue(hass, DOMAIN, _reclaim_referenced_issue_id(entry_id, key))
+    for key in sorted(set(DEPRECATED_SENSOR_REPLACEMENTS.values())):
+        ir.async_delete_issue(hass, DOMAIN, f"entity_id_reclaim_{entry_id}_{key}")
+        ir.async_delete_issue(
+            hass, DOMAIN, f"entity_id_reclaim_referenced_{entry_id}_{key}"
+        )
+
+
+def _format_rename_lines(renames: list[dict[str, str]]) -> str:
+    """Render a markdown bullet list of `current` → `new` rename candidates."""
+    return "\n".join(
+        f"- **{r['sensor_name']}**: `{r['current_entity_id']}` → `{r['new_entity_id']}`"
+        for r in renames
+    )
 
 
 async def async_check_entity_id_reclaim(
@@ -912,11 +922,16 @@ async def async_check_entity_id_reclaim(
        description.name is the replacement's own name= in
        weather_current_conditions_sensors.py — the same recipe HA's entity
        platform uses to mint an entity_id from has_entity_name +
-       original_name. No device row, or the row's object_id already equals
-       the canonical one -> self-clear and skip.
+       original_name. The row's object_id must be exactly that canonical
+       id plus a numeric suffix (`<canonical>_2`, `_3`, ...) — the shape
+       HA mints on a collision, i.e. the actual v2026.7.1 casualty. An id
+       that differs from the canonical recipe in any other way (old
+       device-naming eras, area prefixes, user renames) is skipped
+       entirely: proposing renames toward names those entities never
+       tried to mint is noise, not reclamation.
     3. The canonical entity_id (`sensor.<canonical_object_id>`) must be
-       FREE (no registry row already holds it) -> self-clear and skip
-       otherwise; renaming onto an occupied id would collide.
+       FREE (no registry row already holds it) -> skip otherwise;
+       renaming onto an occupied id would collide.
     4. Referenced check on the CURRENT (suffixed) entity_id, via the same
        broad, multi-source _usage_signals detector the old deprecated-
        sensor sweep used (automations, scripts, scenes, groups,
@@ -936,9 +951,16 @@ async def async_check_entity_id_reclaim(
          rewrites automations for UI-driven renames) — the user has to
          rename it by hand once they've dealt with the references.
 
-    Every run, whichever issue variant no longer applies to a key is
-    deleted, so a key flips cleanly between "fixable", "referenced", and
-    "nothing to reclaim" as its underlying state changes.
+    All candidates for the entry are CONSOLIDATED into at most two issues
+    (v2026.9.0a4 raised one per key — 21 repairs on a two-location install,
+    which read as noise, GH issue #32's author-experience lesson applied):
+    one FIXABLE entity_id_reclaim issue whose single Fix click renames
+    every unreferenced candidate (the batch travels in the issue's data),
+    and one non-fixable entity_id_reclaim_referenced issue listing the
+    referenced candidates with their evidence. Whichever of the two has no
+    members is deleted, so the entry flips cleanly between "fixable",
+    "referenced", "both", and "nothing to reclaim" as state changes; a4's
+    legacy per-key issues are retired on every run.
 
     Wrapped in a broad except so a failure in this best-effort check can
     never break sensor setup.
@@ -947,21 +969,23 @@ async def async_check_entity_id_reclaim(
         ent_reg = er.async_get(hass)
         dev_reg = dr.async_get(hass)
 
+        _clear_legacy_per_key_reclaim_issues(hass, entry.entry_id)
+
+        renames: list[dict[str, str]] = []
+        referenced: list[dict[str, str]] = []
+
         for key in sorted(set(DEPRECATED_SENSOR_REPLACEMENTS.values())):
             description = _REPLACEMENT_DESCRIPTIONS_BY_KEY.get(key)
             if description is None:
-                _clear_reclaim_issues(hass, entry.entry_id, key)
                 continue
 
             unique_id = f"{coordinator.location}_{key}".lower()
             entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
             if entity_id is None:
-                _clear_reclaim_issues(hass, entry.entry_id, key)
                 continue
 
             reg_entry = ent_reg.async_get(entity_id)
             if reg_entry is None:
-                _clear_reclaim_issues(hass, entry.entry_id, key)
                 continue
 
             device = (
@@ -969,62 +993,79 @@ async def async_check_entity_id_reclaim(
             )
             device_name = (device.name_by_user or device.name) if device else None
             if not device_name:
-                _clear_reclaim_issues(hass, entry.entry_id, key)
                 continue
 
             canonical_object_id = slugify(f"{device_name} {description.name}")
             current_object_id = entity_id.split(".", 1)[1]
-            if current_object_id == canonical_object_id:
-                _clear_reclaim_issues(hass, entry.entry_id, key)
+            # Only the true v2026.7.1 collision casualty qualifies: the
+            # canonical id plus a numeric suffix (what HA mints when the
+            # desired id is taken — e.g. napier_uv_index_2). An id that
+            # merely differs from the canonical recipe (old device-naming
+            # eras, user renames) is deliberately left alone: proposing a
+            # rename toward a name the entity never tried to mint is noise,
+            # not reclamation (user directive, 2026-09-01).
+            if not re.fullmatch(
+                re.escape(canonical_object_id) + r"_\d+", current_object_id
+            ):
                 continue
 
             canonical_entity_id = f"sensor.{canonical_object_id}"
             if ent_reg.async_get(canonical_entity_id) is not None:
-                _clear_reclaim_issues(hass, entry.entry_id, key)
                 continue
 
-            signals = await _usage_signals(hass, entity_id)
-            placeholders = {
+            candidate = {
                 "current_entity_id": entity_id,
                 "new_entity_id": canonical_entity_id,
                 "sensor_name": description.name,
             }
-
+            signals = await _usage_signals(hass, entity_id)
             if not signals:
-                ir.async_delete_issue(
-                    hass, DOMAIN, _reclaim_referenced_issue_id(entry.entry_id, key)
-                )
-                ir.async_create_issue(
-                    hass,
-                    DOMAIN,
-                    _reclaim_issue_id(entry.entry_id, key),
-                    is_fixable=True,
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key="entity_id_reclaim",
-                    learn_more_url=_LEARN_MORE_URL,
-                    translation_placeholders=placeholders,
-                    data={
-                        "current_entity_id": entity_id,
-                        "new_entity_id": canonical_entity_id,
-                    },
-                )
+                renames.append(candidate)
             else:
-                ir.async_delete_issue(
-                    hass, DOMAIN, _reclaim_issue_id(entry.entry_id, key)
+                referenced.append(
+                    {**candidate, "references": _format_evidence(signals)}
                 )
-                ir.async_create_issue(
-                    hass,
-                    DOMAIN,
-                    _reclaim_referenced_issue_id(entry.entry_id, key),
-                    is_fixable=False,
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key="entity_id_reclaim_referenced",
-                    learn_more_url=_LEARN_MORE_URL,
-                    translation_placeholders={
-                        **placeholders,
-                        "references": _format_evidence(signals),
-                    },
-                )
+
+        if renames:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                _reclaim_issue_id(entry.entry_id),
+                is_fixable=True,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="entity_id_reclaim",
+                learn_more_url=_LEARN_MORE_URL,
+                translation_placeholders={
+                    "count": str(len(renames)),
+                    "renames": _format_rename_lines(renames),
+                },
+                data={"renames": renames},
+            )
+        else:
+            ir.async_delete_issue(hass, DOMAIN, _reclaim_issue_id(entry.entry_id))
+
+        if referenced:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                _reclaim_referenced_issue_id(entry.entry_id),
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="entity_id_reclaim_referenced",
+                learn_more_url=_LEARN_MORE_URL,
+                translation_placeholders={
+                    "count": str(len(referenced)),
+                    "details": "\n".join(
+                        f"- **{r['sensor_name']}**: `{r['current_entity_id']}` → "
+                        f"`{r['new_entity_id']}` — referenced by: {r['references']}"
+                        for r in referenced
+                    ),
+                },
+            )
+        else:
+            ir.async_delete_issue(
+                hass, DOMAIN, _reclaim_referenced_issue_id(entry.entry_id)
+            )
     except Exception:
         _LOGGER.debug(
             "Entity-ID reclaim repair check failed; continuing without it",
