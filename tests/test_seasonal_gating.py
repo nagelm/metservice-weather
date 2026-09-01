@@ -28,15 +28,14 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     current_condition_sensor_descriptions_public,
 )
 
-# The nine descriptions the spec marks seasonal — pulled from the live
+# The six descriptions the spec marks seasonal — pulled from the live
 # descriptions list so this stays in sync with weather_current_conditions_sensors.py.
+# (Prior to v2026.9.0 this also included the three now-removed deprecated
+# seasonal keys uvIndex/fire_season/fire_danger — see DEPRECATED_SENSOR_REPLACEMENTS
+# in deprecation.py for the removal history.)
 SEASONAL_KEYS = {
     d.key for d in current_condition_sensor_descriptions_public if d.seasonal
 }
-
-# The three OLD (deprecated) seasonal keys — left entirely to the
-# deprecation sweep; our seasonal-disable mechanism must never touch them.
-_DEPRECATED_SEASONAL_KEYS = {"uvIndex", "fire_season", "fire_danger"}
 
 LOCATION = "/towns-cities/regions/hawkes-bay/locations/napier"
 
@@ -189,14 +188,11 @@ async def test_option_on_user_disabled_deleted_snapshot_stays_user_owned(hass):
 # ---------------------------------------------------------------------------
 
 
-def test_exactly_nine_seasonal_descriptions_marked():
-    """Deprecated + replacement UV/fire_season/fire_danger sensors, plus drying_*, are marked seasonal (9 total)."""
+def test_exactly_six_seasonal_descriptions_marked():
+    """UV/fire_season/fire_danger's replacement sensors, plus drying_*, are marked seasonal (6 total)."""
     assert {
-        "uvIndex",
         "uv_risk",
-        "fire_season",
         "fire_season_status",
-        "fire_danger",
         "fire_danger_level",
         "drying_index_morning",
         "drying_index_afternoon",
@@ -464,50 +460,6 @@ async def test_option_on_user_disabled_seasonal_row_left_untouched(hass):
     assert reg_entry.disabled_by == er.RegistryEntryDisabler.USER
     assert reg_entry.hidden_by is None
     assert "seasonal_disabled" not in (reg_entry.options.get(DOMAIN) or {})
-
-    await _cleanup_listeners(hass, entry)
-
-
-# ---------------------------------------------------------------------------
-# (f) deprecated seasonal keys (uvIndex, fire_season, fire_danger) are
-#     never touched by this mechanism, even when dataless — left entirely
-#     to the deprecation sweep
-# ---------------------------------------------------------------------------
-
-
-async def test_option_on_never_stamps_deprecated_seasonal_keys(hass):
-    """Deprecated seasonal keys are never disabled/stamped by the seasonal mechanism."""
-    entry = _make_entry(auto_hide_seasonal=True)
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)  # all seasonal fields None -> dataless
-    entry.runtime_data = coord
-    loc = coord.location
-
-    ent_reg = er.async_get(hass)
-    # A pre-existing row for one deprecated key, to prove even an existing,
-    # fully-enabled row is left alone by this mechanism (whatever the
-    # separate deprecation sweep independently decides to do with it).
-    pre_existing = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, f"{loc}_uvIndex".lower(), config_entry=entry
-    )
-
-    added = []
-
-    def add_entities(entities, *args, **kwargs):
-        added.extend(entities)
-
-    await async_setup_entry(hass, entry, add_entities)
-
-    reg_entry = ent_reg.async_get(pre_existing.entity_id)
-    assert "seasonal_disabled" not in (reg_entry.options.get(DOMAIN) or {})
-
-    for key in _DEPRECATED_SEASONAL_KEYS - {"uvIndex"}:
-        entity_id = ent_reg.async_get_entity_id(
-            "sensor", DOMAIN, f"{loc}_{key}".lower()
-        )
-        # This mechanism never pre-creates a row for a deprecated key, so
-        # no row existing at all is itself proof it was never touched.
-        assert entity_id is None
 
     await _cleanup_listeners(hass, entry)
 
