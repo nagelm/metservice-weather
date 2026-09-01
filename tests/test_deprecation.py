@@ -863,6 +863,43 @@ async def test_removed_entity_issue_created_when_referenced(hass):
     assert issue.data == {"entity_id": reg_entry.entity_id}
 
 
+async def test_removed_weather_warnings_replacement_names_warning_details(hass):
+    """weather_warnings removal points at Warning details for the full text (GH #32).
+
+    The Warnings enum alone doesn't carry what the old sensor's state held,
+    so its removed_entity replacement text appends the Warning details /
+    active_warnings pointer via _REPLACEMENT_DETAIL_HINTS.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{coord.location}_weather_warnings".lower(),
+        config_entry=entry,
+    )
+
+    hass.config.components.add("automation")
+    hass.config.components.add("script")
+    with (
+        patch(_AUTOMATIONS_PATCH, return_value=["automation.storm_alert"]),
+        patch(_SCRIPTS_PATCH, return_value=[]),
+    ):
+        await async_check_removed_entity(hass, entry, coord, reg_entry)
+
+    issue = ir.async_get(hass).async_get_issue(
+        DOMAIN, _removed_issue_id(entry, reg_entry.entity_id)
+    )
+    assert issue is not None
+    replacement = issue.translation_placeholders["replacement"]
+    assert replacement.startswith("Warnings")
+    assert "Warning details" in replacement
+    assert "active_warnings" in replacement
+
+
 async def test_removed_entity_unknown_key_uses_generic_replacement_fallback(hass):
     """A removed entity whose unique_id key isn't in DEPRECATED_SENSOR_REPLACEMENTS gets generic wording."""
     entry = _make_entry()
