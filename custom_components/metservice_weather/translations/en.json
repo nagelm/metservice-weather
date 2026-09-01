@@ -431,19 +431,19 @@
       "description": "Tide, boating, and surf entities now live on the {marine_device} device instead of the main location device — entity IDs are unchanged, so entity-based automations keep working. But device-based triggers, conditions, or actions in the following automations/scripts still target the old device and may no longer fire as expected: {references}. Open each one and re-select the entity, or point it at the {marine_device} device."
     },
     "entity_id_reclaim": {
-      "title": "{sensor_name} can reclaim its entity ID",
+      "title": "{count} MetService sensor(s) can reclaim their entity IDs",
       "fix_flow": {
         "step": {
           "confirm": {
-            "title": "Rename {current_entity_id}?",
-            "description": "This renames {current_entity_id} to {new_entity_id}. History, settings, and any dashboard cards or automations that reference the new canonical entity_id keep working; anything still pointed at {current_entity_id} would need updating first, but nothing was found referencing it. Select **Submit** to proceed."
+            "title": "Rename {count} entity ID(s)?",
+            "description": "These sensors are on suffixed entity IDs because their canonical IDs were taken by deprecated sensors when v2026.7.1 introduced them. The deprecated sensors were removed in v2026.9.0, so the canonical IDs are free:\n\n{renames}\n\nNothing was found referencing the current IDs (automations, scripts, scenes, groups, dashboards, helpers, voice assistants, and HomeKit were all checked), and history and settings move with each rename. Consumers outside Home Assistant (REST/WebSocket clients) can't be detected — update any you have afterwards. Prefer to keep the current IDs? Ignore this repair, or rename individual sensors yourself from Settings > Devices & services > Entities. Select **Submit** to rename them all."
           }
         }
       }
     },
     "entity_id_reclaim_referenced": {
-      "title": "{sensor_name} could reclaim its entity ID, but it's in use",
-      "description": "The {sensor_name} sensor ({current_entity_id}) could be renamed to its canonical ID, {new_entity_id}, now that the deprecated sensor that used to hold it is gone. It's still referenced by: {references}. Home Assistant only rewrites automations for renames made from the UI, so an automatic rename here would silently break these — rename it yourself from Settings > Devices & services > Entities if you want the canonical ID, then update the references above."
+      "title": "{count} MetService sensor(s) could reclaim their entity IDs, but they're in use",
+      "description": "These sensors are on suffixed entity IDs whose canonical form is now free (the deprecated sensor that held it was removed in v2026.9.0), but they're still referenced:\n\n{details}\n\nHome Assistant only rewrites automations for renames made from the UI, so an automatic rename would silently break these references. If you want the canonical IDs, rename each sensor yourself from Settings > Devices & services > Entities, then update the references. This notice clears itself once nothing is left to reclaim."
     }
   }
 }
