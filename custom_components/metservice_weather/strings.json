@@ -436,7 +436,7 @@
         "step": {
           "confirm": {
             "title": "Rename {count} entity ID(s)?",
-            "description": "A deprecated sensor held the canonical ID, so these landed on suffixed ones. The deprecated sensors are gone and nothing references the current IDs:\n\n{renames}\n\nHistory and settings move with the rename. Prefer the current IDs? **Ignore** this repair instead."
+            "description": "A deprecated sensor held the canonical ID, so these landed on suffixed ones. The deprecated sensors are gone and nothing references the current IDs:\n\n{renames}\n\nHistory and settings move with the rename.\n\nSelect **Submit** to rename, or **Ignore** this repair to leave things as they are."
           }
         }
       }
