@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -55,6 +56,51 @@ async def test_setup_and_unload_public(hass):
 
     assert unload_result is True
     assert entry.state is ConfigEntryState.NOT_LOADED
+
+
+async def test_setup_links_marine_device_under_location_device(hass):
+    """Setup registers the location device and links the marine one to it by id.
+
+    via_device_id takes a device registry id, so the parent has to be
+    registered before the platforms build any marine DeviceInfo. This
+    asserts the resulting registry state end to end: two devices, the
+    marine one pointing at the location one's real id.
+    """
+    marine_base = "https://www.metservice.com/publicData/webdata/marine/regions"
+    entry = _make_entry(
+        {
+            **_PUBLIC_ENTRY_DATA,
+            "marine_region": "marine/regions/kapiti-wellington",
+            "tide_url": f"{marine_base}/kapiti-wellington/tides/locations/wellington",
+            "boating_url": f"{marine_base}/kapiti-wellington/boating/locations/wellington",
+            "surf_url": f"{marine_base}/kapiti-wellington/surf/locations/lyall-bay",
+        }
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
+        new_callable=AsyncMock,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id) is True
+        await hass.async_block_till_done()
+
+    coordinator = entry.runtime_data
+    dev_reg = dr.async_get(hass)
+
+    location_device = dev_reg.async_get_device_by_identifier(
+        (DOMAIN, coordinator.location), entry.entry_id
+    )
+    assert location_device is not None
+    assert location_device.id == coordinator.location_device_id
+    assert location_device.name == "Napier"
+
+    marine_device = dev_reg.async_get_device_by_identifier(
+        (DOMAIN, f"{coordinator.location}_marine"), entry.entry_id
+    )
+    assert marine_device is not None
+    assert marine_device.id != location_device.id
+    assert marine_device.via_device_id == location_device.id
 
 
 async def test_unload_returns_true_when_platforms_unload(hass):

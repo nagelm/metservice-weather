@@ -787,7 +787,13 @@ async def async_check_marine_device_move(
             return
 
         dev_reg = dr.async_get(hass)
-        device = dev_reg.async_get_device(identifiers={(DOMAIN, coordinator.location)})
+        # Scoped to this entry: identifiers are only unique within a config
+        # entry, so the unscoped async_get_device is deprecated (removed in
+        # HA 2027.8) and could resolve to another entry's location device
+        # on a multi-location install.
+        device = dev_reg.async_get_device_by_identifier(
+            (DOMAIN, coordinator.location), entry.entry_id
+        )
         if device is None:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
             return

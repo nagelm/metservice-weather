@@ -13,6 +13,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from .coordinator import WeatherUpdateCoordinator, WeatherUpdateCoordinatorConfig
+from .entity import async_register_location_device
 from .const import (
     DOMAIN,
     LOCATIONS,
@@ -104,6 +105,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: MetServiceConfigEntry):
     await weathercoordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = weathercoordinator
+
+    # Registered before the platforms are forwarded: marine entities link
+    # to this device with via_device_id, which needs the parent's registry
+    # id to already exist (see entity.async_register_location_device).
+    weathercoordinator.location_device_id = async_register_location_device(
+        hass, entry, weathercoordinator
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
