@@ -1,4 +1,4 @@
-## v2026.9.0 (draft)
+## v2026.9.0
 
 ### The 14 deprecated sensors are removed
 
@@ -11,7 +11,6 @@ If you migrated already (or never had repair notifications), nothing changes for
 ### New: one-click entity-ID reclaim repair
 
 On some installs that upgraded through v2026.7.1, a replacement sensor couldn't mint its canonical entity ID because the deprecated sensor's registry row was still holding it, so it landed on a suffixed ID instead (e.g. `sensor.napier_moon_phase_2`). Now that the deprecated sensors are gone, that ID may be free. Affected sensors are gathered into a **single fixable repair per location** (Settings → Repairs) listing every rename — one click renames them all onto their canonical IDs; history and settings move with each. Any suffixed sensor still referenced by something is listed in a separate notice instead, explaining that it needs a manual rename from Settings → Devices & services → Entities — an automatic rename would silently break those references, since Home Assistant only rewrites automations for renames made from the UI. Only true suffix casualties are offered; entity IDs that merely predate a device rename are deliberately left alone. Both repairs clear themselves once there's nothing left to reclaim.
-
 
 ### Weather warnings (#32)
 
