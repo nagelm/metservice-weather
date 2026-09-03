@@ -1,3 +1,14 @@
+## v2026.9.1
+
+### Fixed
+
+Home Assistant 2026.9 logs two deprecation warnings for this integration at every startup — both for calls that stop working in Home Assistant 2027.8.0. Both are gone:
+
+- The marine device is now linked to its parent location device by device registry id (`via_device_id`) rather than the deprecated `(domain, identifier)` tuple. The location device is registered explicitly during setup so the id exists before any marine entity is built. Nothing changes on screen: the device tree, entity IDs, and history are all unaffected.
+- The marine-device-move repair check now looks the location device up scoped to its own config entry. This also closes a latent mismatch on installs with two entries pointing at the same MetService location, where the old unscoped lookup could resolve to the other entry's device.
+
+---
+
 ## v2026.9.0
 
 ### The 14 deprecated sensors are removed

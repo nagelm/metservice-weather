@@ -135,13 +135,15 @@ async def test_location_device_is_the_default(hass):
     assert info["identifiers"] == {(DOMAIN, coord.location)}
     assert info["name"] == "Napier"
     assert info.get("via_device") is None
+    assert info.get("via_device_id") is None
 
 
 async def test_marine_device_has_distinct_identifier_and_via_device(hass):
     """device="marine" builds a separate, linked device.
 
-    Linked under the location device via via_device, with a name that
-    reflects the marine region.
+    Linked under the location device via via_device_id — the registry id
+    cached on the coordinator, never the deprecated via_device tuple —
+    with a name that reflects the marine region.
     """
     coord = _make_coordinator(
         hass,
@@ -150,12 +152,34 @@ async def test_marine_device_has_distinct_identifier_and_via_device(hass):
             "kapiti-wellington/tides/locations/wellington"
         ),
     )
+    coord.location_device_id = "parent-device-id"
     ent = MetServiceEntity(coord, device="marine")
     info = ent.device_info
     assert info["identifiers"] == {(DOMAIN, f"{coord.location}_marine")}
     assert info["identifiers"] != {(DOMAIN, coord.location)}
-    assert info["via_device"] == (DOMAIN, coord.location)
+    assert info["via_device_id"] == "parent-device-id"
+    assert "via_device" not in info
     assert info["name"] == "Kapiti and Wellington"
+
+
+async def test_marine_device_omits_via_device_id_when_parent_unregistered(hass):
+    """No cached parent id means the key is omitted, not written as None.
+
+    An explicit via_device_id=None is a write meaning "no parent", which
+    would clear an already-recorded link; omitting the key leaves whatever
+    the registry already holds alone.
+    """
+    coord = _make_coordinator(
+        hass,
+        tide_url=(
+            "https://www.metservice.com/publicData/webdata/marine/regions/"
+            "kapiti-wellington/tides/locations/wellington"
+        ),
+    )
+    assert coord.location_device_id is None
+    info = MetServiceEntity(coord, device="marine").device_info
+    assert "via_device_id" not in info
+    assert "via_device" not in info
 
 
 async def test_marine_device_falls_back_to_location_name_when_no_marine_url(hass):

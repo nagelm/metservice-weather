@@ -71,6 +71,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self._unit_system_api = config.unit_system_api
         self._base_url = "https://www.metservice.com"
         self.unit_system = config.unit_system
+        # Device registry id of the town/rural location device, set by
+        # entity.async_register_location_device during entry setup. The
+        # marine device needs it for via_device_id (an id, not an
+        # identifier tuple); None until that registration has run.
+        self.location_device_id: str | None = None
         self._session = async_get_clientsession(hass)
         self.units_of_measurement = {
             TEMPUNIT: UnitOfTemperature.CELSIUS,

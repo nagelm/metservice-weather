@@ -12,6 +12,9 @@ from custom_components.metservice_weather.coordinator import (
     WeatherUpdateCoordinator,
     WeatherUpdateCoordinatorConfig,
 )
+from custom_components.metservice_weather.entity import (
+    async_register_location_device,
+)
 from custom_components.metservice_weather.sensor import WeatherSensor
 from custom_components.metservice_weather.weather_current_conditions_sensors import (
     WeatherSensorEntityDescription,
@@ -580,7 +583,7 @@ async def test_marine_skip_setup_creates_no_marine_device_entities(hass):
 async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device(hass):
     """Marine sensors land on a device distinct from the location device.
 
-    Linked to it via via_device, while non-marine sensors stay on the
+    Linked to it via via_device_id, while non-marine sensors stay on the
     location device as before.
     """
     from custom_components.metservice_weather.sensor import async_setup_entry
@@ -625,7 +628,9 @@ async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device
     )
     coord = WeatherUpdateCoordinator(hass, config)
     coord.data = MetServicePublicData()
+    entry.add_to_hass(hass)
     entry.runtime_data = coord
+    coord.location_device_id = async_register_location_device(hass, entry, coord)
 
     added = []
 
@@ -647,13 +652,15 @@ async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device
         info = sensor.device_info
         assert info["identifiers"] == {marine_identifier}
         assert info["identifiers"] != {location_identifier}
-        assert info["via_device"] == location_identifier
+        assert info["via_device_id"] == coord.location_device_id
+        assert "via_device" not in info
         assert info["name"] == "Kapiti and Wellington"
 
     for sensor in location_sensors:
         info = sensor.device_info
         assert info["identifiers"] == {location_identifier}
         assert info.get("via_device") is None
+        assert info.get("via_device_id") is None
 
 
 # ---------------------------------------------------------------------------

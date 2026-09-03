@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, LOCATIONS, MANUFACTURER
 from .coordinator import WeatherUpdateCoordinator
+
+# Shared by the location device's two write paths: the explicit
+# async_register_location_device below and MetServiceEntity's own DeviceInfo.
+_MODEL = "MetService Public API"
+_CONFIGURATION_URL = "https://www.metservice.com"
 
 # MetService marine region slug -> official display label, captured from
 # https://www.metservice.com/publicData/webdata/marine's
@@ -82,6 +90,34 @@ def _location_device_name(coordinator: WeatherUpdateCoordinator) -> str:
     return coordinator.location_name
 
 
+@callback
+def async_register_location_device(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: WeatherUpdateCoordinator,
+) -> str:
+    """Register the town/rural location device and return its registry id.
+
+    The marine device links to this one with ``via_device_id``, which takes
+    a device registry id rather than the ``(domain, identifier)`` tuple the
+    deprecated ``via_device`` took. That means the parent device has to
+    already exist when a marine entity builds its DeviceInfo — and since
+    the platforms are forwarded concurrently, no platform can be relied on
+    to have created it first. So it is registered once here, from
+    ``async_setup_entry`` before the forward, and the id is cached on the
+    coordinator as ``location_device_id``.
+    """
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, coordinator.location)},
+        name=_location_device_name(coordinator),
+        manufacturer=MANUFACTURER,
+        model=_MODEL,
+        configuration_url=_CONFIGURATION_URL,
+    )
+    return device.id
+
+
 class MetServiceEntity(CoordinatorEntity[WeatherUpdateCoordinator]):
     """Base class providing shared DeviceInfo for all MetService entities."""
 
@@ -97,26 +133,32 @@ class MetServiceEntity(CoordinatorEntity[WeatherUpdateCoordinator]):
         every entity used before marine support existed; "marine" is a
         separate device describing the selected marine region (tides,
         boating, surf — these describe the region, not the town) and is
-        linked under the location device via via_device.
+        linked under the location device via via_device_id, whose value
+        async_register_location_device caches on the coordinator.
         """
         super().__init__(coordinator)
         location_label = _location_device_name(coordinator)
         if device == "marine":
-            self._attr_device_info = DeviceInfo(
+            device_info = DeviceInfo(
                 identifiers={(DOMAIN, f"{coordinator.location}_marine")},
                 name=_marine_device_name(
                     coordinator.marine_region_slug, location_label
                 ),
                 manufacturer=MANUFACTURER,
-                model="MetService Public API",
-                configuration_url="https://www.metservice.com",
-                via_device=(DOMAIN, coordinator.location),
+                model=_MODEL,
+                configuration_url=_CONFIGURATION_URL,
             )
+            # Left out entirely rather than set to None when the parent
+            # hasn't been registered: an explicit via_device_id=None is a
+            # write meaning "no parent", which would clear an existing link.
+            if coordinator.location_device_id is not None:
+                device_info["via_device_id"] = coordinator.location_device_id
+            self._attr_device_info = device_info
         else:
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, coordinator.location)},
                 name=location_label,
                 manufacturer=MANUFACTURER,
-                model="MetService Public API",
-                configuration_url="https://www.metservice.com",
+                model=_MODEL,
+                configuration_url=_CONFIGURATION_URL,
             )
