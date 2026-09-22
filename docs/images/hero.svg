@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="300" viewBox="0 0 960 300" role="img" aria-labelledby="title desc">
+  <title id="title">MetService New Zealand Weather for Home Assistant</title>
+  <desc id="desc">A sunny sky with a sun peeking out from behind a cloud, a passing shower, snow-capped mountains, green hills and the sea with a small sailboat.</desc>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .sky1 { stop-color: #CFE5FD; } .sky2 { stop-color: #F3F9FF; }
+    .ink { fill: #12263A; } .muted { fill: #4A6177; }
+    .sun { fill: #F6B73C; } .ray { stroke: #F6B73C; }
+    .cloud { fill: #FFFFFF; } .shade { fill: #C9DAEA; }
+    .drop { fill: #3C97D6; } .wind { stroke: #97B6D2; }
+    .mtn { fill: #A4BCD2; } .snow { fill: #FFFFFF; }
+    .hill1 { fill: #A3D3A5; } .hill2 { fill: #6FB47C; }
+    .sea { fill: #4B8FC2; } .wave { stroke: #BCDCF2; }
+    .hull { fill: #12263A; } .sail { fill: #F07F5B; } .jib { fill: #F6A88E; } .mast { stroke: #12263A; }
+    @media (prefers-color-scheme: dark) {
+      .sky1 { stop-color: #091727; } .sky2 { stop-color: #143049; }
+      .ink { fill: #EAF2FA; } .muted { fill: #A5B9CC; }
+      .sun { fill: #F7C150; } .ray { stroke: #F7C150; }
+      .cloud { fill: #D3DFEA; } .shade { fill: #7F97AE; }
+      .drop { fill: #62B6EE; } .wind { stroke: #4B6784; }
+      .mtn { fill: #2B4560; } .snow { fill: #C6D6E5; }
+      .hill1 { fill: #2F5C48; } .hill2 { fill: #23483A; }
+      .sea { fill: #1D4D73; } .wave { stroke: #3F7AA6; }
+      .hull { fill: #D3DFEA; } .sail { fill: #F28E6C; } .jib { fill: #F7B49D; } .mast { stroke: #D3DFEA; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" class="sky1"/>
+      <stop offset="1" class="sky2"/>
+    </linearGradient>
+    <clipPath id="frame"><rect width="960" height="300" rx="20"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <rect width="960" height="300" fill="url(#sky)"/>
+
+    <!-- sun, rays first so the cloud can sit in front -->
+    <g class="ray" stroke-width="6" stroke-linecap="round">
+      <line x1="858" y1="100" x2="874" y2="100"/>
+      <line x1="850" y1="129" x2="864" y2="137"/>
+      <line x1="829" y1="150" x2="837" y2="164"/>
+      <line x1="771" y1="50" x2="763" y2="36"/>
+      <line x1="800" y1="42" x2="800" y2="26"/>
+      <line x1="829" y1="50" x2="837" y2="36"/>
+      <line x1="850" y1="71" x2="864" y2="63"/>
+      <line x1="750" y1="71" x2="736" y2="63"/>
+      <line x1="742" y1="100" x2="726" y2="100"/>
+    </g>
+    <circle class="sun" cx="800" cy="100" r="44"/>
+
+    <!-- cloud in front of the sun -->
+    <g class="shade" transform="translate(5 6)">
+      <circle cx="726" cy="160" r="24"/><circle cx="762" cy="140" r="34"/>
+      <circle cx="802" cy="152" r="28"/><circle cx="832" cy="164" r="18"/>
+      <rect x="704" y="160" width="146" height="24" rx="12"/>
+    </g>
+    <g class="cloud">
+      <circle cx="726" cy="160" r="24"/><circle cx="762" cy="140" r="34"/>
+      <circle cx="802" cy="152" r="28"/><circle cx="832" cy="164" r="18"/>
+      <rect x="704" y="160" width="146" height="24" rx="12"/>
+    </g>
+
+    <!-- a passing shower -->
+    <g class="shade" transform="translate(4 5)">
+      <circle cx="590" cy="82" r="15"/><circle cx="612" cy="70" r="21"/><circle cx="636" cy="80" r="15"/>
+      <rect x="576" y="80" width="74" height="17" rx="8.5"/>
+    </g>
+    <g class="cloud">
+      <circle cx="590" cy="82" r="15"/><circle cx="612" cy="70" r="21"/><circle cx="636" cy="80" r="15"/>
+      <rect x="576" y="80" width="74" height="17" rx="8.5"/>
+    </g>
+    <g class="drop">
+      <path d="M592 110 C597 117 599 120 599 123 A7 7 0 0 1 585 123 C585 120 587 117 592 110 Z"/>
+      <path d="M614 120 C619 127 621 130 621 133 A7 7 0 0 1 607 133 C607 130 609 127 614 120 Z"/>
+      <path d="M636 108 C641 115 643 118 643 121 A7 7 0 0 1 629 121 C629 118 631 115 636 108 Z"/>
+    </g>
+
+    <!-- a breeze -->
+    <g class="wind" fill="none" stroke-width="6" stroke-linecap="round">
+      <path d="M470 116 H540 a14 14 0 1 0 -14 -14"/>
+      <path d="M486 142 H566 a11 11 0 1 1 -11 11"/>
+    </g>
+
+    <!-- Southern Alps nod -->
+    <polygon class="mtn" points="430,300 525,212 568,244 640,168 700,226 745,200 820,300"/>
+    <polygon class="snow" points="640,168 619,190 629,186 638,194 648,186 663,190"/>
+    <polygon class="snow" points="525,212 510,226 518,223 526,229 534,223 544,226"/>
+    <polygon class="snow" points="745,200 724,212 733,209 741,214 749,209 754,212"/>
+
+    <!-- hills, sea, boat -->
+    <path class="hill1" d="M0 238 C100 222 190 228 280 242 C370 256 440 250 520 238 C590 228 650 236 700 256 L700 300 L0 300 Z"/>
+    <rect class="sea" x="640" y="262" width="320" height="38"/>
+    <g class="wave" fill="none" stroke-width="3" stroke-linecap="round">
+      <path d="M736 276 q12 -6 24 0 t24 0 t24 0 t24 0 t24 0 t24 0 t24 0 t24 0 t24 0"/>
+      <path d="M760 290 q12 -6 24 0 t24 0 t24 0 t24 0 t24 0 t24 0 t24 0 t24 0"/>
+    </g>
+    <path class="hill2" d="M0 262 C80 248 170 250 250 262 C330 274 400 276 480 266 C560 256 620 258 680 270 C702 275 716 284 728 300 L0 300 Z"/>
+    <line class="mast" x1="880" y1="216" x2="880" y2="262" stroke-width="2.5"/>
+    <path class="sail" d="M883 218 L883 256 L912 256 Z"/>
+    <path class="jib" d="M877 228 L877 256 L856 256 Z"/>
+    <path class="hull" d="M852 260 H910 L900 272 H862 Z"/>
+  </g>
+
+  <text x="46" y="110" class="ink" font-size="58" font-weight="800" letter-spacing="-1">MetService</text>
+  <text x="49" y="153" class="ink" font-size="36" font-weight="700">New Zealand Weather</text>
+  <text x="50" y="190" class="muted" font-size="22" font-weight="600">for Home Assistant</text>
+</svg>
