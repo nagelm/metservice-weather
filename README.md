@@ -111,7 +111,7 @@ These come from a weather station, so rural spots without one don't get them.
 
 | Sensor | What it tells you |
 |---|---|
-| Warnings | The most severe warning in force: `none`, `watch`, `warning`, `orange` or `red`. Attributes: `headline` (the top warning's name), `count` and `severity_level` (see [Warnings](#%EF%B8%8F-warnings)) |
+| Warnings | The most severe warning in force: `none`, `watch`, `warning`, `orange` or `red`. Attributes: `headline` (the top warning's name), `count` and `severity_level` (see [Warnings](#-warnings)) |
 | Warning details | How many warnings are active. The `active_warnings` attribute lists every one in full, with its name, text and threat period (not stored in the database) |
 
 </details>
@@ -177,7 +177,7 @@ These sit on a separate device named after your marine region, and only show up 
 > [!TIP]
 > A sensor's state can only hold 255 characters, so a long forecast gets cut off with `...`. When that happens, the whole text is in the `full_description` attribute. The [recipe below](#show-the-whole-forecast-text) shows it on a dashboard.
 
-## ⚠️ Warnings
+## 🚨 Warnings
 
 ![The Warnings sensor's five states from lowest to highest, each with its severity_level number: none 0, watch 1, warning 2, orange 3 and red 4. Above 2 means orange or red.](docs/images/warning-levels.svg)
 
