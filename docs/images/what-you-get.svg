@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600" role="img" aria-labelledby="title desc">
+  <title id="title">What you get</title>
+  <desc id="desc">Each location you add becomes a device with a weather entity and 40 sensors in six groups: right now (10), today and tomorrow (13), warnings (2), rain outlook (3), sun and moon (5) and seasonal (7). An optional marine device adds tides (3), boating (2) and surf (10).</desc>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .bg { fill: #F4F8FB; } .card { fill: #FFFFFF; stroke: #D5E0EA; }
+    .ink { fill: #13273B; } .muted { fill: #58697A; } .on { fill: #FFFFFF; }
+    .f-sky { fill: #3D8BD9; } .c-sky { fill: #3D8BD9; stroke: #3D8BD9; } .t-sky { fill: #E7F1FB; }
+    .f-sun { fill: #E39A1E; } .c-sun { fill: #E39A1E; stroke: #E39A1E; } .t-sun { fill: #FDF2DF; }
+    .f-warn { fill: #E4661B; } .c-warn { fill: #E4661B; stroke: #E4661B; } .t-warn { fill: #FDE8DB; }
+    .f-rain { fill: #1E9E8F; } .c-rain { fill: #1E9E8F; stroke: #1E9E8F; } .t-rain { fill: #DDF3F0; }
+    .f-moon { fill: #7868D6; } .c-moon { fill: #7868D6; stroke: #7868D6; } .t-moon { fill: #ECE9FB; }
+    .f-leaf { fill: #3E9B57; } .c-leaf { fill: #3E9B57; stroke: #3E9B57; } .t-leaf { fill: #E2F3E6; }
+    .f-sea { fill: #1F5F8B; } .c-sea { fill: #1F5F8B; stroke: #1F5F8B; } .t-sea { fill: #E1ECF5; }
+    .f-surf { fill: #1788A8; } .c-surf { fill: #1788A8; stroke: #1788A8; } .t-surf { fill: #DCEFF5; }
+    .sunny { fill: #FFE39A; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0F1923; } .card { fill: #16222E; stroke: #2A3C4F; }
+      .ink { fill: #E8EFF6; } .muted { fill: #9CAFC1; }
+      .f-sky { fill: #4F9BE6; } .c-sky { fill: #4F9BE6; stroke: #4F9BE6; } .t-sky { fill: #17314A; }
+      .f-sun { fill: #E9A63A; } .c-sun { fill: #E9A63A; stroke: #E9A63A; } .t-sun { fill: #372B16; }
+      .f-warn { fill: #EE7A35; } .c-warn { fill: #EE7A35; stroke: #EE7A35; } .t-warn { fill: #3A2419; }
+      .f-rain { fill: #2BAE9E; } .c-rain { fill: #2BAE9E; stroke: #2BAE9E; } .t-rain { fill: #143834; }
+      .f-moon { fill: #8E80E6; } .c-moon { fill: #8E80E6; stroke: #8E80E6; } .t-moon { fill: #29244A; }
+      .f-leaf { fill: #4DAF68; } .c-leaf { fill: #4DAF68; stroke: #4DAF68; } .t-leaf { fill: #16341F; }
+      .f-sea { fill: #3F86BD; } .c-sea { fill: #3F86BD; stroke: #3F86BD; } .t-sea { fill: #152D45; }
+      .f-surf { fill: #2A9EC0; } .c-surf { fill: #2A9EC0; stroke: #2A9EC0; } .t-surf { fill: #123643; }
+    }
+  </style>
+  <defs>
+    <mask id="crescent" maskContentUnits="userSpaceOnUse">
+      <circle r="12" fill="#fff"/>
+      <circle cx="6" cy="-5" r="10" fill="#000"/>
+    </mask>
+  </defs>
+
+  <rect class="bg" width="960" height="600" rx="20"/>
+
+  <!-- ============ Town device ============ -->
+  <rect class="card" x="20" y="20" width="630" height="560" rx="18" stroke-width="1.5"/>
+  <circle class="f-sky" cx="62" cy="66" r="24"/>
+  <g transform="translate(62 66)">
+    <path class="on" d="M0 -13 C7.5 -13 12 -7.5 12 -1.5 C12 6 0 15 0 15 C0 15 -12 6 -12 -1.5 C-12 -7.5 -7.5 -13 0 -13 Z"/>
+    <circle class="f-sky" cy="-1.5" r="4.5"/>
+  </g>
+  <text x="100" y="62" class="ink" font-size="26" font-weight="700">Your town</text>
+  <text x="100" y="88" class="muted" font-size="16">40 sensors + a weather entity</text>
+
+  <rect class="t-sky" x="40" y="112" width="590" height="82" rx="14"/>
+  <circle class="f-sky" cx="82" cy="153" r="22"/>
+  <g transform="translate(82 153)">
+    <circle class="sunny" cx="4" cy="-5" r="7"/>
+    <g class="on"><circle cx="-4" cy="4" r="6"/><circle cx="3" cy="1" r="7.5"/><circle cx="10" cy="5" r="5"/><rect x="-10" y="4" width="21" height="7" rx="3.5"/></g>
+  </g>
+  <text x="118" y="147" class="ink" font-size="21" font-weight="700">Weather entity</text>
+  <text x="118" y="173" class="muted" font-size="16">Current conditions · 48-hour hourly · 7-day daily forecast</text>
+
+  <!-- Right now -->
+  <rect class="t-sky" x="40" y="210" width="289" height="100" rx="14"/>
+  <g class="c-sky" transform="translate(72 240)"><rect x="-3.5" y="-12" width="7" height="17" rx="3.5"/><circle cy="7" r="6.5"/></g>
+  <text x="94" y="247" class="ink" font-size="19" font-weight="700">Right now*</text>
+  <rect class="f-sky" x="275" y="226" width="38" height="26" rx="13"/>
+  <text x="294" y="244.5" class="on" font-size="15" font-weight="700" text-anchor="middle">10</text>
+  <text x="60" y="276" class="muted" font-size="15">Temperature &amp; feels-like,</text>
+  <text x="60" y="297" class="muted" font-size="15">humidity, pressure, wind, rain</text>
+
+  <!-- Today & tomorrow -->
+  <rect class="t-sun" x="341" y="210" width="289" height="100" rx="14"/>
+  <g class="c-sun" transform="translate(373 240)">
+    <rect x="-11" y="-8" width="22" height="20" rx="3.5" fill="none" stroke-width="2.6"/>
+    <rect x="-11" y="-8" width="22" height="6.5" rx="2"/>
+    <path d="M-5 -12 V-5 M5 -12 V-5" fill="none" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
+  <text x="395" y="247" class="ink" font-size="19" font-weight="700">Today &amp; tomorrow</text>
+  <rect class="f-sun" x="576" y="226" width="38" height="26" rx="13"/>
+  <text x="595" y="244.5" class="on" font-size="15" font-weight="700" text-anchor="middle">13</text>
+  <text x="361" y="276" class="muted" font-size="15">Highs &amp; lows, forecast text,</text>
+  <text x="361" y="297" class="muted" font-size="15">conditions morning → overnight</text>
+
+  <!-- Warnings -->
+  <rect class="t-warn" x="40" y="322" width="289" height="100" rx="14"/>
+  <g class="c-warn" transform="translate(72 352)">
+    <path d="M0 -11 L11.5 9.5 H-11.5 Z" stroke-width="3" stroke-linejoin="round"/>
+    <rect class="on" x="-1.4" y="-3.5" width="2.8" height="7.5" rx="1.4" stroke="none"/>
+    <circle class="on" cy="6.3" r="1.7" stroke="none"/>
+  </g>
+  <text x="94" y="359" class="ink" font-size="19" font-weight="700">Warnings</text>
+  <rect class="f-warn" x="275" y="338" width="38" height="26" rx="13"/>
+  <text x="294" y="356.5" class="on" font-size="15" font-weight="700" text-anchor="middle">2</text>
+  <text x="60" y="388" class="muted" font-size="15">Level from none to red,</text>
+  <text x="60" y="409" class="muted" font-size="15">plus every warning's full text</text>
+
+  <!-- Rain outlook -->
+  <rect class="t-rain" x="341" y="322" width="289" height="100" rx="14"/>
+  <path class="f-rain" transform="translate(373 352)" d="M0 -12 C6 -4.5 9 -0.5 9 4 A9 9 0 0 1 -9 4 C-9 -0.5 -6 -4.5 0 -12 Z"/>
+  <text x="395" y="359" class="ink" font-size="19" font-weight="700">Rain outlook</text>
+  <rect class="f-rain" x="576" y="338" width="38" height="26" rx="13"/>
+  <text x="595" y="356.5" class="on" font-size="15" font-weight="700" text-anchor="middle">3</text>
+  <text x="361" y="388" class="muted" font-size="15">Next 8 h &amp; 24 h, next rain</text>
+  <text x="361" y="409" class="muted" font-size="15">expected · off by default</text>
+
+  <!-- Sun & moon -->
+  <rect class="t-moon" x="40" y="434" width="289" height="100" rx="14"/>
+  <circle class="f-moon" transform="translate(72 464)" r="12" mask="url(#crescent)"/>
+  <text x="94" y="471" class="ink" font-size="19" font-weight="700">Sun &amp; moon</text>
+  <rect class="f-moon" x="275" y="450" width="38" height="26" rx="13"/>
+  <text x="294" y="468.5" class="on" font-size="15" font-weight="700" text-anchor="middle">5</text>
+  <text x="60" y="500" class="muted" font-size="15">Sunrise, sunset, moonrise,</text>
+  <text x="60" y="521" class="muted" font-size="15">moonset and the moon phase</text>
+
+  <!-- Seasonal -->
+  <rect class="t-leaf" x="341" y="434" width="289" height="100" rx="14"/>
+  <g transform="translate(373 464)">
+    <path class="f-leaf" d="M-11 11 C-11 -4 -1 -12 12 -12 C12 1 4 11 -11 11 Z"/>
+    <path d="M-8 8 L6 -6" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+  </g>
+  <text x="395" y="471" class="ink" font-size="19" font-weight="700">Seasonal</text>
+  <rect class="f-leaf" x="576" y="450" width="38" height="26" rx="13"/>
+  <text x="595" y="468.5" class="on" font-size="15" font-weight="700" text-anchor="middle">7</text>
+  <text x="361" y="500" class="muted" font-size="15">UV, fire season &amp; danger,</text>
+  <text x="361" y="521" class="muted" font-size="15">pollen, clothes drying</text>
+
+  <text x="40" y="562" class="muted" font-size="14">* Needs a weather station. Rural spots without one just skip these.</text>
+
+  <!-- ============ Marine device ============ -->
+  <rect class="card" x="666" y="20" width="274" height="560" rx="18" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <circle class="f-sea" cx="706" cy="66" r="24"/>
+  <g transform="translate(706 66)" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+    <circle cy="-10" r="3.2"/><path d="M0 -6.8 V12"/><path d="M-6 -2 H6"/>
+    <path d="M-11 3 C-10 9 -5 12 0 12 C5 12 10 9 11 3"/>
+    <path d="M-13 6 L-11 2.5 L-7.5 5"/><path d="M13 6 L11 2.5 L7.5 5"/>
+  </g>
+  <text x="744" y="62" class="ink" font-size="26" font-weight="700">Marine</text>
+  <text x="744" y="88" class="muted" font-size="16">optional · 15 sensors</text>
+
+  <!-- Tides -->
+  <rect class="t-sea" x="682" y="112" width="242" height="108" rx="14"/>
+  <g class="c-sea" transform="translate(714 142)" fill="none" stroke-width="2.8" stroke-linecap="round">
+    <path d="M-12 -7 q3 -4 6 0 t6 0 t6 0 t6 0"/><path d="M-12 0 q3 -4 6 0 t6 0 t6 0 t6 0"/><path d="M-12 7 q3 -4 6 0 t6 0 t6 0 t6 0"/>
+  </g>
+  <text x="736" y="149" class="ink" font-size="19" font-weight="700">Tides</text>
+  <rect class="f-sea" x="870" y="128" width="38" height="26" rx="13"/>
+  <text x="889" y="146.5" class="on" font-size="15" font-weight="700" text-anchor="middle">3</text>
+  <text x="702" y="180" class="muted" font-size="15">Next high &amp; low tide</text>
+  <text x="702" y="201" class="muted" font-size="15">and which way it's going</text>
+
+  <!-- Boating -->
+  <rect class="t-sea" x="682" y="236" width="242" height="108" rx="14"/>
+  <g class="f-sea" transform="translate(714 266)">
+    <path d="M1 -13 V5 H12 Z"/><path d="M-2 -8 V5 H-11 Z"/><path d="M-13 8 H13 L9 13 H-9 Z"/>
+  </g>
+  <text x="736" y="273" class="ink" font-size="19" font-weight="700">Boating</text>
+  <rect class="f-sea" x="870" y="252" width="38" height="26" rx="13"/>
+  <text x="889" y="270.5" class="on" font-size="15" font-weight="700" text-anchor="middle">2</text>
+  <text x="702" y="304" class="muted" font-size="15">Conditions plus the full</text>
+  <text x="702" y="325" class="muted" font-size="15">boating forecast text</text>
+
+  <!-- Surf -->
+  <rect class="t-surf" x="682" y="360" width="242" height="108" rx="14"/>
+  <path class="f-surf" transform="translate(714 390)" d="M-13 11 C-13 -1 -5 -11 5 -11 C10 -11 13 -8.5 13 -5.5 C9.5 -8 4 -6.5 4 -1 C4 3.5 7.5 6 12 6 V11 Z"/>
+  <text x="736" y="397" class="ink" font-size="19" font-weight="700">Surf</text>
+  <rect class="f-surf" x="870" y="376" width="38" height="26" rx="13"/>
+  <text x="889" y="394.5" class="on" font-size="15" font-weight="700" text-anchor="middle">10</text>
+  <text x="702" y="428" class="muted" font-size="15">Rating, waves, swell,</text>
+  <text x="702" y="449" class="muted" font-size="15">wind and period</text>
+
+  <text x="803" y="512" class="muted" font-size="15" text-anchor="middle">Tides, boating and surf</text>
+  <text x="803" y="533" class="muted" font-size="15" text-anchor="middle">are separate picks.</text>
+  <text x="803" y="554" class="muted" font-size="15" text-anchor="middle">Mix and match.</text>
+</svg>

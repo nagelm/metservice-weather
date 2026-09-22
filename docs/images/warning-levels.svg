@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="380" viewBox="0 0 960 380" role="img" aria-labelledby="title desc">
+  <title id="title">Warning levels</title>
+  <desc id="desc">The Warnings sensor's five states from lowest to highest, with the severity_level number for each: none 0 (all clear), watch 1 (be alert), warning 2 (warnings with no colour, such as road, frost and marine, and not an official MetService tier), orange 3 (be prepared) and red 4 (act now). A severity_level above 2 means orange or red.</desc>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .mono, .mono text { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+    .bg { fill: #F4F8FB; } .ink { fill: #13273B; } .muted { fill: #58697A; }
+    .plate { fill: #FFFFFF; } .base { stroke: #C5D2DE; } .brace { stroke: #13273B; }
+    .none { fill: #A7B3BF; } .watch { fill: #F2C53D; } .orange { fill: #EE7B22; } .red { fill: #D83A3A; }
+    .fallback { fill: #FBE6C4; stroke: #E39A2E; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0F1923; } .ink { fill: #E8EFF6; } .muted { fill: #9CAFC1; }
+      .plate { fill: #0F1923; } .base { stroke: #33485D; } .brace { stroke: #E8EFF6; }
+      .none { fill: #4E6275; } .watch { fill: #E9C04A; } .orange { fill: #F08A3A; } .red { fill: #E85555; }
+      .fallback { fill: #3F2F17; stroke: #E9A63A; }
+    }
+  </style>
+
+  <rect class="bg" width="960" height="380" rx="20"/>
+
+  <text x="48" y="44" class="muted" font-size="15">Circled number = the <tspan class="mono ink">severity_level</tspan> attribute</text>
+
+  <path class="brace" d="M588 70 V58 H912 V70" fill="none" stroke-width="2.5" stroke-linejoin="round"/>
+  <text x="750" y="44" font-size="16" text-anchor="middle"><tspan class="mono ink">above: 2</tspan><tspan class="muted"> → orange or red</tspan></text>
+
+  <!-- bars -->
+  <rect class="none" x="48" y="210" width="144" height="52" rx="12"/>
+  <rect class="watch" x="228" y="178" width="144" height="84" rx="12"/>
+  <rect class="fallback" x="409.25" y="147.25" width="141.5" height="113.5" rx="11" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <rect class="orange" x="588" y="114" width="144" height="148" rx="12"/>
+  <rect class="red" x="768" y="82" width="144" height="180" rx="12"/>
+  <line class="base" x1="36" y1="262" x2="924" y2="262" stroke-width="2"/>
+
+  <!-- severity_level plates -->
+  <g font-size="18" font-weight="700" text-anchor="middle">
+    <circle class="plate" cx="120" cy="236" r="16"/><text class="ink" x="120" y="242.5">0</text>
+    <circle class="plate" cx="300" cy="206" r="16"/><text class="ink" x="300" y="212.5">1</text>
+    <circle class="plate" cx="480" cy="174" r="16"/><text class="ink" x="480" y="180.5">2</text>
+    <circle class="plate" cx="660" cy="142" r="16"/><text class="ink" x="660" y="148.5">3</text>
+    <circle class="plate" cx="840" cy="110" r="16"/><text class="ink" x="840" y="116.5">4</text>
+  </g>
+
+  <!-- state names -->
+  <g class="mono ink" font-size="20" font-weight="700" text-anchor="middle">
+    <text x="120" y="296">none</text>
+    <text x="300" y="296">watch</text>
+    <text x="480" y="296">warning*</text>
+    <text x="660" y="296">orange</text>
+    <text x="840" y="296">red</text>
+  </g>
+  <g class="muted" font-size="15" text-anchor="middle">
+    <text x="120" y="321">All clear</text>
+    <text x="300" y="321">Be alert</text>
+    <text x="480" y="321">No colour in the name</text>
+    <text x="480" y="340">(road, frost, marine)</text>
+    <text x="660" y="321">Be prepared</text>
+    <text x="840" y="321">Act now</text>
+  </g>
+
+  <text x="48" y="368" class="muted" font-size="14">* Not an official MetService tier. It's where colourless warnings land, so they still rank above a watch.</text>
+</svg>
