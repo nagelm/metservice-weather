@@ -1,3 +1,18 @@
+## v2026.9.2
+
+**Needs Home Assistant 2026.8 or newer.**
+
+### Fixed
+
+- **Long forecasts keep their full text.** Weather description tomorrow and Boating forecast now put the whole text in a `full_description` attribute when it's too long for the state, like Weather description already does (#50).
+- **No more deprecation warnings at startup** on Home Assistant 2026.9. This also fixes a repair check that could pick the wrong device when two entries use the same location. First shipped in the v2026.9.1 prerelease.
+
+### Changed
+
+- A friendlier README, with diagrams, recipes and one-click setup buttons.
+
+---
+
 ## v2026.9.1
 
 ### Fixed
