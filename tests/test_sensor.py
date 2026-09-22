@@ -6,6 +6,7 @@ import datetime
 import logging
 from unittest.mock import patch
 
+import pytest
 from homeassistant.components.sensor import SensorDeviceClass
 
 from custom_components.metservice_weather.coordinator import (
@@ -1957,23 +1958,42 @@ def test_tide_direction_attr_carries_full_table():
 
 
 # ---------------------------------------------------------------------------
-# Test: weather description full_description attribute gating
+# Test: long free-text sensors — truncated state + full_description (GH #50)
 # ---------------------------------------------------------------------------
 
+# (sensor key, MetServicePublicData field, state when the text is missing)
+_LONG_TEXT_SENSORS = [
+    ("wxPhraseLong", "forecast_text", "No description"),
+    ("tomorrow_description", "tomorrow_description", None),
+    ("boating_forecast", "boating_forecast", None),
+]
 
-def test_weather_description_full_attr_only_when_truncated():
-    """full_description appears only when the state was actually truncated."""
-    desc = _desc("wxPhraseLong")
-    short = "Fine, light winds."
-    long = "x" * 300
-    assert desc.value_fn(MetServicePublicData(forecast_text=short), "metric") == short
-    assert desc.attr_fn(MetServicePublicData(forecast_text=short)) == {}
-    truncated = desc.value_fn(MetServicePublicData(forecast_text=long), "metric")
-    assert len(truncated) == 255
-    assert truncated.endswith("...")
-    assert desc.attr_fn(MetServicePublicData(forecast_text=long)) == {
-        "full_description": long
-    }
+
+@pytest.mark.parametrize(("key", "field", "missing_state"), _LONG_TEXT_SENSORS)
+def test_long_text_state_truncates_with_full_description(key, field, missing_state):
+    """Over 255 chars: state is 252 chars + "...", full_description holds it all."""
+    desc = _desc(key)
+    long = "x" * 256
+    data = MetServicePublicData(**{field: long})
+    state = desc.value_fn(data, "metric")
+    assert state == "x" * 252 + "..."
+    assert len(state) == 255
+    assert desc.attr_fn(data) == {"full_description": long}
+
+
+@pytest.mark.parametrize(("key", "field", "missing_state"), _LONG_TEXT_SENSORS)
+def test_long_text_state_untruncated_has_no_full_description(key, field, missing_state):
+    """Up to 255 chars passes through whole; missing text uses the fallback."""
+    desc = _desc(key)
+    for text, expected in (
+        ("Fine, light winds.", "Fine, light winds."),
+        ("y" * 255, "y" * 255),
+        ("", missing_state),
+        (None, missing_state),
+    ):
+        data = MetServicePublicData(**{field: text})
+        assert desc.value_fn(data, "metric") == expected
+        assert desc.attr_fn(data) == {}
 
 
 def test_tides_high_description_attrs_match_value_fn_selection():

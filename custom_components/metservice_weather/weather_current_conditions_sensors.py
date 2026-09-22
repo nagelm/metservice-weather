@@ -25,6 +25,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    MAX_LENGTH_STATE_STATE,
     PERCENTAGE,
     UnitOfTemperature,
     UnitOfPressure,
@@ -410,6 +411,30 @@ def _moon_phase_enum_state(raw: str | None) -> str | None:
     return mapped
 
 
+# ---------------------------------------------------------------------------
+# Long free-text states
+# ---------------------------------------------------------------------------
+
+
+def _long_text_state(text: str | None, fallback: str | None = None) -> str | None:
+    """Fit MetService prose into HA's 255-character state limit.
+
+    Longer text is cut to 252 characters plus "..." — HA would otherwise
+    reject the state and fall back to unknown. _full_text_attr carries the
+    untruncated original alongside (GH #50).
+    """
+    if isinstance(text, str) and len(text) > MAX_LENGTH_STATE_STATE:
+        return f"{text[: MAX_LENGTH_STATE_STATE - 3]}..."
+    return text or fallback
+
+
+def _full_text_attr(text: str | None) -> dict[str, StateType]:
+    """Return full_description, present only when _long_text_state cut the text."""
+    if isinstance(text, str) and len(text) > MAX_LENGTH_STATE_STATE:
+        return {"full_description": text}
+    return {}
+
+
 def _has_observations(coordinator: Any) -> bool:
     """Location has a weather station (rural pages have none)."""
     return coordinator.data is not None and coordinator.data.has_observations
@@ -476,16 +501,8 @@ current_condition_sensor_descriptions_public = [
         key=FIELD_DESCRIPTION,
         translation_key="weather_description",
         name="Weather description",
-        value_fn=lambda data, _: (
-            f"{data.forecast_text[:252]}..."
-            if isinstance(data.forecast_text, str) and len(data.forecast_text) > 255
-            else (data.forecast_text or "No description")
-        ),
-        attr_fn=lambda data: (
-            {"full_description": data.forecast_text}
-            if isinstance(data.forecast_text, str) and len(data.forecast_text) > 255
-            else {}
-        ),
+        value_fn=lambda data, _: _long_text_state(data.forecast_text, "No description"),
+        attr_fn=lambda data: _full_text_attr(data.forecast_text),
     ),
     WeatherSensorEntityDescription(
         key=FIELD_HUMIDITY,
@@ -822,12 +839,8 @@ current_condition_sensor_descriptions_public = [
         name="Boating forecast",
         exists_fn=_boating_enabled,
         device="marine",
-        value_fn=lambda data, _: (
-            f"{data.boating_forecast[:252]}..."
-            if isinstance(data.boating_forecast, str)
-            and len(data.boating_forecast) > 255
-            else (data.boating_forecast or None)
-        ),
+        value_fn=lambda data, _: _long_text_state(data.boating_forecast),
+        attr_fn=lambda data: _full_text_attr(data.boating_forecast),
     ),
     # --- Surf (from regional surf page marker data) ---
     WeatherSensorEntityDescription(
@@ -1038,12 +1051,8 @@ current_condition_sensor_descriptions_public = [
         key="tomorrow_description",
         translation_key="tomorrow_description",
         name="Weather description tomorrow",
-        value_fn=lambda data, _: (
-            f"{data.tomorrow_description[:252]}..."
-            if isinstance(data.tomorrow_description, str)
-            and len(data.tomorrow_description) > 255
-            else (data.tomorrow_description or None)
-        ),
+        value_fn=lambda data, _: _long_text_state(data.tomorrow_description),
+        attr_fn=lambda data: _full_text_attr(data.tomorrow_description),
     ),
     # --- Sub-day condition breakdown (from twoDayForecast module) ---
     WeatherSensorEntityDescription(
