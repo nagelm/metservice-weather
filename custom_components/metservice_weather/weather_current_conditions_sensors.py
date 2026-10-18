@@ -212,6 +212,25 @@ _UV_ALERT_LEVEL_MAP: dict[str, str] = {
     "very high": "very_high",
     "extreme": "extreme",
 }
+# In-season labels that embed a time ("Dangerous today from 9:55 AM") or a
+# day ("Not dangerous until tomorrow") are matched by prefix. Order matters:
+# the more specific "dangerous today from" must be tried before "dangerous".
+_UV_ALERT_LEVEL_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("not dangerous", "not_dangerous"),
+    ("dangerous today from", "dangerous_later"),
+    ("dangerous from", "dangerous_later"),
+    ("dangerous", "dangerous"),
+)
+_UV_RISK_OPTIONS = [
+    "low",
+    "moderate",
+    "high",
+    "very_high",
+    "extreme",
+    "not_dangerous",
+    "dangerous_later",
+    "dangerous",
+]
 _UNKNOWN_UV_ALERT_LEVELS_LOGGED: set[str] = set()
 
 
@@ -219,7 +238,17 @@ def _uv_alert_level_state(raw: str | None) -> str | None:
     """Map MetService's uvAlertLevel label to the uv_risk ENUM sensor's state."""
     if not raw:
         return None
-    mapped = _UV_ALERT_LEVEL_MAP.get(raw.strip().lower())
+    key = raw.strip().lower()
+    mapped = _UV_ALERT_LEVEL_MAP.get(key)
+    if mapped is None:
+        mapped = next(
+            (
+                state
+                for prefix, state in _UV_ALERT_LEVEL_PREFIXES
+                if key.startswith(prefix)
+            ),
+            None,
+        )
     if mapped is None:
         _warn_once(_UNKNOWN_UV_ALERT_LEVELS_LOGGED, "UV alert level", raw)
         return None
@@ -236,6 +265,7 @@ def _uv_attrs(data: Any) -> dict[str, StateType]:
     if _uv_alert_level_state(data.uv_alert_level) is None:
         return {}
     return {
+        "alert_label": data.uv_alert_level,
         "status_class": data.uv_status_class,
         "advice": data.uv_message,
         "protection_window_start": data.uv_window_start_at or data.uv_window_start_raw,
@@ -521,7 +551,7 @@ current_condition_sensor_descriptions_public = [
         name="UV index",
         seasonal=True,
         device_class=SensorDeviceClass.ENUM,
-        options=["low", "moderate", "high", "very_high", "extreme"],
+        options=_UV_RISK_OPTIONS,
         value_fn=lambda data, _: _uv_alert_level_state(data.uv_alert_level),
         attr_fn=_uv_attrs,
     ),

@@ -69,9 +69,15 @@
           "moderate": "Moderate",
           "high": "High",
           "very_high": "Very high",
-          "extreme": "Extreme"
+          "extreme": "Extreme",
+          "not_dangerous": "Not dangerous",
+          "dangerous_later": "Dangerous later today",
+          "dangerous": "Dangerous"
         },
         "state_attributes": {
+          "alert_label": {
+            "name": "MetService alert"
+          },
           "status_class": {
             "name": "Status class"
           },
