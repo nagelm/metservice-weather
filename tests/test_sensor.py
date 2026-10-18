@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import logging
 from unittest.mock import patch
 
@@ -138,9 +138,7 @@ def test_next_tide_time_not_list():
 
 def test_next_tide_time_future():
     """_next_tide_time returns a value for a future tide of the matching type."""
-    future = (
-        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
-    ).isoformat()
+    future = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=2)).isoformat()
     tides = [{"type": "HIGH", "time": future}]
     result = _next_tide_time(tides, "HIGH")
     assert result is not None
@@ -148,9 +146,7 @@ def test_next_tide_time_future():
 
 def test_next_tide_time_past_returns_none():
     """_next_tide_time returns None when the matching tide is in the past."""
-    past = (
-        datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
-    ).isoformat()
+    past = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=2)).isoformat()
     tides = [{"type": "HIGH", "time": past}]
     result = _next_tide_time(tides, "HIGH")
     assert result is None
@@ -158,9 +154,7 @@ def test_next_tide_time_past_returns_none():
 
 def test_next_tide_time_wrong_type_returns_none():
     """_next_tide_time returns None when no tide matches the requested type."""
-    future = (
-        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
-    ).isoformat()
+    future = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=2)).isoformat()
     tides = [{"type": "LOW", "time": future}]
     result = _next_tide_time(tides, "HIGH")
     assert result is None
@@ -941,7 +935,7 @@ def test_next_rain_at_parses_iso_datetime():
     desc = _desc("next_rain_at")
     data = MetServicePublicData(next_rain_at="2026-07-16T14:00:00+12:00")
     result = desc.value_fn(data, "metric")
-    assert isinstance(result, datetime.datetime)
+    assert isinstance(result, dt.datetime)
 
 
 def test_next_rain_at_none_when_absent():
@@ -1769,7 +1763,7 @@ def test_sunrise_at_description_parses_iso_datetime_and_display_attr():
         sunrise_at="2026-07-16T07:12:00+12:00", sunrise="7:12am"
     )
     result = desc.value_fn(data, "metric")
-    assert isinstance(result, datetime.datetime)
+    assert isinstance(result, dt.datetime)
     assert desc.attr_fn(data) == {"display": "7:12am"}
 
 
@@ -1787,7 +1781,7 @@ def test_sunset_at_description_parses_iso_datetime_and_display_attr():
     assert desc.device_class == SensorDeviceClass.TIMESTAMP
     data = MetServicePublicData(sunset_at="2026-07-16T17:23:00+12:00", sunset="5:23pm")
     result = desc.value_fn(data, "metric")
-    assert isinstance(result, datetime.datetime)
+    assert isinstance(result, dt.datetime)
     assert desc.attr_fn(data) == {"display": "5:23pm"}
 
 
@@ -1807,7 +1801,7 @@ def test_moonrise_at_description_parses_iso_datetime_and_display_attr():
         moonrise_at="2026-07-16T20:00:00+12:00", moonrise="8:00pm"
     )
     result = desc.value_fn(data, "metric")
-    assert isinstance(result, datetime.datetime)
+    assert isinstance(result, dt.datetime)
     assert desc.attr_fn(data) == {"display": "8:00pm"}
 
 
@@ -1827,7 +1821,7 @@ def test_moonset_at_description_parses_iso_datetime_and_display_attr():
         moonset_at="2026-07-16T09:00:00+12:00", moonset="9:00am"
     )
     result = desc.value_fn(data, "metric")
-    assert isinstance(result, datetime.datetime)
+    assert isinstance(result, dt.datetime)
     assert desc.attr_fn(data) == {"display": "9:00am"}
 
 
@@ -1846,12 +1840,8 @@ def test_moonset_at_description_none_safe():
 
 def test_tide_attrs_height_from_upcoming_entry():
     """height_m comes from the same upcoming entry the value_fn selects."""
-    future1 = (
-        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
-    ).isoformat()
-    future2 = (
-        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=8)
-    ).isoformat()
+    future1 = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=2)).isoformat()
+    future2 = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=8)).isoformat()
     tides = [
         {"type": "HIGH", "time": future1, "height": "1.8"},
         {"type": "LOW", "time": future2, "height": "0.4"},
@@ -1863,9 +1853,7 @@ def test_tide_attrs_height_from_upcoming_entry():
 
 def test_tide_attrs_empty_when_no_upcoming_entry():
     """attr_fn returns {} when every matching tide is in the past."""
-    past = (
-        datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
-    ).isoformat()
+    past = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=2)).isoformat()
     tides = [{"type": "HIGH", "time": past, "height": "1.8"}]
     data = MetServicePublicData(tides=tides)
     assert _tide_attrs(data, "HIGH") == {}
@@ -1884,11 +1872,11 @@ def test_tide_attrs_empty_when_tides_not_a_list():
 
 def _future_tides(*types: str) -> list[dict]:
     """Build a chronological tide table starting one hour from now."""
-    base = datetime.datetime.now(datetime.UTC)
+    base = dt.datetime.now(dt.UTC)
     return [
         {
             "type": t,
-            "time": (base + datetime.timedelta(hours=1 + i * 6)).isoformat(),
+            "time": (base + dt.timedelta(hours=1 + i * 6)).isoformat(),
             "height": "1.5",
         }
         for i, t in enumerate(types)
@@ -1915,9 +1903,7 @@ def test_tide_direction_falling_when_next_event_is_low():
 def test_tide_direction_skips_past_events():
     """Past entries are skipped — the state comes from the first future event."""
     desc = _desc("tide_direction")
-    past = (
-        datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
-    ).isoformat()
+    past = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=2)).isoformat()
     tides = [{"type": "HIGH", "time": past, "height": "1.8"}] + _future_tides("LOW")
     data = MetServicePublicData(tides=tides)
     assert desc.value_fn(data, "metric") == "falling"
@@ -1926,9 +1912,7 @@ def test_tide_direction_skips_past_events():
 def test_tide_direction_unknown_when_exhausted_or_absent():
     """State is None when the table is exhausted, absent, or the type is unknown."""
     desc = _desc("tide_direction")
-    past = (
-        datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
-    ).isoformat()
+    past = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=2)).isoformat()
     assert (
         desc.value_fn(
             MetServicePublicData(tides=[{"type": "HIGH", "time": past}]), "metric"
@@ -1999,9 +1983,7 @@ def test_long_text_state_untruncated_has_no_full_description(key, field, missing
 def test_tides_high_description_attrs_match_value_fn_selection():
     """height_m in attr_fn always reflects the exact entry value_fn selected."""
     desc = _desc("tides_high")
-    future = (
-        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=3)
-    ).isoformat()
+    future = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=3)).isoformat()
     tides = [{"type": "HIGH", "time": future, "height": "2.1"}]
     data = MetServicePublicData(tides=tides)
     value = desc.value_fn(data, "metric")
@@ -2013,9 +1995,7 @@ def test_tides_high_description_attrs_match_value_fn_selection():
 def test_tides_low_description_attrs_match_value_fn_selection():
     """height_m in attr_fn always reflects the exact entry value_fn selected."""
     desc = _desc("tides_low")
-    future = (
-        datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=5)
-    ).isoformat()
+    future = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=5)).isoformat()
     tides = [{"type": "LOW", "time": future, "height": "0.3"}]
     data = MetServicePublicData(tides=tides)
     value = desc.value_fn(data, "metric")

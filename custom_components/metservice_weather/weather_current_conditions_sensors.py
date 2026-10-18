@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, cast
 from collections.abc import Callable
-import datetime
+import datetime as dt
 from homeassistant.util import dt as dt_util
 
 from .helpers import safe_float as _safe_float, safe_int as _safe_int
@@ -73,7 +73,7 @@ def _next_tide_entry(data: list | None, tide_type: str) -> dict | None:
     return None
 
 
-def _next_tide_time(data: list | None, tide_type: str) -> datetime.datetime | None:
+def _next_tide_time(data: list | None, tide_type: str) -> dt.datetime | None:
     """Return the next upcoming tide time of the given type, or None if unavailable."""
     entry = _next_tide_entry(data, tide_type)
     if entry is None:
@@ -492,7 +492,7 @@ current_condition_sensor_descriptions_public = [
         name="Forecast issued",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
-            datetime.datetime.fromisoformat(data.issued_at)
+            dt.datetime.fromisoformat(data.issued_at)
             if isinstance(data.issued_at, str)
             else None
         ),
@@ -636,7 +636,7 @@ current_condition_sensor_descriptions_public = [
         entity_registry_enabled_default=False,
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
-            datetime.datetime.fromisoformat(data.next_rain_at)
+            dt.datetime.fromisoformat(data.next_rain_at)
             if isinstance(data.next_rain_at, str)
             else None
         ),
@@ -1098,7 +1098,7 @@ current_condition_sensor_descriptions_public = [
         name="Sunrise",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
-            datetime.datetime.fromisoformat(data.sunrise_at)
+            dt.datetime.fromisoformat(data.sunrise_at)
             if isinstance(data.sunrise_at, str)
             else None
         ),
@@ -1110,7 +1110,7 @@ current_condition_sensor_descriptions_public = [
         name="Sunset",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
-            datetime.datetime.fromisoformat(data.sunset_at)
+            dt.datetime.fromisoformat(data.sunset_at)
             if isinstance(data.sunset_at, str)
             else None
         ),
@@ -1122,7 +1122,7 @@ current_condition_sensor_descriptions_public = [
         name="Moonrise",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
-            datetime.datetime.fromisoformat(data.moonrise_at)
+            dt.datetime.fromisoformat(data.moonrise_at)
             if isinstance(data.moonrise_at, str)
             else None
         ),
@@ -1134,7 +1134,7 @@ current_condition_sensor_descriptions_public = [
         name="Moonset",
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data, _: (
-            datetime.datetime.fromisoformat(data.moonset_at)
+            dt.datetime.fromisoformat(data.moonset_at)
             if isinstance(data.moonset_at, str)
             else None
         ),
