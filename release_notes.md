@@ -1,3 +1,13 @@
+## v2026.10.0
+
+**Needs Home Assistant 2026.8 or newer.**
+
+### Fixed
+
+- **UV index works in summer again.** MetService's in-season labels ("Dangerous", "Dangerous today from 9:55 AM", "Not dangerous until tomorrow") left the sensor `unknown`. They now map to three new states, `dangerous`, `dangerous_later` and `not_dangerous`, and the exact wording is kept in a new `alert_label` attribute (#63).
+
+---
+
 ## v2026.9.2
 
 **Needs Home Assistant 2026.8 or newer.**

@@ -1000,6 +1000,23 @@ def test_uv_alert_level_known_mappings():
     assert _uv_alert_level_state("  very high  ") == "very_high"
 
 
+@pytest.mark.parametrize(
+    ("raw", "state"),
+    [
+        ("Dangerous", "dangerous"),
+        ("Dangerous until 4:30 PM", "dangerous"),
+        ("Dangerous today from 9:55 AM", "dangerous_later"),
+        ("Dangerous today from 11:05 AM", "dangerous_later"),
+        ("Not dangerous until tomorrow", "not_dangerous"),
+        ("Not dangerous today", "not_dangerous"),
+        ("  not DANGEROUS until tomorrow ", "not_dangerous"),
+    ],
+)
+def test_uv_alert_level_in_season_labels(raw, state):
+    """The in-season Dangerous / Not dangerous labels (#63) map by prefix."""
+    assert _uv_alert_level_state(raw) == state
+
+
 def test_uv_alert_level_none_when_absent():
     """A missing/empty UV alert level maps to None (not a warn-once event)."""
     assert _uv_alert_level_state(None) is None
@@ -1016,11 +1033,20 @@ def test_uv_alert_level_unknown_warns_once(caplog):
     assert len(matches) == 1
 
 
-def test_uv_risk_description_is_enum_with_five_options():
-    """uv_risk is a seasonal ENUM sensor with the five documented states."""
+def test_uv_risk_description_is_enum_with_documented_options():
+    """uv_risk is a seasonal ENUM sensor with the documented states."""
     desc = _desc("uv_risk")
     assert desc.device_class == SensorDeviceClass.ENUM
-    assert desc.options == ["low", "moderate", "high", "very_high", "extreme"]
+    assert desc.options == [
+        "low",
+        "moderate",
+        "high",
+        "very_high",
+        "extreme",
+        "not_dangerous",
+        "dangerous_later",
+        "dangerous",
+    ]
     assert desc.seasonal is True
 
 
@@ -1037,15 +1063,32 @@ def test_uv_risk_description_value_and_attrs():
     )
     assert desc.value_fn(data, "metric") == "moderate"
     attrs = desc.attr_fn(data)
+    assert attrs["alert_label"] == "Moderate"
     assert attrs["status_class"] == "moderate"
     assert attrs["advice"] == "Take care"
     assert attrs["protection_window_start"] == "2026-07-16T09:00:00+12:00"
     assert attrs["protection_window_end"] == "2026-07-16T17:00:00+12:00"
     assert attrs["has_alert"] is True
-    # level_label (bijective with the state) and the manual attribution key
-    # (the platform-wide _attr_attribution covers it) are deliberately absent.
-    assert "level_label" not in attrs
+    # The manual attribution key is deliberately absent: the platform-wide
+    # _attr_attribution covers it.
     assert "attribution" not in attrs
+
+
+def test_uv_risk_description_dangerous_later_keeps_label_and_window():
+    """A timed in-season label (#63) sets the state and keeps its attributes."""
+    desc = _desc("uv_risk")
+    data = MetServicePublicData(
+        uv_alert_level="Dangerous today from 9:55 AM",
+        uv_message="Sun protection recommended from 9:55am",
+        uv_window_start_raw="9:55am",
+        uv_window_end_raw="4:10pm",
+    )
+    assert desc.value_fn(data, "metric") == "dangerous_later"
+    attrs = desc.attr_fn(data)
+    assert attrs["alert_label"] == "Dangerous today from 9:55 AM"
+    assert attrs["advice"] == "Sun protection recommended from 9:55am"
+    assert attrs["protection_window_start"] == "9:55am"
+    assert attrs["protection_window_end"] == "4:10pm"
 
 
 def test_uv_risk_description_attrs_fall_back_to_raw_window():

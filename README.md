@@ -146,7 +146,7 @@ Some of these take a break for part of the year. See [why a sensor might say `un
 
 | Sensor | What it tells you |
 |---|---|
-| UV index | `low`, `moderate`, `high`, `very_high` or `extreme`, with MetService's advice and the sun-protection window as attributes |
+| UV index | `low`, `moderate`, `high`, `very_high` or `extreme`, or in summer `not_dangerous`, `dangerous_later` or `dangerous`, with MetService's own alert wording, advice and the sun-protection window as attributes |
 | Fire season | `open`, `restricted` or `prohibited` (Fire and Emergency NZ), with `scope` and `detail` attributes |
 | Fire danger | `low` through to `extreme` (NIWA's fire danger index), with `index`, `guidance` and `tomorrow` attributes |
 | Pollen | `none`, `low`, `moderate` or `high`, all year. The allergens behind it are in `low_allergens`, `moderate_allergens` and `high_allergens`, and ones about to start their season are in `imminent_allergens` |
