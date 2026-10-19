@@ -1,4 +1,6 @@
-## Unreleased
+## v2026.10.0
+
+**Needs Home Assistant 2026.8 or newer.**
 
 ### Fixed
 
