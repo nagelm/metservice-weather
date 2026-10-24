@@ -5,6 +5,12 @@
 ### Fixed
 
 - **UV index works in summer again.** MetService's in-season labels ("Dangerous", "Dangerous today from 9:55 AM", "Not dangerous until tomorrow") left the sensor `unknown`. They now map to three new states, `dangerous`, `dangerous_later` and `not_dangerous`, and the exact wording is kept in a new `alert_label` attribute (#63).
+- **Upgrading from v0.9 keeps your entities.** Entities set up by v0.9 (ciejer/metservice-weather's last release, or v0.9.x here) were deleted and recreated under new entity IDs on first start, losing their history. They're now carried over in place, so every sensor that still exists keeps its entity ID, history and any name or icon you gave it. Retired v0.9 sensors still go away, with a repair naming the replacement if an automation or script uses one (#67).
+- **The "still in use" repair for removed sensors no longer misses automations and scripts** that finish loading after MetService at startup (#67).
+
+### Changed
+
+- The README has a new [Moving over from ciejer/metservice-weather](https://github.com/nagelm/metservice-weather#moving-over-from-ciejer) section with the switch-over steps.
 
 ---
 
