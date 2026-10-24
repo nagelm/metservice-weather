@@ -321,6 +321,25 @@ Go to **Settings → Devices & services → MetService New Zealand Weather → �
 </details>
 
 <details>
+<summary><b>Moving over from ciejer/metservice-weather</b></summary>
+
+This repository carries on [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather), with ciejer's blessing. Both install the same integration, so you can switch without setting anything up again. You'll need **Home Assistant 2026.8 or newer**.
+
+1. **Remove the old download in HACS:** **HACS → MetService New Zealand Weather → ⋮ → Remove**. Leave the integration itself alone in **Settings → Devices & services**, because deleting it there deletes your entities.
+2. **Download this one:** hit the HACS button at the top of this page, or add it as a custom repository as described in [Get started](#-get-started).
+3. **Restart Home Assistant.**
+
+Your locations, entity IDs, history, dashboards and automations all carry over. A few things look different afterwards:
+
+- **Names:** sensors use Home Assistant's naming style ("Wind speed" rather than "Wind Speed"), and the device is named after the place you picked. Entity IDs don't change.
+- **Marine sensors** sit on their own device. If you used a device trigger or condition for tides, point it at the new marine device.
+- **Forecast attributes:** the weather entity's `forecast_hourly` and `forecast_daily` attributes are gone. Use the `weather.get_forecasts` action instead, or see [Recipes](#-recipes).
+- **Retired sensors:** a few old sensors (such as the old UV index, warnings, pollen and fire sensors) have been replaced by better ones. If an automation or dashboard still uses one, a repair in **Settings → Repairs** tells you where and what to switch to.
+- **GPS locations** (the mobile API) are gone. A location set up that way shows a repair asking you to **Reconfigure** it and pick a town.
+
+</details>
+
+<details>
 <summary><b>Removing it</b></summary>
 
 1. **Settings → Devices & services → MetService New Zealand Weather → ⋮ → Delete** removes the entities and settings.

@@ -10,7 +10,8 @@ from homeassistant.const import (
     CONF_LOCATION,
     Platform,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from .coordinator import WeatherUpdateCoordinator, WeatherUpdateCoordinatorConfig
 from .entity import async_register_location_device
@@ -85,9 +86,58 @@ def _check_legacy_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) -> No
         )
 
 
+async def _async_migrate_legacy_unique_ids(
+    hass: HomeAssistant, entry: MetServiceConfigEntry
+) -> None:
+    """Re-key entities registered by v0.9.x onto the current unique_id format.
+
+    Up to v0.9.x (including ciejer/metservice-weather v0.9) every entity's
+    unique_id was "<typed name>,<key>"; v1.0.0 changed it to
+    "<location path>_<key>" with no migration, so an upgrade from v0.9
+    orphaned every old entity and created new ones on different entity IDs
+    (often with a "_2" suffix), losing history and breaking references.
+    Re-keying the old registry entries in place keeps their entity IDs,
+    history and customisations. Runs before the platforms are set up so
+    the platforms find the re-keyed entries. A target unique_id that is
+    already registered (someone who crossed v1.0.0 earlier and now has
+    both) is left alone. Wrapped in a broad except so it can never block
+    setup.
+    """
+    try:
+        name = entry.data.get(CONF_NAME)
+        location = entry.data.get(CONF_LOCATION)
+        if not name or location not in _VALID_LOCATION_VALUES:
+            return
+        old_prefix = f"{name},".lower()
+        new_prefix = f"{location}_".lower()
+        ent_reg = er.async_get(hass)
+
+        @callback
+        def _rekey(reg_entry: er.RegistryEntry) -> dict[str, str] | None:
+            if not reg_entry.unique_id.startswith(old_prefix):
+                return None
+            new_unique_id = new_prefix + reg_entry.unique_id.removeprefix(old_prefix)
+            if ent_reg.async_get_entity_id(reg_entry.domain, DOMAIN, new_unique_id):
+                return None
+            _LOGGER.info(
+                "Migrating %s from v0.9 unique_id %r to %r",
+                reg_entry.entity_id,
+                reg_entry.unique_id,
+                new_unique_id,
+            )
+            return {"new_unique_id": new_unique_id}
+
+        await er.async_migrate_entries(hass, entry.entry_id, _rekey)
+    except Exception:
+        _LOGGER.debug(
+            "v0.9 unique_id migration failed; continuing without it", exc_info=True
+        )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: MetServiceConfigEntry):
     """Set up the MetService Weather component."""
     _check_legacy_entry(hass, entry)
+    await _async_migrate_legacy_unique_ids(hass, entry)
 
     config = WeatherUpdateCoordinatorConfig(
         location=entry.data[CONF_LOCATION],
