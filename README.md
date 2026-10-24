@@ -320,21 +320,25 @@ Go to **Settings → Devices & services → MetService New Zealand Weather → �
 
 </details>
 
+<a id="moving-over-from-ciejer"></a>
 <details>
 <summary><b>Moving over from ciejer/metservice-weather</b></summary>
 
-This repository carries on [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather), with ciejer's blessing. Both install the same integration, so you can switch without setting anything up again. You'll need **Home Assistant 2026.8 or newer**.
+This repository carries on [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather), with ciejer's blessing. Both install the same integration, so you can switch without setting anything up again. You'll need **Home Assistant 2026.8 or newer** and **v2026.10.0 or newer** of this integration, the first release that keeps your old entities.
 
-1. **Remove the old download in HACS:** **HACS → MetService New Zealand Weather → ⋮ → Remove**. Leave the integration itself alone in **Settings → Devices & services**, because deleting it there deletes your entities.
+1. **Remove the old download in HACS:** open **MetService New Zealand Weather** by ciejer in HACS (both versions use that name), then **⋮ → Remove**. Leave the integration itself alone in **Settings → Devices & services**, because deleting it there deletes your entities.
 2. **Download this one:** hit the HACS button at the top of this page, or add it as a custom repository as described in [Get started](#-get-started).
 3. **Restart Home Assistant.**
 
-Your locations, entity IDs, history, dashboards and automations all carry over. A few things look different afterwards:
+Already downloaded this one without removing the old one first? Both live in the same folder, so removing the old one in HACS deletes this one's files too. Remove the old one, then open this one in HACS, choose **⋮ → Redownload**, and restart.
+
+Your locations carry over, and so does every sensor that still exists, with its entity ID, history and any name or icon you gave it. A few things look different afterwards:
 
 - **Names:** sensors use Home Assistant's naming style ("Wind speed" rather than "Wind Speed"), and the device is named after the place you picked. Entity IDs don't change.
 - **Marine sensors** sit on their own device. If you used a device trigger or condition for tides, point it at the new marine device.
 - **Forecast attributes:** the weather entity's `forecast_hourly` and `forecast_daily` attributes are gone. Use the `weather.get_forecasts` action instead, or see [Recipes](#-recipes).
-- **Retired sensors:** a few old sensors (such as the old UV index, warnings, pollen and fire sensors) have been replaced by better ones. If an automation or dashboard still uses one, a repair in **Settings → Repairs** tells you where and what to switch to.
+- **Retired sensors:** a few old sensors (such as the old UV index, warnings, pollen and fire sensors) have been replaced by better ones. If an automation or script still uses one, a repair in **Settings → Repairs** tells you where and what to switch to. Dashboards aren't checked, so look over your cards for any that say the entity isn't available.
+- **Rural spots without a weather station** don't get the station readings (temperature, humidity, wind and pressure), so those old sensors go away.
 - **GPS locations** (the mobile API) are gone. A location set up that way shows a repair asking you to **Reconfigure** it and pick a town.
 
 </details>

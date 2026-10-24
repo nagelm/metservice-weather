@@ -93,30 +93,34 @@ async def _async_migrate_legacy_unique_ids(
 
     Up to v0.9.x (including ciejer/metservice-weather v0.9) every entity's
     unique_id was "<typed name>,<key>"; v1.0.0 changed it to
-    "<location path>_<key>" with no migration, so an upgrade from v0.9
-    orphaned every old entity and created new ones on different entity IDs
-    (often with a "_2" suffix), losing history and breaking references.
-    Re-keying the old registry entries in place keeps their entity IDs,
-    history and customisations. Runs before the platforms are set up so
-    the platforms find the re-keyed entries. A target unique_id that is
-    already registered (someone who crossed v1.0.0 earlier and now has
-    both) is left alone. Wrapped in a broad except so it can never block
-    setup.
+    "<location path>_<key>" with no migration, so the platforms' stale-entity
+    cleanup deleted every v0.9 entity on upgrade and recreated it on a new
+    entity ID, losing history and breaking references. Re-keying the old
+    registry entries in place keeps their entity IDs, history and
+    customisations. Runs before the platforms are set up so the platforms
+    find the re-keyed entries.
+
+    Matches on the key after the last comma rather than on the typed name,
+    so an entry that had to be reconfigured (mobile API, old location path)
+    keeps its entities even if the name was changed. Current unique_ids and
+    pre-v0.8 "<location path>,weather" rows start with "/" and are never
+    matched. A target unique_id that is already registered (someone who
+    crossed v1.0.0 earlier and now has both) is left alone. Wrapped in a
+    broad except so it can never block setup.
     """
     try:
-        name = entry.data.get(CONF_NAME)
         location = entry.data.get(CONF_LOCATION)
-        if not name or location not in _VALID_LOCATION_VALUES:
+        if location not in _VALID_LOCATION_VALUES:
             return
-        old_prefix = f"{name},".lower()
         new_prefix = f"{location}_".lower()
         ent_reg = er.async_get(hass)
 
         @callback
         def _rekey(reg_entry: er.RegistryEntry) -> dict[str, str] | None:
-            if not reg_entry.unique_id.startswith(old_prefix):
+            unique_id = reg_entry.unique_id
+            if "," not in unique_id or unique_id.startswith("/"):
                 return None
-            new_unique_id = new_prefix + reg_entry.unique_id.removeprefix(old_prefix)
+            new_unique_id = new_prefix + unique_id.rsplit(",", 1)[1].lower()
             if ent_reg.async_get_entity_id(reg_entry.domain, DOMAIN, new_unique_id):
                 return None
             _LOGGER.info(
@@ -129,8 +133,9 @@ async def _async_migrate_legacy_unique_ids(
 
         await er.async_migrate_entries(hass, entry.entry_id, _rekey)
     except Exception:
-        _LOGGER.debug(
-            "v0.9 unique_id migration failed; continuing without it", exc_info=True
+        _LOGGER.warning(
+            "v0.9 unique_id migration failed; v0.9 entities may be recreated",
+            exc_info=True,
         )
 
 
