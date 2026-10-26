@@ -1,3 +1,13 @@
+## v2026.10.1
+
+**Needs Home Assistant 2026.8 or newer.**
+
+### Changed
+
+- **The integration ships its own icon and logo.** Home Assistant 2026.3 and newer read them from the integration itself instead of the brands repository (#68).
+
+---
+
 ## v2026.10.0
 
 **Needs Home Assistant 2026.8 or newer.**
