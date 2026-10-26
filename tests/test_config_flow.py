@@ -44,6 +44,34 @@ async def test_public_no_marine(hass, mock_marine_session):
 
 
 # ---------------------------------------------------------------------------
+# Test 1b — custom location absent from LOCATIONS (custom_value=True)
+# ---------------------------------------------------------------------------
+
+
+async def test_custom_location_not_in_list(hass, mock_marine_session):
+    """A location path not in the curated list is accepted and stored verbatim."""
+    custom_location = "/towns-cities/regions/auckland/locations/makarau"
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "setup"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Makarau",
+            CONF_LOCATION: custom_location,
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {},
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_LOCATION] == custom_location
+
+
+# ---------------------------------------------------------------------------
 # Test 2 — public API with marine region (proceeds to locations step)
 # ---------------------------------------------------------------------------
 

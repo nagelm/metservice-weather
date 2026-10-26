@@ -185,7 +185,12 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_LOCATION,
                     default=values.get(CONF_LOCATION, DEFAULT_LOCATION),
-                ): SelectSelector(SelectSelectorConfig(options=LOCATIONS)),
+                ): SelectSelector(
+                    # custom_value lets users enter any valid MetService
+                    # location path not in the curated LOCATIONS list, and
+                    # keeps out-of-list entries pre-filling on reconfigure.
+                    SelectSelectorConfig(options=LOCATIONS, custom_value=True)
+                ),
                 vol.Required(
                     CONF_MARINE_REGION, default=marine_default
                 ): SelectSelector(SelectSelectorConfig(options=region_opts)),
