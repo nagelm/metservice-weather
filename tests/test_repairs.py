@@ -1,13 +1,4 @@
-"""Tests for the entity-ID reclaim repair — Part 3 of the v2026.9.0 deprecated-sensor removal.
-
-Covers deprecation.py's async_check_entity_id_reclaim detector (exercised
-through its public entry point, async_check_deprecated_entities, for
-realism — this is exactly how sensor.py's async_setup_entry invokes it)
-and repairs.py's EntityIdReclaimRepairFlow fix flow, driven through the
-real HA repairs flow manager so the issue-deletion side effect
-(RepairsFlowManager.async_finish_flow) is exercised too, not just asserted
-by hand.
-"""
+"""Tests for the entity-ID reclaim repair."""
 
 from __future__ import annotations
 
@@ -38,11 +29,6 @@ _AUTOMATIONS_PATCH = (
 )
 _SCRIPTS_PATCH = "custom_components.metservice_weather.deprecation.scripts_with_entity"
 
-# uv_risk is used as the representative replacement key throughout: its
-# description.name is "UV index", so slugify("Napier UV index") ->
-# "napier_uv_index" is the canonical entity_id every test below targets,
-# and "napier_uv_index_2" is the suffixed id HA would have minted when the
-# deprecated sensor's row held the canonical one at v2026.7.1.
 _RECLAIM_KEY = "uv_risk"
 _RECLAIM_SENSOR_NAME = "UV index"
 _CANONICAL_ENTITY_ID = "sensor.napier_uv_index"
@@ -101,10 +87,7 @@ def _make_suffixed_row(
     suggested_object_id: str = _SUFFIXED_OBJECT_ID,
     with_device: bool = True,
 ) -> er.RegistryEntry:
-    """Create a suffixed registry row for `key`, simulating the v2026.7.1 collision.
-
-    with_device=False omits device_id, for the "no device" self-clear test.
-    """
+    """Create a suffixed registry row for `key`, simulating the v2026.7.1 collision."""
     ent_reg = er.async_get(hass)
     device_id = _make_location_device(hass, entry, coord).id if with_device else None
     unique_id = f"{coord.location}_{key}".lower()
@@ -129,18 +112,7 @@ def _referenced_issue_id(entry: MockConfigEntry) -> str:
 async def _async_setup_full(
     hass, entry: MockConfigEntry, data: MetServicePublicData
 ) -> WeatherUpdateCoordinator:
-    """Run the real config-entry setup (coordinator + weather + sensor platforms).
-
-    Only the fix-flow-driving test needs this (rather than calling
-    async_check_deprecated_entities directly, like the detection-only tests
-    above): HA's repairs flow manager only looks up a fix-flow platform for
-    a domain that's actually a loaded top-level component
-    (LazyIntegrationPlatforms.async_get_platform gates on
-    hass.config.top_level_components) — calling the detector function
-    directly never makes "metservice_weather" a loaded component, so the
-    flow manager would silently fall back to repairs' generic
-    ConfirmRepairFlow instead of finding repairs.py.
-    """
+    """Run the real config-entry setup (coordinator + weather + sensor platforms)."""
     entry.add_to_hass(hass)
     with patch.object(
         WeatherUpdateCoordinator,
@@ -151,11 +123,6 @@ async def _async_setup_full(
         await hass.async_block_till_done()
     assert result is True
     return entry.runtime_data
-
-
-# ---------------------------------------------------------------------------
-# Detection: fixable branch (unreferenced -> fixable issue)
-# ---------------------------------------------------------------------------
 
 
 async def test_fixable_issue_raised_when_canonical_free_and_unreferenced(hass):
@@ -195,12 +162,7 @@ async def test_fixable_issue_raised_when_canonical_free_and_unreferenced(hass):
 
 
 async def test_fixable_issue_fix_flow_renames_entity_and_clears_issue(hass):
-    """Driving the fix flow through the real repairs flow manager renames the entity_id and clears the issue.
-
-    Uses _async_setup_full (real config-entry setup) rather than calling
-    async_check_deprecated_entities directly — see that helper's docstring
-    for why the flow manager needs the component genuinely loaded.
-    """
+    """Driving the fix flow through the real repairs flow manager renames the entity_id and clears the issue."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -232,16 +194,10 @@ async def test_fixable_issue_fix_flow_renames_entity_and_clears_issue(hass):
     ent_reg = er.async_get(hass)
     assert ent_reg.async_get(old_entity_id) is None
     assert ent_reg.async_get(_CANONICAL_ENTITY_ID) is not None
-    # RepairsFlowManager.async_finish_flow deletes the issue on CREATE_ENTRY.
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
 
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
-
-
-# ---------------------------------------------------------------------------
-# Detection: referenced branch (referenced -> non-fixable issue, no rename)
-# ---------------------------------------------------------------------------
 
 
 async def test_referenced_issue_raised_and_entity_id_unchanged(hass):
@@ -272,11 +228,6 @@ async def test_referenced_issue_raised_and_entity_id_unchanged(hass):
     ent_reg = er.async_get(hass)
     assert ent_reg.async_get(reg_entry.entity_id) is not None
     assert ent_reg.async_get(_CANONICAL_ENTITY_ID) is None
-
-
-# ---------------------------------------------------------------------------
-# Detection: no-op branches (self-clearing)
-# ---------------------------------------------------------------------------
 
 
 async def test_no_issue_when_object_id_already_canonical(hass):
@@ -376,7 +327,6 @@ async def test_self_clear_when_replacement_description_missing(hass):
         "custom_components.metservice_weather.deprecation.DEPRECATED_SENSOR_REPLACEMENTS",
         {"old_ghost_key": "ghost_replacement"},
     ):
-        # Must not raise.
         await async_check_deprecated_entities(hass, entry, coord)
 
     assert (
@@ -396,8 +346,6 @@ async def test_self_clear_when_registry_row_vanishes_between_lookups(hass):
     with patch.object(
         er.EntityRegistry, "async_get_entity_id", return_value="sensor.ghost"
     ):
-        # Must not raise, even though every key "resolves" to a
-        # non-existent entity_id.
         await async_check_deprecated_entities(hass, entry, coord)
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, _fixable_issue_id(entry)) is None
@@ -413,14 +361,7 @@ async def test_exception_inside_reclaim_check_does_not_propagate(hass):
         "custom_components.metservice_weather.deprecation.er.async_get",
         side_effect=RuntimeError("boom"),
     ):
-        # Must not raise.
         await async_check_deprecated_entities(hass, entry, coord)
-
-
-# ---------------------------------------------------------------------------
-# Self-clear: an existing issue for a key whose row has since become
-# canonical (by whatever means) is deleted on the next run.
-# ---------------------------------------------------------------------------
 
 
 async def test_self_clear_when_row_becomes_canonical(hass):
@@ -450,8 +391,6 @@ async def test_self_clear_when_row_becomes_canonical(hass):
     )
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
 
-    # The row is renamed onto the canonical id by some other means (e.g.
-    # the user did it manually from the UI before ever seeing the repair).
     ent_reg = er.async_get(hass)
     ent_reg.async_update_entity(reg_entry.entity_id, new_entity_id=_CANONICAL_ENTITY_ID)
 
@@ -464,11 +403,6 @@ async def test_self_clear_when_row_becomes_canonical(hass):
         await async_check_deprecated_entities(hass, entry, coord)
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
-
-
-# ---------------------------------------------------------------------------
-# repairs.py: EntityIdReclaimRepairFlow direct-instantiation edge case
-# ---------------------------------------------------------------------------
 
 
 async def test_fix_flow_is_noop_when_row_already_gone(hass):
@@ -490,18 +424,8 @@ async def test_fix_flow_is_noop_when_row_already_gone(hass):
     assert er.async_get(hass).async_get(_CANONICAL_ENTITY_ID) is None
 
 
-# ---------------------------------------------------------------------------
-# Suffix-only scope: old-era ids are never candidates (user directive —
-# don't propose renames toward names those entities never tried to mint)
-# ---------------------------------------------------------------------------
-
-
 async def test_no_issue_for_old_era_non_suffixed_id(hass):
-    """An id that differs from canonical without a numeric suffix is left alone.
-
-    e.g. sensor.outside_napier_uv_risk (area/naming-era prefix) — a rename
-    to sensor.napier_uv_index would be canonicalization, not reclamation.
-    """
+    """An id that differs from canonical without a numeric suffix is left alone."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -519,11 +443,6 @@ async def test_no_issue_for_old_era_non_suffixed_id(hass):
     assert (
         ir.async_get(hass).async_get_issue(DOMAIN, _referenced_issue_id(entry)) is None
     )
-
-
-# ---------------------------------------------------------------------------
-# Consolidation: many candidates -> one issue per entry, one Fix for all
-# ---------------------------------------------------------------------------
 
 
 async def test_multiple_candidates_consolidate_into_one_fixable_issue(hass):

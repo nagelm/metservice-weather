@@ -20,10 +20,6 @@ from custom_components.metservice_weather.coordinator_types import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
 _PUBLIC_ENTRY_DATA = {
     "name": "Napier",
     "location": "/towns-cities/regions/hawkes-bay/locations/napier",
@@ -37,11 +33,6 @@ _PUBLIC_ENTRY_DATA = {
 
 def _make_entry(data: dict) -> MockConfigEntry:
     return MockConfigEntry(domain=DOMAIN, data=data)
-
-
-# ---------------------------------------------------------------------------
-# Test: async_setup_entry and async_unload_entry (public API)
-# ---------------------------------------------------------------------------
 
 
 async def test_setup_and_unload_public(hass):
@@ -67,13 +58,7 @@ async def test_setup_and_unload_public(hass):
 
 
 async def test_setup_links_marine_device_under_location_device(hass):
-    """Setup registers the location device and links the marine one to it by id.
-
-    via_device_id takes a device registry id, so the parent has to be
-    registered before the platforms build any marine DeviceInfo. This
-    asserts the resulting registry state end to end: two devices, the
-    marine one pointing at the location one's real id.
-    """
+    """Setup registers the location device and links the marine one to it by id."""
     marine_base = "https://www.metservice.com/publicData/webdata/marine/regions"
     entry = _make_entry(
         {
@@ -164,11 +149,6 @@ async def test_runtime_data_set_after_setup(hass):
         await hass.async_block_till_done()
 
     assert isinstance(entry.runtime_data, WeatherUpdateCoordinator)
-
-
-# ---------------------------------------------------------------------------
-# Test: _check_legacy_entry (detector 2 — legacy mobile-API / unknown-location entry)
-# ---------------------------------------------------------------------------
 
 
 def _legacy_issue_id(entry: MockConfigEntry) -> str:
@@ -263,10 +243,6 @@ async def test_legacy_entry_check_exception_does_not_block_setup(hass):
     assert result is True
     assert entry.state is ConfigEntryState.LOADED
 
-
-# ---------------------------------------------------------------------------
-# Test: _migrate_legacy_unique_ids (upgrade from v0.9.x / ciejer v0.9)
-# ---------------------------------------------------------------------------
 
 _NEW_PREFIX = f"{_PUBLIC_ENTRY_DATA['location']}_"
 _FIXTURES = Path(__file__).parent / "fixtures"

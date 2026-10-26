@@ -35,11 +35,6 @@ def _make_coordinator(
     return WeatherUpdateCoordinator(hass, config)
 
 
-# ---------------------------------------------------------------------------
-# Test: location device naming — verbatim MetService label, not entry name
-# ---------------------------------------------------------------------------
-
-
 async def test_location_device_prefers_api_label(hass):
     """The town device is named after the API's verbatim location label."""
     coord = _make_coordinator(hass)
@@ -83,33 +78,20 @@ async def test_marine_fallback_uses_resolved_location_label(hass):
     assert ent.device_info["name"] == "Porirua Marine"
 
 
-# ---------------------------------------------------------------------------
-# Test: _marine_device_name derivation
-# ---------------------------------------------------------------------------
-
-
 def test_marine_device_name_known_slug_matches_metservice_label():
     """A known MetService region slug maps to its real editorial label."""
     assert _marine_device_name("kapiti-wellington", "Napier") == "Kapiti and Wellington"
 
 
 def test_marine_device_name_known_slug_not_derivable_mechanically():
-    """Some real labels don't come from a mechanical hyphen->title-case.
-
-    That's why a lookup table (not string munging) is used for MetService's
-    known regions.
-    """
+    """Some real labels don't come from a mechanical hyphen->title-case."""
     assert _marine_device_name("east-auckland", "Napier") == "Auckland East Coast"
     assert _marine_device_name("christchurch", "Napier") == "Canterbury"
     assert _marine_device_name("west-coast-north", "Napier") == "Buller and Westland"
 
 
 def test_marine_device_name_unknown_slug_generic_derivation():
-    """An unrecognised slug falls back to a generic derivation.
-
-    A future MetService region not in the lookup table gets a hyphen/
-    underscore -> title-case derivation instead.
-    """
+    """An unrecognised slug falls back to a generic derivation."""
     assert _marine_device_name("future-region", "Napier") == "Future Region"
     assert _marine_device_name("solo", "Napier") == "Solo"
 
@@ -119,16 +101,8 @@ def test_marine_device_name_empty_slug_falls_back_to_location_name():
     assert _marine_device_name("", "Napier") == "Napier Marine"
 
 
-# ---------------------------------------------------------------------------
-# Test: MetServiceEntity DeviceInfo branching
-# ---------------------------------------------------------------------------
-
-
 async def test_location_device_is_the_default(hass):
-    """The default device="location" builds the original town/rural device.
-
-    Unchanged from before marine devices existed.
-    """
+    """The default device="location" builds the original town/rural device."""
     coord = _make_coordinator(hass)
     ent = MetServiceEntity(coord)
     info = ent.device_info
@@ -139,12 +113,7 @@ async def test_location_device_is_the_default(hass):
 
 
 async def test_marine_device_has_distinct_identifier_and_via_device(hass):
-    """device="marine" builds a separate, linked device.
-
-    Linked under the location device via via_device_id — the registry id
-    cached on the coordinator, never the deprecated via_device tuple —
-    with a name that reflects the marine region.
-    """
+    """device="marine" builds a separate, linked device."""
     coord = _make_coordinator(
         hass,
         tide_url=(
@@ -163,12 +132,7 @@ async def test_marine_device_has_distinct_identifier_and_via_device(hass):
 
 
 async def test_marine_device_omits_via_device_id_when_parent_unregistered(hass):
-    """No cached parent id means the key is omitted, not written as None.
-
-    An explicit via_device_id=None is a write meaning "no parent", which
-    would clear an already-recorded link; omitting the key leaves whatever
-    the registry already holds alone.
-    """
+    """No cached parent id means the key is omitted, not written as None."""
     coord = _make_coordinator(
         hass,
         tide_url=(
@@ -183,21 +147,14 @@ async def test_marine_device_omits_via_device_id_when_parent_unregistered(hass):
 
 
 async def test_marine_device_falls_back_to_location_name_when_no_marine_url(hass):
-    """No tide/boating/surf URL configured falls back to a location-based name.
-
-    Falls back to f'{location_name} Marine' rather than an empty/broken
-    label.
-    """
+    """No tide/boating/surf URL configured falls back to a location-based name."""
     coord = _make_coordinator(hass)
     ent = MetServiceEntity(coord, device="marine")
     assert ent.device_info["name"] == "Napier Marine"
 
 
 async def test_marine_and_location_devices_share_manufacturer_and_model(hass):
-    """Both devices use the same manufacturer/model/configuration_url style.
-
-    Matches the pre-existing location device's style.
-    """
+    """Both devices use the same manufacturer/model/configuration_url style."""
     coord = _make_coordinator(
         hass,
         tide_url=(
@@ -212,24 +169,8 @@ async def test_marine_and_location_devices_share_manufacturer_and_model(hass):
     assert location_info["configuration_url"] == marine_info["configuration_url"]
 
 
-# ---------------------------------------------------------------------------
-# Test: marine device move changes the composed friendly name
-# (release_notes.md "Added: marine data gets its own device")
-# ---------------------------------------------------------------------------
-
-
 async def test_marine_sensor_composed_friendly_name_changes_from_location_device(hass):
-    """A marine-flagged sensor's composed friendly name reflects the marine device.
-
-    release_notes.md documents that moving tide/boating/surf sensors to
-    their own marine device changes the displayed friendly name, e.g.
-    "Napier Next high tide" becomes "Kapiti and Wellington ... Next high
-    tide" — with has_entity_name composition, HA builds the shown name as
-    f"{device_name} {entity_name}". This asserts that composition directly
-    off device_info["name"] and the entity's own name, and contrasts it
-    against what the same entity's composed name would have been under the
-    original location device.
-    """
+    """A marine-flagged sensor's composed friendly name reflects the marine device."""
     coord = _make_coordinator(
         hass,
         tide_url=(
@@ -253,8 +194,6 @@ async def test_marine_sensor_composed_friendly_name_changes_from_location_device
     composed = f"{device_name} {entity_name}"
     assert composed == "Kapiti and Wellington Next high tide"
 
-    # Contrast with the old composition under the pre-move location device
-    # (the release-notes "Napier Next high tide" example).
     old_device_name = MetServiceEntity(coord).device_info["name"]
     assert old_device_name == "Napier"
     assert f"{old_device_name} {entity_name}" == "Napier Next high tide"

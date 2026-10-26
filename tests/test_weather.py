@@ -25,11 +25,6 @@ from custom_components.metservice_weather.weather import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _make_coordinator(
     hass, tide_url="", boating_url="", surf_url=""
 ) -> WeatherUpdateCoordinator:
@@ -47,11 +42,6 @@ def _make_coordinator(
     coord = WeatherUpdateCoordinator(hass, config)
     coord.data = MetServicePublicData()
     return coord
-
-
-# ---------------------------------------------------------------------------
-# Test: async_setup_entry
-# ---------------------------------------------------------------------------
 
 
 async def test_weather_setup_entry_public(hass):
@@ -82,11 +72,6 @@ async def test_weather_setup_entry_public(hass):
     await async_setup_entry(hass, entry, add_entities)
     assert len(added) == 1
     assert isinstance(added[0], MetServiceForecastPublic)
-
-
-# ---------------------------------------------------------------------------
-# Test: MetServiceForecastPublic properties
-# ---------------------------------------------------------------------------
 
 
 async def test_public_entity_name(hass):
@@ -128,11 +113,7 @@ async def test_public_entity_humidity(hass):
 
 
 async def test_public_entity_properties_safe_when_data_is_none(hass):
-    """Every property returns None/[] when the coordinator has no data yet.
-
-    Regression test: with a mocked first refresh the coordinator data is None
-    during entity addition, which previously raised AttributeError in CI.
-    """
+    """Every property returns None/[] when the coordinator has no data yet."""
     coord = _make_coordinator(hass)
     coord.data = None
     entity = MetServiceForecastPublic(coord)
@@ -302,11 +283,6 @@ async def test_public_entity_precipitation_units(hass):
     assert entity.native_precipitation_unit is not None
 
 
-# ---------------------------------------------------------------------------
-# Test: MetServiceForecastPublic forecast_hourly
-# ---------------------------------------------------------------------------
-
-
 def _hourly_data(**kwargs) -> MetServicePublicData:
     """Build a MetServicePublicData with one HourlyEntry for icon tests."""
     entry = HourlyEntry(**kwargs)
@@ -431,11 +407,6 @@ async def test_public_forecast_hourly_skip_offsets_start(hass):
     result = entity.forecast_hourly
     assert len(result) == 1
     assert result[0]["native_temperature"] == 18.0
-
-
-# ---------------------------------------------------------------------------
-# Test: MetServiceForecastPublic forecast_daily
-# ---------------------------------------------------------------------------
 
 
 async def test_public_forecast_daily_empty_when_no_days(hass):
@@ -659,11 +630,6 @@ async def test_public_extra_state_attributes_is_none(hass):
     assert entity.extra_state_attributes is None
 
 
-# ---------------------------------------------------------------------------
-# Test: current-conditions fallback to the nearest forecast hour
-# ---------------------------------------------------------------------------
-
-
 async def test_current_conditions_fall_back_to_nearest_forecast_hour(hass):
     """Without observations the nearest forecast hour supplies temp and wind."""
     from datetime import timedelta
@@ -759,7 +725,6 @@ async def test_forecast_hour_fallback_skips_malformed_datetimes(hass):
         hourly_entries=[
             HourlyEntry(datetime="not-a-date", temperature=99.0, wind_speed=99.0),
             HourlyEntry(datetime="", temperature=98.0, wind_speed=98.0),
-            # Naive timestamp (no offset) can't be compared to aware now().
             HourlyEntry(
                 datetime="2024-06-15T10:00:00", temperature=97.0, wind_speed=97.0
             ),
@@ -783,11 +748,6 @@ async def test_forecast_hour_fallback_none_when_no_hourly_data(hass):
     assert entity.native_temperature is None
     assert entity.native_wind_speed is None
     assert entity.wind_bearing is None
-
-
-# ---------------------------------------------------------------------------
-# Test: stale weather-domain registry cleanup
-# ---------------------------------------------------------------------------
 
 
 async def test_weather_setup_removes_stale_weather_registry_entries(hass):
@@ -814,7 +774,6 @@ async def test_weather_setup_removes_stale_weather_registry_entries(hass):
     loc = coord.location
 
     ent_reg = er.async_get(hass)
-    # The pre-fork duplicated-name weather entity's unique_id format.
     stale = ent_reg.async_get_or_create(
         "weather", DOMAIN, "napier,weather", config_entry=entry
     )
@@ -945,11 +904,6 @@ async def test_entity_unavailable_when_coordinator_fails(hass):
     coord.last_update_success = False
     entity = MetServiceForecastPublic(coord)
     assert entity.available is False
-
-
-# ---------------------------------------------------------------------------
-# Test: forecast caching — public
-# ---------------------------------------------------------------------------
 
 
 async def test_public_async_forecast_hourly_populates_cache(hass):

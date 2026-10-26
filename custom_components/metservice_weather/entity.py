@@ -11,20 +11,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, LOCATIONS, MANUFACTURER
 from .coordinator import WeatherUpdateCoordinator
 
-# Shared by the location device's two write paths: the explicit
-# async_register_location_device below and MetServiceEntity's own DeviceInfo.
 _MODEL = "MetService Public API"
 _CONFIGURATION_URL = "https://www.metservice.com"
 
-# MetService marine region slug -> official display label, captured from
-# https://www.metservice.com/publicData/webdata/marine's
-# layout.search.searchLocations[0].items[*].heading.
-# These editorial names frequently don't match a mechanical hyphen -> title
-# case of the slug (e.g. "east-auckland" -> "Auckland East Coast",
-# "christchurch" -> "Canterbury", "west-coast-north" -> "Buller and
-# Westland"), so an exact lookup table is used for MetService's current,
-# finite set of marine regions. A slug MetService adds in future falls back
-# to a generic derivation in _marine_device_name below.
 _MARINE_REGION_NAMES: dict[str, str] = {
     "northland": "Northland",
     "great-barrier": "Great Barrier",
@@ -52,18 +41,7 @@ _MARINE_REGION_NAMES: dict[str, str] = {
 
 
 def _marine_device_name(region_slug: str, location_name: str) -> str:
-    """Derive the marine device's display name.
-
-    ``region_slug`` is the coordinator's parsed marine region slug (e.g.
-    "kapiti-wellington", from ``WeatherUpdateCoordinator.marine_region_slug``).
-    A known slug maps to MetService's own region label, e.g.
-    "kapiti-wellington" -> "Kapiti and Wellington" (verbatim MetService label —
-    the sensor names already say tide/surf/boating, so the bare region name
-    suffices). Unrecognised
-    slug (a marine region MetService adds after this table was captured)
-    falls back to a generic hyphen/underscore -> title-case derivation.
-    A missing/empty slug falls back to f"{location_name} Marine".
-    """
+    """Derive the marine device's display name."""
     if not region_slug:
         return f"{location_name} Marine"
     label = _MARINE_REGION_NAMES.get(region_slug)
@@ -74,13 +52,7 @@ def _marine_device_name(region_slug: str, location_name: str) -> str:
 
 
 def _location_device_name(coordinator: WeatherUpdateCoordinator) -> str:
-    """Verbatim MetService location label for the town/rural device.
-
-    The device is named for what it actually measures: the label MetService
-    itself serves for the configured page (e.g. "Porirua"), falling back to
-    the bundled LOCATIONS table, then to the user-typed entry name as a
-    last resort. The typed name remains the config entry's title.
-    """
+    """Verbatim MetService location label for the town/rural device."""
     data = coordinator.data
     if data is not None and getattr(data, "location_name", None):
         return data.location_name
@@ -96,17 +68,7 @@ def async_register_location_device(
     entry: ConfigEntry,
     coordinator: WeatherUpdateCoordinator,
 ) -> str:
-    """Register the town/rural location device and return its registry id.
-
-    The marine device links to this one with ``via_device_id``, which takes
-    a device registry id rather than the ``(domain, identifier)`` tuple the
-    deprecated ``via_device`` took. That means the parent device has to
-    already exist when a marine entity builds its DeviceInfo — and since
-    the platforms are forwarded concurrently, no platform can be relied on
-    to have created it first. So it is registered once here, from
-    ``async_setup_entry`` before the forward, and the id is cached on the
-    coordinator as ``location_device_id``.
-    """
+    """Register the town/rural location device and return its registry id."""
     device = dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, coordinator.location)},
@@ -126,16 +88,7 @@ class MetServiceEntity(CoordinatorEntity[WeatherUpdateCoordinator]):
     def __init__(
         self, coordinator: WeatherUpdateCoordinator, device: str = "location"
     ) -> None:
-        """Attach the appropriate MetService device info to the entity.
-
-        ``device`` selects which device registry entry this entity belongs
-        under: "location" (default) is the town/rural page device that
-        every entity used before marine support existed; "marine" is a
-        separate device describing the selected marine region (tides,
-        boating, surf — these describe the region, not the town) and is
-        linked under the location device via via_device_id, whose value
-        async_register_location_device caches on the coordinator.
-        """
+        """Attach the appropriate MetService device info to the entity."""
         super().__init__(coordinator)
         location_label = _location_device_name(coordinator)
         if device == "marine":
@@ -148,9 +101,6 @@ class MetServiceEntity(CoordinatorEntity[WeatherUpdateCoordinator]):
                 model=_MODEL,
                 configuration_url=_CONFIGURATION_URL,
             )
-            # Left out entirely rather than set to None when the parent
-            # hasn't been registered: an explicit via_device_id=None is a
-            # write meaning "no parent", which would clear an existing link.
             if coordinator.location_device_id is not None:
                 device_info["via_device_id"] = coordinator.location_device_id
             self._attr_device_info = device_info

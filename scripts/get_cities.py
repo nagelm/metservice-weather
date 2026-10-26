@@ -12,11 +12,8 @@ response = session.get(url, headers=headers)
 cities = response.json()["layout"]["search"]
 
 for island in cities["searchLocations"]:
-    # print(island["title"])
     for region in island["items"]:
-        # print(region["heading"]["label"])
         for city in region["children"]:
-            # print(city["label"])
             print(
                 '{"label": "'
                 + city["label"]

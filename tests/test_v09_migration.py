@@ -1,8 +1,4 @@
-"""Upgrade path from v0.9.x (including ciejer/metservice-weather v0.9).
-
-Each test rebuilds the registry rows v0.9 left behind and checks what a
-first setup on the current code does with them.
-"""
+"""Upgrade path from v0.9.x (including ciejer/metservice-weather v0.9)."""
 
 from __future__ import annotations
 
@@ -37,7 +33,6 @@ AUTOMATIONS_PATCH = (
 )
 SCRIPTS_PATCH = "custom_components.metservice_weather.deprecation.scripts_with_entity"
 
-# ciejer v0.9 current_condition_sensor_descriptions_public: key -> name
 V09_PUBLIC = {
     "validTimeLocal": "Forecast Description Updated Time",
     "wxPhraseLong": "Weather Description",
@@ -60,7 +55,6 @@ V09_PUBLIC = {
     "tides_high": "Next High Tide",
     "tides_low": "Next Low Tide",
 }
-# ciejer v0.9 current_condition_sensor_descriptions_mobile keys
 V09_MOBILE = {
     "validTimeLocal": "Forecast Description Updated Time",
     "wxPhraseLong": "Weather Description",
@@ -227,7 +221,6 @@ async def test_v09_full_public_entry(hass):
         f"removed_entity_{entry.entry_id}_{slugify(v09_ids['weather_warnings'])}"
     ]
     assert warn.translation_placeholders["replacement"].startswith("Warnings")
-    # temperature is kept, so no removed_entity issue for it
     assert (
         f"removed_entity_{entry.entry_id}_{slugify(v09_ids['temperature'])}"
         not in issues
@@ -285,7 +278,6 @@ async def test_v09_two_entries_same_name(hass):
     b = _make_v09_entry(_v09_public_data("Home", HASTINGS), f"{DOMAIN}-{HASTINGS}")
     a.add_to_hass(hass)
     b.add_to_hass(hass)
-    # v0.9: only one entry's rows got registered (the other collided); here B owns them
     _device, rows = _seed_v09(hass, b, "Home", HASTINGS)
     base = _napier_data()
     by_loc = {
@@ -306,7 +298,6 @@ async def test_v09_two_entries_same_name(hass):
             side_effect=_first_refresh,
         ),
     ):
-        # sets up the whole domain, i.e. both entries
         assert await hass.config_entries.async_setup(a.entry_id)
         await hass.async_block_till_done()
     assert a.state is ConfigEntryState.LOADED and b.state is ConfigEntryState.LOADED
@@ -336,7 +327,6 @@ async def test_v09_mobile_entry_then_reconfigure(hass, new_name):
         await _setup(hass, entry, _napier_data())
     assert all(ent_reg.async_get(r.entity_id) for r in rows.values())
 
-    # What Reconfigure writes (config_flow.async_step_setup + _finish_flow)
     hass.config_entries.async_update_entry(
         entry,
         data={
@@ -378,7 +368,6 @@ async def test_v09_already_crossed_has_both(hass):
         assert await _setup(hass, entry, _napier_data())
     assert ent_reg.async_get(new.entity_id) is not None
     assert ent_reg.async_get(rows["temperature"].entity_id) is None
-    # the other keys of the old install are re-keyed
     assert ent_reg.async_get(rows["windSpeed"].entity_id).unique_id == (
         f"{NAPIER}_windspeed"
     )

@@ -17,11 +17,6 @@ from custom_components.metservice_weather.config_flow import (
 from homeassistant.const import CONF_NAME, CONF_LOCATION
 
 
-# ---------------------------------------------------------------------------
-# Test 1 — public API, no marine region
-# ---------------------------------------------------------------------------
-
-
 async def test_public_no_marine(hass, mock_marine_session):
     """User flow with public API and marine skipped creates entry."""
     result = await hass.config_entries.flow.async_init(
@@ -41,11 +36,6 @@ async def test_public_no_marine(hass, mock_marine_session):
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["title"] == "Napier"
-
-
-# ---------------------------------------------------------------------------
-# Test 2 — public API with marine region (proceeds to locations step)
-# ---------------------------------------------------------------------------
 
 
 async def test_public_with_marine_region(hass, mock_coordinator_refresh):
@@ -80,7 +70,6 @@ async def test_public_with_marine_region(hass, mock_coordinator_refresh):
     marine_resp.status = 200
 
     session_mock = MagicMock()
-    # First call: marine fetch; subsequent calls: tide/boating/surf location fetches
     session_mock.get = AsyncMock(
         side_effect=[
             marine_resp,
@@ -112,7 +101,6 @@ async def test_public_with_marine_region(hass, mock_coordinator_refresh):
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "locations"
 
-        # No tide/boating/surf options shown (empty markers), so submit empty
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
             {},
@@ -120,14 +108,8 @@ async def test_public_with_marine_region(hass, mock_coordinator_refresh):
         assert result["type"] == FlowResultType.CREATE_ENTRY
 
 
-# ---------------------------------------------------------------------------
-# Test 7 — duplicate location aborts
-# ---------------------------------------------------------------------------
-
-
 async def test_duplicate_location_aborts(hass, mock_marine_session):
     """Second setup with same location unique_id aborts."""
-    # First entry
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -142,7 +124,6 @@ async def test_duplicate_location_aborts(hass, mock_marine_session):
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
 
-    # Second entry with same location
     result2 = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -161,11 +142,6 @@ async def test_duplicate_location_aborts(hass, mock_marine_session):
     assert result2["reason"] == "already_configured"
 
 
-# ---------------------------------------------------------------------------
-# Test 8 — marine fetch fails gracefully
-# ---------------------------------------------------------------------------
-
-
 async def test_marine_fetch_fails_gracefully(hass, mock_coordinator_refresh):
     """If marine fetch raises an exception, the form still shows with no crash."""
     session_mock = MagicMock()
@@ -180,11 +156,6 @@ async def test_marine_fetch_fails_gracefully(hass, mock_coordinator_refresh):
         )
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "setup"
-
-
-# ---------------------------------------------------------------------------
-# Test 9 — reconfigure
-# ---------------------------------------------------------------------------
 
 
 async def test_reconfigure(hass, mock_marine_session):
@@ -229,16 +200,9 @@ async def test_reconfigure(hass, mock_marine_session):
     assert result["reason"] == "reconfigure_successful"
     assert existing_entry.data[CONF_NAME] == "Napier Updated"
 
-    # The successful reconfigure reloads the entry, starting a coordinator
-    # refresh timer — unload so no timer lingers past the test.
     await hass.async_block_till_done()
     assert await hass.config_entries.async_unload(existing_entry.entry_id)
     await hass.async_block_till_done()
-
-
-# ---------------------------------------------------------------------------
-# Test 15 — location fetch exception is swallowed, step still shows
-# ---------------------------------------------------------------------------
 
 
 async def test_locations_fetch_exception_graceful(hass, mock_coordinator_refresh):
@@ -273,7 +237,6 @@ async def test_locations_fetch_exception_graceful(hass, mock_coordinator_refresh
     ok_resp.status = 200
 
     session_mock = MagicMock()
-    # Marine fetch succeeds; tide raises; boating and surf succeed
     session_mock.get = AsyncMock(
         side_effect=[
             marine_resp,
@@ -306,22 +269,12 @@ async def test_locations_fetch_exception_graceful(hass, mock_coordinator_refresh
         assert result["type"] == FlowResultType.CREATE_ENTRY
 
 
-# ---------------------------------------------------------------------------
-# Test 16 — _marker_url returns empty string on malformed marker
-# ---------------------------------------------------------------------------
-
-
 def test_marker_url_malformed():
     """_marker_url returns '' when the marker dict is missing expected keys."""
     assert WeatherFlowHandler._marker_url({}) == ""
     assert WeatherFlowHandler._marker_url({"action": {}}) == ""
     assert WeatherFlowHandler._marker_url({"action": {"modules": []}}) == ""
     assert WeatherFlowHandler._marker_url(None) == ""  # type: ignore[arg-type]
-
-
-# ---------------------------------------------------------------------------
-# Test 17 — _resolve_url uses action string path when marker URL is empty
-# ---------------------------------------------------------------------------
 
 
 def test_resolve_url_action_string_path(hass):
@@ -342,11 +295,6 @@ def test_resolve_url_action_string_path(hass):
     assert result == "/marine/regions/northland/tides/locations/mangawhai"
 
 
-# ---------------------------------------------------------------------------
-# Test 18 — _resolve_url falls back to slug-constructed URL
-# ---------------------------------------------------------------------------
-
-
 def test_resolve_url_fallback_slug(hass):
     """_resolve_url constructs a fallback URL when neither URL nor action is usable."""
     flow = WeatherFlowHandler()
@@ -360,11 +308,6 @@ def test_resolve_url_fallback_slug(hass):
         "Big Beach", label_map, locations, "marine/regions/northland", "surf"
     )
     assert result == "/marine/regions/northland/surf/locations/big-beach"
-
-
-# ---------------------------------------------------------------------------
-# Test 19 — reconfigure pre-fills existing marine region label
-# ---------------------------------------------------------------------------
 
 
 async def test_reconfigure_prefills_marine_region(hass, mock_coordinator_refresh):
@@ -425,18 +368,11 @@ async def test_reconfigure_prefills_marine_region(hass, mock_coordinator_refresh
         )
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "setup"
-        # The schema default for marine region should be pre-filled
         schema = result["data_schema"].schema
         for key in schema:
             if hasattr(key, "schema") and "marine_region" in str(key.schema):
                 assert key.default() == "Northland"
                 break
-
-
-# ---------------------------------------------------------------------------
-# Test 20 — auto_hide_seasonal field lives in the collapsed Advanced section,
-# defaults False
-# ---------------------------------------------------------------------------
 
 
 async def test_setup_form_includes_auto_hide_seasonal_field(hass, mock_marine_session):
@@ -459,11 +395,6 @@ async def test_setup_form_includes_auto_hide_seasonal_field(hass, mock_marine_se
     assert matches[0].default() is False
 
 
-# ---------------------------------------------------------------------------
-# Test 21 — completing the flow with auto_hide_seasonal true persists it flat
-# ---------------------------------------------------------------------------
-
-
 async def test_auto_hide_seasonal_true_persists_in_entry_data(
     hass, mock_marine_session
 ):
@@ -482,11 +413,6 @@ async def test_auto_hide_seasonal_true_persists_in_entry_data(
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["result"].data[CONF_AUTO_HIDE_SEASONAL] is True
-
-
-# ---------------------------------------------------------------------------
-# Test 22 — completing the flow with auto_hide_seasonal false persists it flat
-# ---------------------------------------------------------------------------
 
 
 async def test_auto_hide_seasonal_false_persists_in_entry_data(
@@ -509,12 +435,6 @@ async def test_auto_hide_seasonal_false_persists_in_entry_data(
     assert result["result"].data[CONF_AUTO_HIDE_SEASONAL] is False
 
 
-# ---------------------------------------------------------------------------
-# Test 22b — submitting an untouched (empty) Advanced section still defaults
-# auto_hide_seasonal to False
-# ---------------------------------------------------------------------------
-
-
 async def test_auto_hide_seasonal_empty_section_defaults_false(
     hass, mock_marine_session
 ):
@@ -533,12 +453,6 @@ async def test_auto_hide_seasonal_empty_section_defaults_false(
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["result"].data[CONF_AUTO_HIDE_SEASONAL] is False
-
-
-# ---------------------------------------------------------------------------
-# Test 23 — reconfigure pre-fills the existing auto_hide_seasonal value and
-# opens the Advanced section when it is enabled
-# ---------------------------------------------------------------------------
 
 
 async def test_reconfigure_prefills_auto_hide_seasonal(hass, mock_marine_session):
@@ -575,19 +489,12 @@ async def test_reconfigure_prefills_auto_hide_seasonal(hass, mock_marine_session
     section_matches = [key for key in schema if key.schema == SECTION_ADVANCED_OPTIONS]
     assert len(section_matches) == 1
     section = schema[section_matches[0]]
-    # Enabled on the stored entry — section renders open, not collapsed.
     assert section.options["collapsed"] is False
 
     inner_schema = section.schema.schema
     matches = [key for key in inner_schema if key.schema == CONF_AUTO_HIDE_SEASONAL]
     assert len(matches) == 1
     assert matches[0].default() is True
-
-
-# ---------------------------------------------------------------------------
-# Test 24 — reconfigure of an entry with auto_hide_seasonal=False keeps the
-# Advanced section collapsed
-# ---------------------------------------------------------------------------
 
 
 async def test_reconfigure_collapses_advanced_section_when_disabled(
