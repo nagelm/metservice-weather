@@ -14,23 +14,3 @@ def format_timestamp(timestamp_val: str) -> str:
         .astimezone(dt_util.get_time_zone("UTC"))
         .isoformat()
     )
-
-
-def safe_float(value: object) -> float | None:
-    """Convert value to float, returning None for non-numeric values."""
-    if value is None:
-        return None
-    try:
-        return float(value)  # type: ignore[arg-type]
-    except (ValueError, TypeError):
-        return None
-
-
-def safe_int(value: object) -> int | None:
-    """Convert value to int, returning None for non-numeric values."""
-    if value is None:
-        return None
-    try:
-        return int(value)  # type: ignore[arg-type]
-    except (ValueError, TypeError):
-        return None

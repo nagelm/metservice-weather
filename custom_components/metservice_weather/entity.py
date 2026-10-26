@@ -8,7 +8,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, LOCATIONS, MANUFACTURER
+from .const import DOMAIN, MANUFACTURER
 from .coordinator import WeatherUpdateCoordinator
 
 _MODEL = "MetService Public API"
@@ -56,9 +56,6 @@ def _location_device_name(coordinator: WeatherUpdateCoordinator) -> str:
     data = coordinator.data
     if data is not None and getattr(data, "location_name", None):
         return data.location_name
-    for loc in LOCATIONS:
-        if loc.get("value") == coordinator.location:
-            return loc["label"]
     return coordinator.location_name
 
 

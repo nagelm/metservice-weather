@@ -99,7 +99,6 @@ def _make_coordinator(
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location=LOCATION,
         location_name="Napier",
@@ -166,6 +165,24 @@ def test_replacement_display_names_cover_every_replacement_key():
     assert set(DEPRECATED_SENSOR_REPLACEMENTS.values()) <= set(
         _REPLACEMENT_DISPLAY_NAMES
     )
+
+
+def test_replacement_display_names_match_sensor_names():
+    """Replacement display names come from the sensor descriptions."""
+    assert _REPLACEMENT_DISPLAY_NAMES == {
+        "uv_risk": "UV index",
+        "warning_level": "Warnings",
+        "pressure_trend": "Pressure tendency",
+        "wind_strength_level": "Wind strength",
+        "fire_season_status": "Fire season",
+        "fire_danger_level": "Fire danger",
+        "moon_phase_current": "Moon phase",
+        "sunrise_at": "Sunrise",
+        "sunset_at": "Sunset",
+        "moonrise_at": "Moonrise",
+        "moonset_at": "Moonset",
+        "pollen": "Pollen",
+    }
 
 
 def test_replacement_display_name_diverges_from_friendly_key_for_uv_risk():
