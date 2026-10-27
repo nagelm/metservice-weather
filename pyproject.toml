@@ -5,19 +5,9 @@ addopts = "--cov=custom_components/metservice_weather --cov-report=term-missing 
 
 [tool.coverage.run]
 source = ["custom_components/metservice_weather"]
-omit = ["*/migrations/*"]
 
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
-]
-
-[project.optional-dependencies]
-test = [
-    "pytest",
-    "pytest-asyncio",
-    "pytest-homeassistant-custom-component",
-    "aioresponses",
-    "pytest-cov",
 ]
