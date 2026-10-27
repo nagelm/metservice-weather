@@ -103,7 +103,7 @@ def make_coordinator(
         boating_url=boating_url,
         surf_url=surf_url,
     )
-    coord = WeatherUpdateCoordinator(hass, config)
+    coord = WeatherUpdateCoordinator(hass, config, None)
     if with_data:
         coord.data = MetServicePublicData()
     return coord

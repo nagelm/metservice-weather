@@ -11,6 +11,7 @@ from typing import Any
 
 import aiohttp
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -58,7 +59,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     """The MetService update coordinator."""
 
     def __init__(
-        self, hass: HomeAssistant, config: WeatherUpdateCoordinatorConfig
+        self,
+        hass: HomeAssistant,
+        config: WeatherUpdateCoordinatorConfig,
+        config_entry: ConfigEntry | None,
     ) -> None:
         """Initialize."""
         self._api_url = config.api_url
@@ -81,6 +85,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name="WeatherUpdateCoordinator",
             update_interval=config.update_interval,
             always_update=False,

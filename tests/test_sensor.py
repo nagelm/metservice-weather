@@ -540,7 +540,7 @@ async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device
         boating_url=boating_url,
         surf_url=surf_url,
     )
-    coord = WeatherUpdateCoordinator(hass, config)
+    coord = WeatherUpdateCoordinator(hass, config, None)
     coord.data = MetServicePublicData()
     entry.add_to_hass(hass)
     entry.runtime_data = coord
