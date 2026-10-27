@@ -317,15 +317,8 @@ async def async_check_deprecated_entities(
     entry: ConfigEntry,
     coordinator: WeatherUpdateCoordinator,
 ) -> None:
-    """Clear obsolete pre-2026.9.0 deprecation issues, then run the follow-on detectors."""
+    """Clear removed-entity issues nothing references any more, then run the follow-on detectors."""
     try:
-        ir.async_delete_issue(hass, DOMAIN, f"hidden_deprecated_{entry.entry_id}")
-        ir.async_delete_issue(hass, DOMAIN, f"deprecated_sweep_v2_{entry.entry_id}")
-        for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
-            ir.async_delete_issue(
-                hass, DOMAIN, f"deprecated_entity_{entry.entry_id}_{old_key}"
-            )
-
         removed_entity_prefix = f"removed_entity_{entry.entry_id}_"
         issue_reg = ir.async_get(hass)
         for (issue_domain, issue_id), issue in list(issue_reg.issues.items()):
@@ -567,15 +560,6 @@ def _reclaim_referenced_issue_id(entry_id: str) -> str:
     return f"entity_id_reclaim_referenced_{entry_id}"
 
 
-def _clear_legacy_per_key_reclaim_issues(hass: HomeAssistant, entry_id: str) -> None:
-    """Delete the per-key reclaim issues an a4-era run may have left behind."""
-    for key in sorted(set(DEPRECATED_SENSOR_REPLACEMENTS.values())):
-        ir.async_delete_issue(hass, DOMAIN, f"entity_id_reclaim_{entry_id}_{key}")
-        ir.async_delete_issue(
-            hass, DOMAIN, f"entity_id_reclaim_referenced_{entry_id}_{key}"
-        )
-
-
 def _format_rename_lines(renames: list[dict[str, str]]) -> str:
     """Render a markdown bullet list of `current` → `new` rename candidates."""
     return "\n".join(
@@ -593,8 +577,6 @@ async def async_check_entity_id_reclaim(
     try:
         ent_reg = er.async_get(hass)
         dev_reg = dr.async_get(hass)
-
-        _clear_legacy_per_key_reclaim_issues(hass, entry.entry_id)
 
         renames: list[dict[str, str]] = []
         referenced: list[dict[str, str]] = []

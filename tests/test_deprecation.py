@@ -128,10 +128,6 @@ def _make_entry() -> MockConfigEntry:
     )
 
 
-def _issue_id(entry: MockConfigEntry, old_key: str) -> str:
-    return f"deprecated_entity_{entry.entry_id}_{old_key}"
-
-
 def test_deprecated_sensor_replacements_covers_all_fourteen_old_keys():
     """Every OLD key from the fork table is mapped, pollen_levels/pollen_type -> pollen."""
     assert set(DEPRECATED_SENSOR_REPLACEMENTS) == {
@@ -214,107 +210,6 @@ def test_format_references_caps_long_list_with_suffix():
     assert result.endswith("(+5 more)")
     assert all(f"automation.a{i}" in result for i in range(10))
     assert "automation.a14" not in result
-
-
-def _hidden_notice_id(entry: MockConfigEntry) -> str:
-    return f"hidden_deprecated_{entry.entry_id}"
-
-
-def _sweep_notice_id(entry: MockConfigEntry) -> str:
-    return f"deprecated_sweep_v2_{entry.entry_id}"
-
-
-async def test_leftover_deprecated_entity_issues_cleared_for_every_old_key(hass):
-    """A leftover deprecated_entity issue from a pre-2026.9.0 install is cleared for every OLD key."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
-        ir.async_create_issue(
-            hass,
-            DOMAIN,
-            _issue_id(entry, old_key),
-            is_fixable=False,
-            severity=ir.IssueSeverity.ERROR,
-            translation_key="deprecated_entity",
-        )
-
-    await async_check_deprecated_entities(hass, entry, coord)
-
-    for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
-        assert (
-            ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, old_key))
-            is None
-        )
-
-
-async def test_leftover_deprecated_sweep_v2_issue_cleared(hass):
-    """A leftover deprecated_sweep_v2 summary issue is cleared."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    notice_id = _sweep_notice_id(entry)
-    ir.async_create_issue(
-        hass,
-        DOMAIN,
-        notice_id,
-        is_fixable=False,
-        severity=ir.IssueSeverity.WARNING,
-        translation_key="deprecated_sweep_v2",
-        translation_placeholders={
-            "disabled_count": "1",
-            "disabled_entity_ids": "sensor.napier_uvindex",
-            "hidden_count": "0",
-            "hidden_entity_ids": "none",
-        },
-    )
-    assert ir.async_get(hass).async_get_issue(DOMAIN, notice_id) is not None
-
-    await async_check_deprecated_entities(hass, entry, coord)
-
-    assert ir.async_get(hass).async_get_issue(DOMAIN, notice_id) is None
-
-
-async def test_leftover_hidden_deprecated_issue_cleared(hass):
-    """A leftover pre-2026.7.1 'hidden_deprecated' issue is cleared."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    legacy_id = _hidden_notice_id(entry)
-    ir.async_create_issue(
-        hass,
-        DOMAIN,
-        legacy_id,
-        is_fixable=False,
-        severity=ir.IssueSeverity.WARNING,
-        translation_key="hidden_deprecated",
-        translation_placeholders={"count": "1", "entity_ids": "sensor.napier_uvindex"},
-    )
-    assert ir.async_get(hass).async_get_issue(DOMAIN, legacy_id) is not None
-
-    await async_check_deprecated_entities(hass, entry, coord)
-
-    assert ir.async_get(hass).async_get_issue(DOMAIN, legacy_id) is None
-
-
-async def test_cleanup_is_idempotent_when_nothing_left_to_clear(hass):
-    """A safe no-op when no leftover deprecation issues exist for this entry."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    await async_check_deprecated_entities(hass, entry, coord)
-
-    for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
-        assert (
-            ir.async_get(hass).async_get_issue(DOMAIN, _issue_id(entry, old_key))
-            is None
-        )
-    assert ir.async_get(hass).async_get_issue(DOMAIN, _sweep_notice_id(entry)) is None
-    assert ir.async_get(hass).async_get_issue(DOMAIN, _hidden_notice_id(entry)) is None
 
 
 async def test_exception_inside_cleanup_does_not_propagate(hass):

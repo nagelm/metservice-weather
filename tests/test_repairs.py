@@ -527,37 +527,3 @@ async def test_mixed_referenced_and_unreferenced_split_across_both_issues(hass):
     assert referenced.translation_placeholders["count"] == "1"
     assert moon_row.entity_id in referenced.translation_placeholders["details"]
     assert "automation.moon_watch" in referenced.translation_placeholders["details"]
-
-
-async def test_legacy_a4_per_key_issues_are_retired(hass):
-    """The a4-era one-issue-per-key generation is deleted on every run."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    for legacy_id in (
-        f"entity_id_reclaim_{entry.entry_id}_uv_risk",
-        f"entity_id_reclaim_referenced_{entry.entry_id}_warning_level",
-    ):
-        ir.async_create_issue(
-            hass,
-            DOMAIN,
-            legacy_id,
-            is_fixable=False,
-            severity=ir.IssueSeverity.WARNING,
-            translation_key="entity_id_reclaim_referenced",
-        )
-
-    await async_check_deprecated_entities(hass, entry, coord)
-
-    reg = ir.async_get(hass)
-    assert (
-        reg.async_get_issue(DOMAIN, f"entity_id_reclaim_{entry.entry_id}_uv_risk")
-        is None
-    )
-    assert (
-        reg.async_get_issue(
-            DOMAIN, f"entity_id_reclaim_referenced_{entry.entry_id}_warning_level"
-        )
-        is None
-    )
