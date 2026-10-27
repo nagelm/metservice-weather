@@ -250,13 +250,13 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Schema(
                         {
                             vol.Optional(
-                                CONF_CUSTOM_LOCATION,
-                                description={"suggested_value": custom_location},
-                            ): str,
-                            vol.Optional(
                                 CONF_AUTO_HIDE_SEASONAL,
                                 default=advanced.get(CONF_AUTO_HIDE_SEASONAL, False),
                             ): bool,
+                            vol.Optional(
+                                CONF_CUSTOM_LOCATION,
+                                description={"suggested_value": custom_location},
+                            ): str,
                         }
                     ),
                     {
