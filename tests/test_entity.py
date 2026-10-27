@@ -44,7 +44,7 @@ async def test_location_device_falls_back_to_entry_name_for_unknown_path(hass):
         boating_url="",
         surf_url="",
     )
-    coord = WeatherUpdateCoordinator(hass, config)
+    coord = WeatherUpdateCoordinator(hass, config, None)
     coord.data = None
     ent = MetServiceEntity(coord)
     assert ent.device_info["name"] == "My Custom Name"

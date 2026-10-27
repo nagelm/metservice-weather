@@ -151,6 +151,7 @@ async def test_runtime_data_set_after_setup(hass):
         await hass.async_block_till_done()
 
     assert isinstance(entry.runtime_data, WeatherUpdateCoordinator)
+    assert entry.runtime_data.config_entry is entry
 
 
 def _legacy_issue_id(entry: MockConfigEntry) -> str:

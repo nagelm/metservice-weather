@@ -123,7 +123,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MetServiceConfigEntry):
         warnings_url=PUBLIC_WARNINGS_URL,
     )
 
-    weathercoordinator = WeatherUpdateCoordinator(hass, config)
+    weathercoordinator = WeatherUpdateCoordinator(hass, config, entry)
     await weathercoordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = weathercoordinator
