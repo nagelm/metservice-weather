@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -10,14 +11,11 @@ import aiohttp
 import pytest
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.metservice_weather.coordinator import (
-    WeatherUpdateCoordinator,
-    WeatherUpdateCoordinatorConfig,
-)
 from custom_components.metservice_weather.coordinator_types import (
     MetServicePublicData,
 )
 from custom_components.metservice_weather.helpers import format_timestamp
+from tests.conftest import make_coordinator
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -31,27 +29,7 @@ _PUBLIC_CURRENT = _load("napier_public_current.json")
 _PUBLIC_DAILY = _load("napier_public_daily.json")
 
 
-def _make_config(
-    tide_url="",
-    boating_url="",
-    surf_url="",
-) -> WeatherUpdateCoordinatorConfig:
-    return WeatherUpdateCoordinatorConfig(
-        api_url="https://www.metservice.com/publicData/webdata",
-        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
-        location="/towns-cities/regions/hawkes-bay/locations/napier",
-        location_name="Napier",
-        tide_url=tide_url,
-        boating_url=boating_url,
-        surf_url=surf_url,
-    )
-
-
-def _make_coordinator(hass, **kwargs) -> WeatherUpdateCoordinator:
-    config = _make_config(**kwargs)
-    coord = WeatherUpdateCoordinator(hass, config)
-    return coord
+_make_coordinator = partial(make_coordinator, with_data=False)
 
 
 def _mock_response(data, status=200):

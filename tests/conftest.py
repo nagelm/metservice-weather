@@ -3,6 +3,12 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
+from custom_components.metservice_weather.coordinator import (
+    WeatherUpdateCoordinator,
+    WeatherUpdateCoordinatorConfig,
+)
+from custom_components.metservice_weather.coordinator_types import MetServicePublicData
+
 MOCK_MARINE_RESPONSE = {
     "layout": {
         "search": {
@@ -75,3 +81,29 @@ def mock_marine_session(mock_coordinator_refresh):
         return_value=session_mock,
     ):
         yield session_mock, marine_resp
+
+
+NAPIER_LOCATION = "/towns-cities/regions/hawkes-bay/locations/napier"
+
+
+def make_coordinator(
+    hass, *, tide_url="", boating_url="", surf_url="", with_data=True
+) -> WeatherUpdateCoordinator:
+    """Build a Napier coordinator without network access.
+
+    with_data seeds an empty MetServicePublicData, as most entity tests need.
+    """
+    config = WeatherUpdateCoordinatorConfig(
+        api_url="https://www.metservice.com/publicData/webdata",
+        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
+        unit_system="metric",
+        location=NAPIER_LOCATION,
+        location_name="Napier",
+        tide_url=tide_url,
+        boating_url=boating_url,
+        surf_url=surf_url,
+    )
+    coord = WeatherUpdateCoordinator(hass, config)
+    if with_data:
+        coord.data = MetServicePublicData()
+    return coord

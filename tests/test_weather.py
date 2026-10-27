@@ -6,10 +6,6 @@ import logging
 from unittest.mock import patch, AsyncMock
 
 
-from custom_components.metservice_weather.coordinator import (
-    WeatherUpdateCoordinator,
-    WeatherUpdateCoordinatorConfig,
-)
 from custom_components.metservice_weather.const import (
     CONDITION_MAP,
     DOMAIN,
@@ -23,24 +19,10 @@ from custom_components.metservice_weather.weather import (
     MetServiceForecastPublic,
     _UNMAPPED_LOGGED,
 )
+from tests.conftest import make_coordinator
 
 
-def _make_coordinator(
-    hass, tide_url="", boating_url="", surf_url=""
-) -> WeatherUpdateCoordinator:
-    config = WeatherUpdateCoordinatorConfig(
-        api_url="https://www.metservice.com/publicData/webdata",
-        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
-        location="/towns-cities/regions/hawkes-bay/locations/napier",
-        location_name="Napier",
-        tide_url=tide_url,
-        boating_url=boating_url,
-        surf_url=surf_url,
-    )
-    coord = WeatherUpdateCoordinator(hass, config)
-    coord.data = MetServicePublicData()
-    return coord
+_make_coordinator = make_coordinator
 
 
 async def test_weather_setup_entry_public(hass):
