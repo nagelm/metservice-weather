@@ -13,9 +13,6 @@
       "uv_risk": {
         "default": "mdi:sunglasses"
       },
-      "uv_alert": {
-        "default": "mdi:sunglasses"
-      },
       "wind_direction": {
         "default": "mdi:weather-windy"
       },
