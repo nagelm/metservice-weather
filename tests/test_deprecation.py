@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.exceptions import HomeAssistantError
@@ -21,7 +23,7 @@ from custom_components.metservice_weather.coordinator_types import MetServicePub
 from custom_components.metservice_weather.deprecation import (
     DEPRECATED_SENSOR_REPLACEMENTS,
     _GENERIC_REMOVED_REPLACEMENT_FALLBACK,
-    _REPLACEMENT_DISPLAY_NAMES,
+    _REPLACEMENT_DESCRIPTIONS_BY_KEY,
     _config_entries_referencing,
     _dump_json,
     _format_evidence,
@@ -99,7 +101,6 @@ def _make_coordinator(
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location=LOCATION,
         location_name="Napier",
@@ -161,11 +162,15 @@ def test_friendly_key_formats_snake_case_with_uv_uppercased():
     assert _friendly_key("pollen") == "Pollen"
 
 
-def test_replacement_display_names_cover_every_replacement_key():
-    """_REPLACEMENT_DISPLAY_NAMES has an entry for every value in DEPRECATED_SENSOR_REPLACEMENTS."""
-    assert set(DEPRECATED_SENSOR_REPLACEMENTS.values()) <= set(
-        _REPLACEMENT_DISPLAY_NAMES
+def test_replacement_display_names_match_en_json():
+    """Every replacement's repair name matches the name Home Assistant shows."""
+    en = Path(__file__).parents[1] / (
+        "custom_components/metservice_weather/translations/en.json"
     )
+    names = json.loads(en.read_text(encoding="utf-8"))["entity"]["sensor"]
+    for key in set(DEPRECATED_SENSOR_REPLACEMENTS.values()):
+        translation_key = _REPLACEMENT_DESCRIPTIONS_BY_KEY[key].translation_key
+        assert _replacement_display_name(key) == names[translation_key]["name"]
 
 
 def test_replacement_display_name_diverges_from_friendly_key_for_uv_risk():
@@ -188,7 +193,7 @@ def test_replacement_display_name_moon_sensors_map_to_moon_phase_current():
 
 
 def test_replacement_display_name_falls_back_to_friendly_key_for_unmapped_key():
-    """A key with no explicit entry in _REPLACEMENT_DISPLAY_NAMES falls back to _friendly_key."""
+    """A key with no live description falls back to _friendly_key."""
     assert _replacement_display_name("some_unmapped_key") == _friendly_key(
         "some_unmapped_key"
     )

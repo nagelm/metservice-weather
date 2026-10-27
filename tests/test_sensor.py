@@ -56,7 +56,6 @@ def _make_coordinator(hass) -> WeatherUpdateCoordinator:
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",
@@ -546,7 +545,6 @@ async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",

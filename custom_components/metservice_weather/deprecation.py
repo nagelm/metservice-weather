@@ -56,19 +56,9 @@ DEPRECATED_SENSOR_REPLACEMENTS: dict[str, str] = {
 
 _MAX_LISTED_REFERENCES = 10
 
-_REPLACEMENT_DISPLAY_NAMES: dict[str, str] = {
-    "uv_risk": "UV index",
-    "warning_level": "Warnings",
-    "pressure_trend": "Pressure tendency",
-    "wind_strength_level": "Wind strength",
-    "fire_season_status": "Fire season",
-    "fire_danger_level": "Fire danger",
-    "moon_phase_current": "Moon phase",
-    "sunrise_at": "Sunrise",
-    "sunset_at": "Sunset",
-    "moonrise_at": "Moonrise",
-    "moonset_at": "Moonset",
-    "pollen": "Pollen",
+_REPLACEMENT_DESCRIPTIONS_BY_KEY: dict[str, WeatherSensorEntityDescription] = {
+    description.key: description
+    for description in current_condition_sensor_descriptions_public
 }
 
 
@@ -81,7 +71,9 @@ def _friendly_key(key: str) -> str:
 
 def _replacement_display_name(key: str) -> str:
     """Return the replacement sensor's display name for repair-issue text."""
-    return _REPLACEMENT_DISPLAY_NAMES.get(key, _friendly_key(key))
+    description = _REPLACEMENT_DESCRIPTIONS_BY_KEY.get(key)
+    name = description.name if description else None
+    return name if isinstance(name, str) else _friendly_key(key)
 
 
 _REPLACEMENT_DETAIL_HINTS: dict[str, str] = {
@@ -563,12 +555,6 @@ async def async_check_marine_device_move(
             "Marine-device-move repair check failed; continuing without it",
             exc_info=True,
         )
-
-
-_REPLACEMENT_DESCRIPTIONS_BY_KEY: dict[str, WeatherSensorEntityDescription] = {
-    description.key: description
-    for description in current_condition_sensor_descriptions_public
-}
 
 
 def _reclaim_issue_id(entry_id: str) -> str:
