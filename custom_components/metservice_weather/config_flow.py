@@ -20,7 +20,9 @@ from .const import (
     LOCATION_PATH_RE,
     LOCATIONS_INDEX_URL,
     MARINE_INDEX_URL,
+    PUBLIC_HEADERS,
     PUBLIC_URL,
+    REQUEST_TIMEOUT,
 )
 from .helpers import normalize_location_path
 
@@ -44,8 +46,8 @@ _LOGGER = logging.getLogger(__name__)
 async def _async_fetch_search_locations(session, url: str) -> list[dict]:
     """Return the searchLocations groups of a MetService index page, or []."""
     try:
-        async with asyncio.timeout(10):
-            response = await session.get(url)
+        async with asyncio.timeout(REQUEST_TIMEOUT):
+            response = await session.get(url, headers=PUBLIC_HEADERS)
             data = await response.json(content_type=None)
         return data["layout"]["search"]["searchLocations"]
     except Exception:
@@ -54,12 +56,25 @@ async def _async_fetch_search_locations(session, url: str) -> list[dict]:
 
 
 async def _async_location_exists(session, location: str) -> bool | None:
-    """Return whether MetService serves a page for location, or None if unreachable."""
+    """Return whether MetService serves a page for location, or None if unreachable.
+
+    Only a 404 means the page doesn't exist; any other non-200 reply (5xx, 429)
+    means MetService couldn't answer, which is reported as unreachable.
+    """
     try:
-        async with asyncio.timeout(10):
-            response = await session.get(f"{PUBLIC_URL}{location}")
+        async with asyncio.timeout(REQUEST_TIMEOUT):
+            response = await session.get(
+                f"{PUBLIC_URL}{location}", headers=PUBLIC_HEADERS
+            )
             async with response:
-                return response.status == 200
+                if response.status == 200:
+                    return True
+                if response.status == 404:
+                    return False
+                _LOGGER.warning(
+                    "MetService returned HTTP %s for %s", response.status, location
+                )
+                return None
     except Exception:
         _LOGGER.exception("Failed to check MetService location %s", location)
         return None
@@ -412,9 +427,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _fetch_tide_locations(self, session, marine_region: str) -> list:
         url = f"{PUBLIC_URL}/{marine_region}/tides"
-        async with asyncio.timeout(10):
-            response = await session.get(url)
-        data = await response.json(content_type=None)
+        async with asyncio.timeout(REQUEST_TIMEOUT):
+            response = await session.get(url, headers=PUBLIC_HEADERS)
+            data = await response.json(content_type=None)
         for module in (
             data.get("layout", {}).get("primary", {}).get("map", {}).get("modules", [])
         ):
@@ -425,9 +440,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def _fetch_boating_locations(self, session, marine_region: str) -> list:
         region_slug = marine_region.split("/")[-1]
         url = f"{PUBLIC_URL}/{marine_region}/boating"
-        async with asyncio.timeout(10):
-            response = await session.get(url)
-        data = await response.json(content_type=None)
+        async with asyncio.timeout(REQUEST_TIMEOUT):
+            response = await session.get(url, headers=PUBLIC_HEADERS)
+            data = await response.json(content_type=None)
         all_markers = (
             data.get("layout", {}).get("primary", {}).get("map", {}).get("markers", [])
         )
@@ -446,9 +461,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def _fetch_surf_locations(self, session, marine_region: str) -> list:
         region_slug = marine_region.split("/")[-1]
         url = f"{PUBLIC_URL}/{marine_region}/surf"
-        async with asyncio.timeout(10):
-            response = await session.get(url)
-        data = await response.json(content_type=None)
+        async with asyncio.timeout(REQUEST_TIMEOUT):
+            response = await session.get(url, headers=PUBLIC_HEADERS)
+            data = await response.json(content_type=None)
         all_markers = (
             data.get("layout", {}).get("primary", {}).get("map", {}).get("markers", [])
         )
