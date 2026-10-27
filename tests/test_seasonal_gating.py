@@ -387,6 +387,36 @@ async def test_option_off_restores_previously_stamped_row(hass):
     assert "uv_risk" in keys
 
 
+async def test_option_on_stamped_row_with_data_at_setup_is_restored(hass):
+    """A row stamped on an earlier start is restored when its sensor has data at setup."""
+    entry = _make_entry(auto_hide_seasonal=True)
+    entry.add_to_hass(hass)
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(uv_alert_level="Dangerous")
+    entry.runtime_data = coord
+
+    ent_reg = er.async_get(hass)
+    stamped = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{coord.location}_uv_risk".lower(),
+        config_entry=entry,
+        disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+        hidden_by=er.RegistryEntryHider.INTEGRATION,
+    )
+    ent_reg.async_update_entity_options(
+        stamped.entity_id, DOMAIN, {"seasonal_disabled": True}
+    )
+
+    await async_setup_entry(hass, entry, lambda entities, *args, **kwargs: None)
+
+    reg_entry = ent_reg.async_get(stamped.entity_id)
+    assert reg_entry.disabled_by is None
+    assert reg_entry.hidden_by is None
+    assert "seasonal_disabled" not in (reg_entry.options.get(DOMAIN) or {})
+    await _cleanup_listeners(hass, entry)
+
+
 async def test_option_on_seasonal_value_fn_exception_treated_as_dataless(hass):
     """A seasonal description whose value_fn raises is disabled/stamped, not crashed on."""
     entry = _make_entry(auto_hide_seasonal=True)

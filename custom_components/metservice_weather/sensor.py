@@ -173,6 +173,13 @@ async def async_setup_entry(
             if not description.seasonal:
                 continue
             if not _seasonal_is_dataless(description):
+                if _seasonal_row_is_stamped(ent_reg, sensor.unique_id):
+                    _async_clear_seasonal_stamp(
+                        ent_reg,
+                        ent_reg.async_get_entity_id(
+                            SENSOR_DOMAIN, DOMAIN, sensor.unique_id
+                        ),
+                    )
                 continue
             _async_apply_seasonal_disable(ent_reg, entry, sensor.unique_id)
             if _seasonal_row_is_stamped(ent_reg, sensor.unique_id):
