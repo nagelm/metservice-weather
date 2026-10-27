@@ -11,7 +11,6 @@ import custom_components.metservice_weather.sensor as sensor_module
 from custom_components.metservice_weather.const import DOMAIN, CONF_AUTO_HIDE_SEASONAL
 from custom_components.metservice_weather.coordinator import (
     WeatherUpdateCoordinator,
-    WeatherUpdateCoordinatorConfig,
 )
 from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 from custom_components.metservice_weather.sensor import async_setup_entry
@@ -19,6 +18,7 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     WeatherSensorEntityDescription,
     current_condition_sensor_descriptions_public,
 )
+from tests.conftest import make_coordinator
 
 SEASONAL_KEYS = {
     d.key for d in current_condition_sensor_descriptions_public if d.seasonal
@@ -27,20 +27,7 @@ SEASONAL_KEYS = {
 LOCATION = "/towns-cities/regions/hawkes-bay/locations/napier"
 
 
-def _make_coordinator(hass) -> WeatherUpdateCoordinator:
-    config = WeatherUpdateCoordinatorConfig(
-        api_url="https://www.metservice.com/publicData/webdata",
-        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
-        location=LOCATION,
-        location_name="Napier",
-        tide_url="",
-        boating_url="",
-        surf_url="",
-    )
-    coord = WeatherUpdateCoordinator(hass, config)
-    coord.data = MetServicePublicData()
-    return coord
+_make_coordinator = make_coordinator
 
 
 def _make_entry(*, auto_hide_seasonal: bool) -> MockConfigEntry:

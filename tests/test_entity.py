@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 from custom_components.metservice_weather.const import DOMAIN
 from custom_components.metservice_weather.coordinator import (
     WeatherUpdateCoordinator,
@@ -16,22 +18,10 @@ from custom_components.metservice_weather.sensor import WeatherSensor
 from custom_components.metservice_weather.weather_current_conditions_sensors import (
     current_condition_sensor_descriptions_public,
 )
+from tests.conftest import make_coordinator
 
 
-def _make_coordinator(
-    hass, tide_url="", boating_url="", surf_url=""
-) -> WeatherUpdateCoordinator:
-    config = WeatherUpdateCoordinatorConfig(
-        api_url="https://www.metservice.com/publicData/webdata",
-        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
-        location="/towns-cities/regions/hawkes-bay/locations/napier",
-        location_name="Napier",
-        tide_url=tide_url,
-        boating_url=boating_url,
-        surf_url=surf_url,
-    )
-    return WeatherUpdateCoordinator(hass, config)
+_make_coordinator = partial(make_coordinator, with_data=False)
 
 
 async def test_location_device_prefers_api_label(hass):

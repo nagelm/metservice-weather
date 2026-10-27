@@ -17,7 +17,6 @@ from homeassistant.util import slugify
 from custom_components.metservice_weather.const import DOMAIN
 from custom_components.metservice_weather.coordinator import (
     WeatherUpdateCoordinator,
-    WeatherUpdateCoordinatorConfig,
 )
 from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 from custom_components.metservice_weather.deprecation import (
@@ -37,6 +36,7 @@ from custom_components.metservice_weather.deprecation import (
     async_check_removed_entity,
     async_check_removed_forecast_attributes,
 )
+from tests.conftest import make_coordinator
 
 LOCATION = "/towns-cities/regions/hawkes-bay/locations/napier"
 
@@ -95,22 +95,7 @@ class _FakeEntityComponent:
         return self._entities.get(entity_id)
 
 
-def _make_coordinator(
-    hass, tide_url="", boating_url="", surf_url=""
-) -> WeatherUpdateCoordinator:
-    config = WeatherUpdateCoordinatorConfig(
-        api_url="https://www.metservice.com/publicData/webdata",
-        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
-        location=LOCATION,
-        location_name="Napier",
-        tide_url=tide_url,
-        boating_url=boating_url,
-        surf_url=surf_url,
-    )
-    coord = WeatherUpdateCoordinator(hass, config)
-    coord.data = MetServicePublicData()
-    return coord
+_make_coordinator = make_coordinator
 
 
 def _make_entry() -> MockConfigEntry:

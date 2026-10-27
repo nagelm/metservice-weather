@@ -45,6 +45,7 @@ from custom_components.metservice_weather.coordinator_types import (
     DailyEntry,
     MetServicePublicData,
 )
+from tests.conftest import make_coordinator
 
 
 def _desc(key: str) -> WeatherSensorEntityDescription:
@@ -52,20 +53,7 @@ def _desc(key: str) -> WeatherSensorEntityDescription:
     return next(d for d in current_condition_sensor_descriptions_public if d.key == key)
 
 
-def _make_coordinator(hass) -> WeatherUpdateCoordinator:
-    config = WeatherUpdateCoordinatorConfig(
-        api_url="https://www.metservice.com/publicData/webdata",
-        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
-        location="/towns-cities/regions/hawkes-bay/locations/napier",
-        location_name="Napier",
-        tide_url="",
-        boating_url="",
-        surf_url="",
-    )
-    coord = WeatherUpdateCoordinator(hass, config)
-    coord.data = MetServicePublicData()
-    return coord
+_make_coordinator = make_coordinator
 
 
 def _make_sensor(coordinator, key="temperature", value=18.5) -> WeatherSensor:

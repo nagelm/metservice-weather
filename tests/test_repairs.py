@@ -14,13 +14,13 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.metservice_weather.const import DOMAIN
 from custom_components.metservice_weather.coordinator import (
     WeatherUpdateCoordinator,
-    WeatherUpdateCoordinatorConfig,
 )
 from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 from custom_components.metservice_weather.deprecation import (
     async_check_deprecated_entities,
 )
 from custom_components.metservice_weather.repairs import EntityIdReclaimRepairFlow
+from tests.conftest import make_coordinator
 
 LOCATION = "/towns-cities/regions/hawkes-bay/locations/napier"
 
@@ -35,20 +35,7 @@ _CANONICAL_ENTITY_ID = "sensor.napier_uv_index"
 _SUFFIXED_OBJECT_ID = "napier_uv_index_2"
 
 
-def _make_coordinator(hass) -> WeatherUpdateCoordinator:
-    config = WeatherUpdateCoordinatorConfig(
-        api_url="https://www.metservice.com/publicData/webdata",
-        warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
-        location=LOCATION,
-        location_name="Napier",
-        tide_url="",
-        boating_url="",
-        surf_url="",
-    )
-    coord = WeatherUpdateCoordinator(hass, config)
-    coord.data = MetServicePublicData()
-    return coord
+_make_coordinator = make_coordinator
 
 
 def _make_entry() -> MockConfigEntry:
