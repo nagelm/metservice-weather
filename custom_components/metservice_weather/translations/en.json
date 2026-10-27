@@ -18,12 +18,12 @@
           "advanced_options": {
             "name": "Advanced",
             "data": {
-              "custom_location": "Custom location",
-              "auto_hide_seasonal": "Automatically disable sensors while MetService publishes no data"
+              "auto_hide_seasonal": "Automatically disable sensors while MetService publishes no data",
+              "custom_location": "Custom location"
             },
             "data_description": {
-              "custom_location": "For a town missing from the list, paste its metservice.com page address.",
-              "auto_hide_seasonal": "Hides UV, fire danger and clothes drying sensors while MetService has no data for them."
+              "auto_hide_seasonal": "Hides UV, fire danger and clothes drying sensors while MetService has no data for them.",
+              "custom_location": "For a town missing from the Weather location list, paste its metservice.com page address."
             }
           }
         }
