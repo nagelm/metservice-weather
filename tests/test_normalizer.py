@@ -147,16 +147,6 @@ def test_condition_is_string(napier):
     assert isinstance(napier.condition, str)
 
 
-def test_weather_warnings_is_string(napier):
-    """Normalized weather_warnings is a string."""
-    assert isinstance(napier.weather_warnings, str)
-
-
-def test_pollen_level_present(napier):
-    """Normalized pollen_level is populated from the Napier fixture."""
-    assert napier.pollen_level is not None
-
-
 def test_pollen_state_none_for_fixtures_without_groups(napier, kumeu):
     """Fixtures predate the groups format, so pollen_state falls back to None."""
     assert napier.pollen_state is None
@@ -234,7 +224,6 @@ def test_boating_extracted_from_boating_data():
         "boating_data": {
             "boating_status": "Good",
             "boating_forecast": "Calm seas",
-            "boating_table": [],
         },
     }
     result = normalize_public_data(current, {})
@@ -263,7 +252,6 @@ def test_empty_dicts_returns_defaults():
     assert result.temperature is None
     assert result.daily_entries == []
     assert result.hourly_entries == []
-    assert result.weather_warnings == "No warnings"
     assert result.warnings_list == []
 
 
@@ -357,7 +345,6 @@ def test_daily_entry_towns_shape():
     assert entry.temp_low == 12.0 and isinstance(entry.temp_low, float)
     assert entry.description == "Sunny day"
     assert entry.rain_prob_1mm == 30.0
-    assert entry.rain_prob_10mm == 5.0
 
 
 def test_daily_entry_rural_shape():
@@ -385,7 +372,6 @@ def test_daily_entry_rural_shape():
     assert entry.temp_low == 9.0
     assert entry.description == "Regional cloudy"
     assert entry.rain_prob_1mm == 40.0
-    assert entry.rain_prob_10mm == 10.0
 
 
 def test_daily_entry_day_level_only():
@@ -414,7 +400,6 @@ def test_daily_entry_empty_day():
     assert entry.temp_low is None
     assert entry.description is None
     assert entry.rain_prob_1mm is None
-    assert entry.rain_prob_10mm is None
 
 
 def test_daily_entry_rain_fields_absent_is_none_not_zero():
@@ -423,7 +408,6 @@ def test_daily_entry_rain_fields_absent_is_none_not_zero():
     result = normalize_public_data({}, _daily_payload([day]))
     entry = result.daily_entries[0]
     assert entry.rain_prob_1mm is None
-    assert entry.rain_prob_10mm is None
 
 
 def test_daily_entry_string_temps_coerced_to_float():
@@ -640,14 +624,12 @@ def test_kumeu_hourly_entries_non_empty(kumeu):
 
 
 @pytest.mark.parametrize("location", ["napier", "kumeu"])
-def test_rain_probability_exceedance_monotonic(location, napier, kumeu):
-    """Rain probability exceedance is monotonic: the 1mm chance is never below the 10mm chance."""
+def test_rain_probability_is_percentage(location, napier, kumeu):
+    """The 1mm rain probability is a percentage."""
     data = napier if location == "napier" else kumeu
     for d in data.daily_entries:
-        if d.rain_prob_1mm is not None and d.rain_prob_10mm is not None:
-            assert d.rain_prob_1mm >= d.rain_prob_10mm
+        if d.rain_prob_1mm is not None:
             assert 0 <= d.rain_prob_1mm <= 100
-            assert 0 <= d.rain_prob_10mm <= 100
 
 
 def test_napier_daily_entries_have_temp_high_and_description(napier):
@@ -1101,29 +1083,6 @@ def test_moon_phase_current_none_when_issued_at_garbage():
     current = _moon_phase_current_payload(moon_phases, "not-a-date")
     result = normalize_public_data(current, {})
     assert result.moon_phase_current is None
-
-
-def test_pollen_groups_pass_through():
-    """Injected pollen groups land on pollen_groups; headline stays level/type."""
-    current = {
-        "pollen": {
-            "pollenLevels": {"level": "Imminent", "type": "Wattle, alder"},
-            "groups": [
-                {"level": "Imminent", "type": "Wattle, alder"},
-                {"level": "Low", "type": "Cypress, hazelnut"},
-            ],
-        }
-    }
-    result = normalize_public_data(current, {})
-    assert result.pollen_level == "Imminent"
-    assert len(result.pollen_groups) == 2
-    assert result.pollen_groups[1]["level"] == "Low"
-
-
-def test_pollen_groups_default_empty():
-    """pollen_groups defaults to an empty list when no pollen data is injected."""
-    result = normalize_public_data({}, {})
-    assert result.pollen_groups == []
 
 
 def _pollen_current(groups: list[dict]) -> dict:

@@ -428,7 +428,6 @@ async def test_public_forecast_daily_with_data(hass):
                 datetime="2024-06-15",
                 description="Sunny day",
                 rain_prob_1mm=0.0,
-                rain_prob_10mm=1.0,
             ),
             DailyEntry(
                 condition="cloudy", temp_high=18.0, temp_low=10.0, datetime="2024-06-16"
@@ -454,7 +453,6 @@ async def test_public_forecast_daily_precipitation_probability(hass):
                 temp_low=8.0,
                 datetime="2024-06-15",
                 rain_prob_1mm=50.0,
-                rain_prob_10mm=5.0,
             )
         ]
     )

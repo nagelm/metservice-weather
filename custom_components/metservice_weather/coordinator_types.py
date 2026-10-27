@@ -253,7 +253,6 @@ class DailyEntry:
     temp_low: float | None = None
     description: str | None = None
     rain_prob_1mm: float | None = None
-    rain_prob_10mm: float | None = None
     rain_total_mm: float | None = None
 
 
@@ -276,7 +275,6 @@ class MetServicePublicData:
     condition: str | None = None
     forecast_text: str | None = None
     issued_at: str | None = None
-    uv_index: str | None = None
     location_name: str | None = None
 
     uv_status_class: str | None = None
@@ -306,7 +304,6 @@ class MetServicePublicData:
     moonset_at: str | None = None
 
     fire_danger: str | None = None
-    fire_season: str | None = None
     fire_season_status: str | None = None
     fire_season_short: str | None = None
     fire_season_text: str | None = None
@@ -314,15 +311,10 @@ class MetServicePublicData:
     fire_danger_text: str | None = None
     fire_danger_forecast: str | None = None
 
-    pollen_level: str | None = None
-    pollen_type: str | None = None
-    pollen_groups: list[dict[str, str | None]] = field(default_factory=list)
-
     pollen_state: str | None = None  # none | low | moderate | high
     pollen_active: dict[str, list[str]] = field(default_factory=dict)
     pollen_imminent: list[str] = field(default_factory=list)
 
-    weather_warnings: str = "No warnings"
     warnings_list: list[dict[str, str]] = field(default_factory=list)
     tomorrow_condition: str | None = None
     tomorrow_temp_high: float | None = None
@@ -351,7 +343,6 @@ class MetServicePublicData:
     tides: list[dict[str, Any]] | None = None
     boating_forecast: str | None = None
     boating_status: str | None = None
-    boating_table: list[dict[str, Any]] | None = None
     surf_conditions: str | None = None
     surf_rating: str | None = None
     surf_wave_height: str | None = None
@@ -486,7 +477,6 @@ def normalize_public_data(
             temp_low=_safe_float(_scan_forecasts(d, "lowTemp")),
             description=_scan_forecasts(d, "statement"),
             rain_prob_1mm=_safe_float(_scan_forecasts(d, "rainFall1")),
-            rain_prob_10mm=_safe_float(_scan_forecasts(d, "rainFall10")),
         )
         for d in raw_days
         if isinstance(d, dict)
@@ -624,7 +614,6 @@ def normalize_public_data(
         condition=day0.get("condition"),
         forecast_text=_scan_forecasts(day0, "statement"),
         issued_at=day0.get("issuedAt"),
-        uv_index=_get(uv, "sunProtection", "uvAlertLevel"),
         location_name=_get(current, "location", "label"),
         uv_status_class=uv_status_class,
         uv_alert_level=uv_alert_level,
@@ -652,20 +641,15 @@ def normalize_public_data(
         fire_danger=_get(
             day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"
         ),
-        fire_season=_get(day0, "fireWeatherData", "fireWeather", "season", "short"),
         fire_season_status=fire_season_status,
         fire_season_short=fire_season_short,
         fire_season_text=fire_season_text,
         fire_danger_index=fire_danger_index,
         fire_danger_text=fire_danger_text,
         fire_danger_forecast=fire_danger_forecast,
-        pollen_level=_get(current, "pollen", "pollenLevels", "level"),
-        pollen_type=_get(current, "pollen", "pollenLevels", "type"),
-        pollen_groups=pollen_groups,
         pollen_state=pollen_state,
         pollen_active=pollen_active,
         pollen_imminent=pollen_imminent,
-        weather_warnings=current.get("weather_warnings", "No warnings"),
         warnings_list=current.get("warnings_list") or [],
         tomorrow_condition=tomorrow.condition if tomorrow else None,
         tomorrow_temp_high=tomorrow.temp_high if tomorrow else None,
@@ -689,7 +673,6 @@ def normalize_public_data(
         tides=current.get("tideImport"),
         boating_forecast=boating.get("boating_forecast"),
         boating_status=boating.get("boating_status"),
-        boating_table=boating.get("boating_table"),
         surf_conditions=surf.get("surf_conditions"),
         surf_rating=surf.get("surf_rating"),
         surf_wave_height=surf.get("surf_wave_height"),

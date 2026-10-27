@@ -105,11 +105,6 @@ class TestCurrentConditions:
         assert isinstance(val, (int, float)), f"Expected numeric, got {val!r}"
         assert val >= 0
 
-    def test_uv_index_is_string_or_none(self, coord):
-        """UV index is a string or None."""
-        val = coord.data.uv_index
-        assert isinstance(val, str) or val is None
-
     def test_location_name_is_string(self, coord):
         """Location name is a non-empty string."""
         val = coord.data.location_name
@@ -137,11 +132,6 @@ class TestBreakdown:
 
 class TestInjectedFields:
     """Contract tests for fields injected or derived by the coordinator."""
-
-    def test_weather_warnings_is_string(self, coord):
-        """Weather warnings value is a string."""
-        val = coord.data.weather_warnings
-        assert isinstance(val, str)
 
     def test_tomorrow_condition_is_string(self, coord):
         """Tomorrow's condition is a string or None."""
@@ -182,14 +172,9 @@ class TestInjectedFields:
 class TestPollen:
     """Contract tests for pollen fields."""
 
-    def test_pollen_level_is_string_or_none(self, coord):
-        """Pollen level is a string or None."""
-        val = coord.data.pollen_level
-        assert isinstance(val, str) or val is None
-
-    def test_pollen_type_is_string_or_none(self, coord):
-        """Pollen type is a string or None."""
-        val = coord.data.pollen_type
+    def test_pollen_state_is_string_or_none(self, coord):
+        """Pollen state is a string or None."""
+        val = coord.data.pollen_state
         assert isinstance(val, str) or val is None
 
 
@@ -228,11 +213,6 @@ class TestFireWeather:
     def test_fire_danger_is_string_or_none(self, coord):
         """Fire danger is a string or None."""
         val = coord.data.fire_danger
-        assert isinstance(val, str) or val is None
-
-    def test_fire_season_is_string_or_none(self, coord):
-        """Fire season is a string or None."""
-        val = coord.data.fire_season
         assert isinstance(val, str) or val is None
 
 
