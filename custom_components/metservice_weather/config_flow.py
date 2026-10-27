@@ -22,12 +22,14 @@ from .const import (
     MARINE_INDEX_URL,
     PUBLIC_URL,
 )
+from .helpers import normalize_location_path
 
 CONF_MARINE_REGION = "marine_region"
 CONF_TIDE_URL = "tide_url"
 CONF_BOATING_URL = "boating_url"
 CONF_SURF_URL = "surf_url"
 CONF_API = "api"
+CONF_CUSTOM_LOCATION = "custom_location"
 
 SECTION_ADVANCED_OPTIONS = "advanced_options"
 
@@ -49,6 +51,18 @@ async def _async_fetch_search_locations(session, url: str) -> list[dict]:
     except Exception:
         _LOGGER.exception("Failed to fetch %s", url)
         return []
+
+
+async def _async_location_exists(session, location: str) -> bool | None:
+    """Return whether MetService serves a page for location, or None if unreachable."""
+    try:
+        async with asyncio.timeout(10):
+            response = await session.get(f"{PUBLIC_URL}{location}")
+            async with response:
+                return response.status == 200
+    except Exception:
+        _LOGGER.exception("Failed to check MetService location %s", location)
+        return None
 
 
 async def async_fetch_locations(session) -> list[dict[str, str]]:
@@ -76,6 +90,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if self._is_reconfiguring:
             return self.async_update_reload_and_abort(
                 self._reconfig_entry,
+                unique_id=f"{DOMAIN}-{self.user_info[CONF_LOCATION]}",
                 data=self.user_info,
             )
         return self.async_create_entry(
@@ -110,17 +125,48 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 data_schema=self._build_setup_schema(),
             )
 
-        self.user_info[CONF_LOCATION] = user_input[CONF_LOCATION]
+        advanced_options = user_input.get(SECTION_ADVANCED_OPTIONS, {})
+        custom_location = advanced_options.get(CONF_CUSTOM_LOCATION, "").strip()
+        picked = user_input.get(CONF_LOCATION)
+        # A custom location left as pre-filled gives way to a different list pick.
+        use_custom = custom_location and (
+            custom_location != self._custom_prefill
+            or picked in (None, self._location_default)
+        )
+        location = normalize_location_path(custom_location) if use_custom else picked
+        error = None
+        if not location:
+            error = "invalid_location"
+        elif use_custom and location not in {o["value"] for o in self.locations}:
+            exists = await _async_location_exists(
+                async_get_clientsession(self.hass), location
+            )
+            if exists is None:
+                error = "cannot_connect"
+            elif not exists:
+                error = "location_not_found"
+        if error:
+            return self.async_show_form(
+                step_id="setup",
+                data_schema=self._build_setup_schema(user_input),
+                errors={"base": error},
+            )
+        self.user_info[CONF_LOCATION] = location
         self.user_info[CONF_NAME] = user_input[CONF_NAME]
         self.user_info[CONF_API] = "public"
-        advanced_options = user_input.get(SECTION_ADVANCED_OPTIONS, {})
         self.user_info[CONF_AUTO_HIDE_SEASONAL] = advanced_options.get(
             CONF_AUTO_HIDE_SEASONAL, False
         )
 
         if not self._is_reconfiguring:
-            await self.async_set_unique_id(f"{DOMAIN}-{user_input[CONF_LOCATION]}")
+            await self.async_set_unique_id(f"{DOMAIN}-{location}")
             self._abort_if_unique_id_configured()
+        elif (
+            other := self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN, f"{DOMAIN}-{location}"
+            )
+        ) and other.entry_id != self._reconfig_entry.entry_id:
+            return self.async_abort(reason="already_configured")
 
         marine_label = user_input.get(CONF_MARINE_REGION, _SKIP)
         if marine_label == _SKIP:
@@ -145,6 +191,26 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     def _build_setup_schema(self, submitted: dict | None = None) -> vol.Schema:
         """Build the setup form schema."""
         values = submitted if submitted is not None else self.user_info
+        advanced = values.get(SECTION_ADVANCED_OPTIONS, values)
+        stored_location = values.get(CONF_LOCATION)
+        location = (
+            stored_location
+            if submitted is not None
+            else stored_location or DEFAULT_LOCATION
+        )
+        listed = {option["value"] for option in self.locations}
+        custom_location = advanced.get(CONF_CUSTOM_LOCATION)
+        if custom_location is None:
+            custom_location = (
+                stored_location
+                if isinstance(stored_location, str)
+                and stored_location not in listed
+                and LOCATION_PATH_RE.fullmatch(stored_location)
+                else ""
+            )
+        if submitted is None:
+            self._custom_prefill = custom_location
+            self._location_default = location if location in listed else None
 
         marine_default = _SKIP
         if submitted is None:
@@ -172,9 +238,10 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_NAME,
                     default=values.get(CONF_NAME, self.hass.config.location_name),
                 ): str,
-                vol.Required(
-                    CONF_LOCATION,
-                    default=values.get(CONF_LOCATION, DEFAULT_LOCATION),
+                (
+                    vol.Optional(CONF_LOCATION, default=location)
+                    if location in listed
+                    else vol.Optional(CONF_LOCATION)
                 ): SelectSelector(SelectSelectorConfig(options=self.locations)),
                 vol.Required(
                     CONF_MARINE_REGION, default=marine_default
@@ -183,12 +250,21 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Schema(
                         {
                             vol.Optional(
+                                CONF_CUSTOM_LOCATION,
+                                description={"suggested_value": custom_location},
+                            ): str,
+                            vol.Optional(
                                 CONF_AUTO_HIDE_SEASONAL,
-                                default=values.get(CONF_AUTO_HIDE_SEASONAL, False),
+                                default=advanced.get(CONF_AUTO_HIDE_SEASONAL, False),
                             ): bool,
                         }
                     ),
-                    {"collapsed": not values.get(CONF_AUTO_HIDE_SEASONAL, False)},
+                    {
+                        "collapsed": not (
+                            custom_location
+                            or advanced.get(CONF_AUTO_HIDE_SEASONAL, False)
+                        )
+                    },
                 ),
             }
         )

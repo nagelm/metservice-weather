@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from homeassistant.util import dt as dt_util
+
+from .const import LOCATION_PATH_RE
+
+_LOCATION_IN_ADDRESS_RE = re.compile(
+    rf"(?:/publicdata/webdata)?({LOCATION_PATH_RE.pattern})(?:[/?#].*)?"
+)
 
 
 def format_timestamp(timestamp_val: str) -> str:
@@ -14,6 +21,17 @@ def format_timestamp(timestamp_val: str) -> str:
         .astimezone(dt_util.get_time_zone("UTC"))
         .isoformat()
     )
+
+
+def normalize_location_path(value: str) -> str | None:
+    """Return the location path in a path or metservice.com address, or None."""
+    if len(value) > 512:
+        return None
+    address = re.sub(r"^(?:[a-z][a-z0-9+.-]*:)?//[^/]*", "", value.strip(), flags=re.I)
+    address = re.sub(r"^(?:www\.)?metservice\.com(?=[/?#]|$)", "", address, flags=re.I)
+    path = "/" + address.lstrip("/").lower()
+    match = _LOCATION_IN_ADDRESS_RE.fullmatch(path)
+    return match.group(1) if match else None
 
 
 def safe_float(value: object) -> float | None:

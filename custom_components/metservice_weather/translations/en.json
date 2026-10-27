@@ -19,7 +19,11 @@
             "name": "Advanced",
             "description": "Seasonal products (UV, fire danger, clothes drying) pause for part of the year. Turn on the automatic-disable option to disable and hide their sensors while MetService pauses the product — their history and settings are kept, and they're re-enabled automatically, no restart required, when data resumes. Leave it off (default) and they stay visible, reading unknown while paused.",
             "data": {
+              "custom_location": "Custom location",
               "auto_hide_seasonal": "Automatically disable sensors while MetService publishes no data"
+            },
+            "data_description": {
+              "custom_location": "Only if your town isn't in the list: its MetService location path or metservice.com address, e.g. /towns-cities/regions/auckland/locations/makarau. Used instead of the location above."
             }
           }
         }
@@ -41,6 +45,8 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to MetService.",
+      "invalid_location": "Not a MetService location. Pick one from the list, or check the custom location under Advanced.",
+      "location_not_found": "MetService has no page for that custom location. Check the address under Advanced.",
       "tide_location_not_found": "Could not determine the URL for the selected tide station.",
       "boating_location_not_found": "Could not determine the URL for the selected boating location.",
       "surf_location_not_found": "Could not determine the URL for the selected surf location."
