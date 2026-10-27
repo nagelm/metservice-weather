@@ -155,17 +155,6 @@ async def async_setup_entry(
             await async_check_removed_entity(hass, entry, coordinator, reg_entry)
             ent_reg.async_remove(reg_entry.entity_id)
 
-    wd_entity_id = ent_reg.async_get_entity_id(
-        SENSOR_DOMAIN, DOMAIN, f"{coordinator.location}_warning_details".lower()
-    )
-    if wd_entity_id is not None:
-        wd_entry = ent_reg.async_get(wd_entity_id)
-        if (
-            wd_entry is not None
-            and wd_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
-        ):
-            ent_reg.async_update_entity(wd_entity_id, disabled_by=None)
-
     stamped_seasonal: dict[str, WeatherSensorEntityDescription] = {}
     if auto_hide_seasonal:
         for sensor in sensors:

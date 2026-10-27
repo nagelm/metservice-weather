@@ -31,6 +31,15 @@ _LOGGER = logging.getLogger(__name__)
 
 _CONF_API = "api"
 
+# Keys v0.9 and pre-v0.9.15 entries stored that nothing reads any more.
+_LEGACY_DATA_KEYS: Final = (
+    "api_key",
+    "mobile_api_key",
+    "enable_tides",
+    "tide_region_url",
+    "boating_region",
+)
+
 
 def _is_location_path(location: object) -> bool:
     """Return True when location is a public-API location path."""
@@ -110,7 +119,6 @@ async def _async_migrate_legacy_unique_ids(
 async def async_setup_entry(hass: HomeAssistant, entry: MetServiceConfigEntry):
     """Set up the MetService Weather component."""
     _check_legacy_entry(hass, entry)
-    await _async_migrate_legacy_unique_ids(hass, entry)
 
     config = WeatherUpdateCoordinatorConfig(
         location=entry.data[CONF_LOCATION],
@@ -141,9 +149,43 @@ async def async_unload_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
+def _reenable_warning_details(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Re-enable a Warning details row that releases before 2026.9.0 shipped disabled."""
+    ent_reg = er.async_get(hass)
+    entity_id = ent_reg.async_get_entity_id(
+        "sensor", DOMAIN, f"{entry.data[CONF_LOCATION]}_warning_details".lower()
+    )
+    reg_entry = ent_reg.async_get(entity_id) if entity_id else None
+    if (
+        reg_entry is not None
+        and reg_entry.disabled_by == er.RegistryEntryDisabler.INTEGRATION
+    ):
+        ent_reg.async_update_entity(reg_entry.entity_id, disabled_by=None)
+
+
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    """Migrate old config entry to current version."""
-    _LOGGER.debug("Migrating config entry from version %s", config_entry.version)
+    """Migrate an older config entry to the current version, once.
+
+    1.1 -> 1.2: re-key v0.9 entities, re-enable Warning details, drop legacy keys.
+    An entry without a public location path (a v0.9 mobile entry) stays at 1.1
+    until Reconfigure gives it one.
+    """
+    _LOGGER.debug(
+        "Migrating config entry from version %s.%s",
+        config_entry.version,
+        config_entry.minor_version,
+    )
     if config_entry.version > 1:
         return False
+    if config_entry.minor_version < 2 and _is_location_path(
+        config_entry.data.get(CONF_LOCATION)
+    ):
+        await _async_migrate_legacy_unique_ids(hass, config_entry)
+        _reenable_warning_details(hass, config_entry)
+        data = {
+            key: value
+            for key, value in config_entry.data.items()
+            if key not in _LEGACY_DATA_KEYS
+        }
+        hass.config_entries.async_update_entry(config_entry, data=data, minor_version=2)
     return True

@@ -95,6 +95,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a MetService config flow."""
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     @property
     def _is_reconfiguring(self) -> bool:
