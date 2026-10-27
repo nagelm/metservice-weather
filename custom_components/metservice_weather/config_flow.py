@@ -106,6 +106,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Re-entry point — seed user_info from the existing entry."""
         self._reconfig_entry = self._get_reconfigure_entry()
         self.user_info = dict(self._reconfig_entry.data)
+        # v0.9 mobile entries stored a MetService API key; don't carry it forward.
+        self.user_info.pop("api_key", None)
+        self.user_info.pop("mobile_api_key", None)
         return await self.async_step_setup()
 
     async def async_step_setup(self, user_input=None):

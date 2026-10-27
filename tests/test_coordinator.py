@@ -740,6 +740,42 @@ async def test_expand_data_urls_max_depth_guard(hass):
     mock_session.get.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://192.168.1.1/admin",
+        "https://www.metservice.com.example.com/x",
+        "http://www.metservice.com/x",
+        "file:///etc/passwd",
+        123,
+    ],
+)
+async def test_expand_data_urls_skips_foreign_hosts(hass, url):
+    """Links in dataUrl that leave https://www.metservice.com are not fetched."""
+    coord = _make_coordinator(hass)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock()
+    coord._session = mock_session
+
+    data = {"node": {"dataUrl": url}}
+    await coord.expand_data_urls(data)
+    assert data["node"] is None
+    mock_session.get.assert_not_called()
+
+
+async def test_expand_data_urls_follows_absolute_metservice_url(hass):
+    """An absolute dataUrl on www.metservice.com is still fetched."""
+    coord = _make_coordinator(hass)
+    expanded = {"realData": 1}
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(return_value=_mock_response(expanded))
+    coord._session = mock_session
+
+    data = {"node": {"dataUrl": "https://www.metservice.com/publicData/webdata/x"}}
+    await coord.expand_data_urls(data)
+    assert data["node"] == expanded
+
+
 async def test_get_public_weather_injects_tides(hass):
     """When tide_url is set, tideImport is injected into result_current."""
     coord = _make_coordinator(hass, tide_url="https://example.com/tides")

@@ -487,7 +487,16 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         if isinstance(data, dict):
             if "dataUrl" in data:
                 url = data["dataUrl"]
+                if not isinstance(url, str):
+                    url = ""
                 full_url = f"{BASE_URL}{url}" if url.startswith("/") else url
+                if not full_url.startswith(f"{BASE_URL}/"):
+                    _LOGGER.debug(
+                        "Skipping dataUrl outside %s: %r", BASE_URL, data["dataUrl"]
+                    )
+                    if parent is not None and key is not None:
+                        parent[key] = None
+                    return
                 try:
                     async with asyncio.timeout(10):
                         response = await self._session.get(
