@@ -40,7 +40,7 @@ def safe_float(value: object) -> float | None:
         return None
     try:
         return float(value)  # type: ignore[arg-type]
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
@@ -50,5 +50,5 @@ def safe_int(value: object) -> int | None:
         return None
     try:
         return int(value)  # type: ignore[arg-type]
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None

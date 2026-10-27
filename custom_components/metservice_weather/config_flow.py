@@ -466,7 +466,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Extract URL from a map marker's action.modules[0].link.url."""
         try:
             return marker["action"]["modules"][0]["link"]["url"]
-        except (KeyError, IndexError, TypeError):
+        except KeyError, IndexError, TypeError:
             return ""
 
     def _resolve_url(

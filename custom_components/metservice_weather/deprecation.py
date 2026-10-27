@@ -111,7 +111,7 @@ def _dump_json(value: Any) -> str | None:
     """Best-effort JSON dump for substring matching; None on failure."""
     try:
         return json.dumps(value, default=str)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -414,7 +414,7 @@ def _raw_config_json(hass: HomeAssistant, entity_id: str) -> str | None:
         if raw_config is None:
             return None
         return json.dumps(raw_config, default=str)
-    except (AttributeError, KeyError, TypeError):
+    except AttributeError, KeyError, TypeError:
         return None
 
 
