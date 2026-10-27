@@ -11,6 +11,7 @@ from custom_components.metservice_weather.const import (
     DOMAIN,
     CONF_AUTO_HIDE_SEASONAL,
 )
+from custom_components.metservice_weather.helpers import normalize_location_path
 from custom_components.metservice_weather.config_flow import (
     CONF_CUSTOM_LOCATION,
     CONF_MARINE_REGION,
@@ -584,6 +585,26 @@ async def test_custom_location_overrides_list(
         assert result["data"][CONF_LOCATION] == expected
     else:
         assert result["errors"] == {"base": "invalid_location"}
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        (
+            "https://evil.example/towns-cities/regions/auckland/locations/makarau",
+            "/towns-cities/regions/auckland/locations/makarau",
+        ),
+        ("//evil.example/towns-cities/regions/auckland/locations/makarau", None),
+        ("/towns-cities/regions/auckland/locations/../../../etc/passwd", None),
+        ("/towns-cities/regions/auckland/locations/makarau%2F..%2Fx", None),
+        ("/towns-cities/regions/auckland/locations/makarau@evil.example", None),
+        ("/towns-cities/regions/auckland/locations/makarau\x00", None),
+        ("/towns-cities/regions/auckland/locations/" + "a" * 600, None),
+    ],
+)
+def test_normalize_location_path_rejects_hostile_input(typed, expected):
+    """Only a plain MetService location path survives; hosts and odd characters don't."""
+    assert normalize_location_path(typed) == expected
 
 
 async def test_custom_location_without_a_page_is_rejected(hass, mock_marine_session):
