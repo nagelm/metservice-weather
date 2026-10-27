@@ -641,6 +641,30 @@ async def test_custom_location_without_a_page_is_rejected(hass, mock_marine_sess
     assert result["errors"] == {"base": "location_not_found"}
 
 
+@pytest.mark.parametrize("status", [429, 500, 503])
+async def test_custom_location_server_error_reports_cannot_connect(
+    hass, mock_marine_session, status
+):
+    """A 5xx or 429 from MetService means it couldn't answer, not that the place doesn't exist."""
+    _, response = mock_marine_session
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    response.status = status
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Nowhere",
+            CONF_LOCATION: "/towns-cities/regions/hawkes-bay/locations/napier",
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {
+                CONF_CUSTOM_LOCATION: "/towns-cities/regions/auckland/locations/nowhere"
+            },
+        },
+    )
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
 async def _start_setup(hass):
     return await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
