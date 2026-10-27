@@ -50,7 +50,7 @@ Linting and formatting are enforced by [ruff](https://github.com/astral-sh/ruff)
 
 ## Test your code modification
 
-Create a Python 3.13+ virtualenv, install the test dependencies, and run the
+Create a Python 3.14+ virtualenv, install the test dependencies, and run the
 suite:
 
 ```

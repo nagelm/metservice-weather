@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - "main"
+      - "modernize/cleanup"
   pull_request:
     branches:
       - "main"
+      - "modernize/cleanup"
 
 permissions:
   contents: read

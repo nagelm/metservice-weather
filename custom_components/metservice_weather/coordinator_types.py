@@ -49,7 +49,7 @@ def _get(data: Any, *path: str) -> Any:
         if isinstance(data, list):
             try:
                 data = data[int(part)]
-            except (IndexError, ValueError):
+            except IndexError, ValueError:
                 return None
         elif isinstance(data, dict):
             data = data.get(part)
@@ -61,14 +61,14 @@ def _get(data: Any, *path: str) -> Any:
 def _safe_float(val: Any) -> float | None:
     try:
         return float(val)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
 def _safe_int(val: Any) -> int | None:
     try:
         return int(val)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -171,7 +171,7 @@ def _next_rain_from_daily(
             continue
         try:
             day_dt = datetime.fromisoformat(day.datetime)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
         if day_dt.date() < now.date():
             continue
@@ -401,7 +401,7 @@ def normalize_public_data(
         issued_at_reference = (
             datetime.fromisoformat(issued_at_raw) if issued_at_raw else None
         )
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         issued_at_reference = None
 
     sunrise_at = _parse_clock_time(rise_set.get("sunRise"), issued_at_reference)
@@ -548,7 +548,7 @@ def normalize_public_data(
             parsed = datetime.fromisoformat(h.datetime)
             if parsed < now_floor:
                 continue
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
         future_hourly.append((parsed, h))
     future_hourly.sort(key=lambda pair: pair[0])

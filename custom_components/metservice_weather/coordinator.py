@@ -254,7 +254,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     for module in modules:
                         if "tideData" in module:
                             return module["tideData"]
-                except (KeyError, TypeError):
+                except KeyError, TypeError:
                     continue
             _LOGGER.warning(
                 "Could not locate tideData in response — tides data will be unavailable"
@@ -351,7 +351,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     if m["action"]["modules"][0]["link"]["url"] == location_path:
                         marker = m
                         break
-                except (KeyError, IndexError, TypeError):
+                except KeyError, IndexError, TypeError:
                     continue
 
             if not marker:
