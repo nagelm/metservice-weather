@@ -591,12 +591,22 @@ async def test_custom_location_overrides_list(
 @pytest.mark.parametrize(
     ("typed", "expected"),
     [
+        ("https://evil.example/towns-cities/regions/auckland/locations/makarau", None),
+        ("//evil.example/towns-cities/regions/auckland/locations/makarau", None),
         (
-            "https://evil.example/towns-cities/regions/auckland/locations/makarau",
+            "https://user@www.metservice.com/towns-cities/regions/auckland/locations/makarau",
+            None,
+        ),
+        (
+            "https://www.metservice.com:8443/towns-cities/regions/auckland/locations/makarau",
+            None,
+        ),
+        (
+            "https://metservice.com/towns-cities/regions/auckland/locations/makarau",
             "/towns-cities/regions/auckland/locations/makarau",
         ),
         (
-            "//evil.example/towns-cities/regions/auckland/locations/makarau",
+            "https://www.metservice.com/publicData/webdata/towns-cities/regions/auckland/locations/makarau",
             "/towns-cities/regions/auckland/locations/makarau",
         ),
         (
@@ -616,7 +626,7 @@ async def test_custom_location_overrides_list(
     ],
 )
 def test_normalize_location_path_rejects_hostile_input(typed, expected):
-    """Only a plain MetService location path survives; hosts are dropped, odd characters rejected."""
+    """Only a MetService location path survives; other hosts and odd characters are rejected."""
     assert normalize_location_path(typed) == expected
 
 
