@@ -47,6 +47,14 @@ PUBLIC_URL = f"{BASE_URL}/publicData/webdata"
 PUBLIC_WARNINGS_URL = f"{PUBLIC_URL}/warnings-service"
 LOCATIONS_INDEX_URL = f"{PUBLIC_URL}/towns-cities"
 MARINE_INDEX_URL = f"{PUBLIC_URL}/marine"
+REQUEST_TIMEOUT: Final = 10
+PUBLIC_HEADERS: Final = {
+    "Accept-Encoding": "gzip",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
+    ),
+}
 LOCATION_PATH_RE: Final = re.compile(
     r"/(?:towns-cities|rural)/regions/[a-z0-9-]+/locations/[a-z0-9-]+"
     r"|/rural/regions/[a-z0-9-]+"

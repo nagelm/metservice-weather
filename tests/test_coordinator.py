@@ -160,6 +160,26 @@ async def test_check_errors_raises(hass):
         )
 
 
+@pytest.mark.parametrize(
+    "errors", [[{"code": 500}], ["boom"], [{"message": ""}], [None]]
+)
+async def test_check_errors_without_message_raises_generic(hass, errors):
+    """An errors item without a usable message still fails, with a generic message."""
+    coord = _make_coordinator(hass)
+    with pytest.raises(ValueError, match=r"^Error from http://x$"):
+        coord._check_errors("http://x", {"errors": errors})
+
+
+async def test_check_errors_joins_only_items_with_messages(hass):
+    """Items with a message are joined; items without one are skipped."""
+    coord = _make_coordinator(hass)
+    with pytest.raises(ValueError, match=r"^Error from http://x: a; b$"):
+        coord._check_errors(
+            "http://x",
+            {"errors": [{"message": "a"}, {"code": 1}, {"message": "b"}]},
+        )
+
+
 async def test_parse_pollen_html_level_and_plants(hass):
     """_parse_pollen_html extracts level, plant types and the status class."""
     coord = _make_coordinator(hass)
@@ -309,6 +329,37 @@ async def test_get_public_weather_none_response_raises_update_failed(hass):
     coord._session = mock_session
 
     with pytest.raises(UpdateFailed, match="No current weather data"):
+        await coord.get_public_weather()
+
+
+@pytest.mark.parametrize("status", [404, 429, 500, 503])
+async def test_get_public_weather_non_200_raises_update_failed(hass, status):
+    """A non-200 reply on a required fetch fails the update instead of being parsed."""
+    coord = _make_coordinator(hass)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        return_value=_mock_response(_PUBLIC_CURRENT, status=status)
+    )
+    coord._session = mock_session
+
+    with pytest.raises(UpdateFailed, match=f"HTTP {status} from "):
+        await coord.get_public_weather()
+
+
+async def test_get_public_weather_non_200_on_daily_raises_update_failed(hass):
+    """The 7-day fetch is required too: a 500 there fails the update."""
+    coord = _make_coordinator(hass)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response({"warnings": []}),
+            _mock_response(_PUBLIC_DAILY, status=500),
+        ]
+    )
+    coord._session = mock_session
+
+    with pytest.raises(UpdateFailed, match="HTTP 500 from .*/7-days"):
         await coord.get_public_weather()
 
 
