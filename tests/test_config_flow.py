@@ -552,6 +552,14 @@ async def test_reconfigure_collapses_advanced_section_when_disabled(
             "https://www.metservice.com/towns-cities/regions/auckland/locations/makarau/",
             "/towns-cities/regions/auckland/locations/makarau",
         ),
+        (
+            "https://www.metservice.com/publicData/webdata/towns-cities/regions/auckland/locations/makarau",
+            "/towns-cities/regions/auckland/locations/makarau",
+        ),
+        (
+            "https://www.metservice.com/towns-cities/regions/auckland/locations/makarau/7-days",
+            "/towns-cities/regions/auckland/locations/makarau",
+        ),
         ("makarau", None),
     ],
 )
@@ -576,6 +584,27 @@ async def test_custom_location_overrides_list(
         assert result["data"][CONF_LOCATION] == expected
     else:
         assert result["errors"] == {"base": "invalid_location"}
+
+
+async def test_custom_location_without_a_page_is_rejected(hass, mock_marine_session):
+    """A well-formed custom location MetService has no page for is not saved."""
+    _, response = mock_marine_session
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    response.status = 404
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Nowhere",
+            CONF_LOCATION: "/towns-cities/regions/hawkes-bay/locations/napier",
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {
+                CONF_CUSTOM_LOCATION: "/towns-cities/regions/auckland/locations/nowhere"
+            },
+        },
+    )
+    assert result["errors"] == {"base": "location_not_found"}
 
 
 async def test_reconfigure_custom_location_opens_advanced(hass, mock_marine_session):

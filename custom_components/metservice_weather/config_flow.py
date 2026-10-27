@@ -53,6 +53,17 @@ async def _async_fetch_search_locations(session, url: str) -> list[dict]:
         return []
 
 
+async def _async_location_exists(session, location: str) -> bool:
+    """Return True when MetService serves a page for location."""
+    try:
+        async with asyncio.timeout(10):
+            response = await session.get(f"{PUBLIC_URL}{location}")
+        return response.status == 200
+    except Exception:
+        _LOGGER.exception("Failed to check MetService location %s", location)
+        return False
+
+
 async def async_fetch_locations(session) -> list[dict[str, str]]:
     """Return MetService's town and rural locations as selector options."""
     return [
@@ -119,11 +130,18 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if custom_location
             else user_input.get(CONF_LOCATION)
         )
+        error = None
         if not location:
+            error = "invalid_location"
+        elif custom_location and not await _async_location_exists(
+            async_get_clientsession(self.hass), location
+        ):
+            error = "location_not_found"
+        if error:
             return self.async_show_form(
                 step_id="setup",
                 data_schema=self._build_setup_schema(user_input),
-                errors={"base": "invalid_location"},
+                errors={"base": error},
             )
         self.user_info[CONF_LOCATION] = location
         self.user_info[CONF_NAME] = user_input[CONF_NAME]

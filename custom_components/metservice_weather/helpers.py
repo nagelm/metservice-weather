@@ -9,6 +9,10 @@ from homeassistant.util import dt as dt_util
 
 from .const import LOCATION_PATH_RE
 
+_LOCATION_IN_ADDRESS_RE = re.compile(
+    rf"(?:/publicdata/webdata)?({LOCATION_PATH_RE.pattern})(?:[/?#].*)?"
+)
+
 
 def format_timestamp(timestamp_val: str) -> str:
     """Format an ISO timestamp string to UTC ISO format."""
@@ -20,9 +24,10 @@ def format_timestamp(timestamp_val: str) -> str:
 
 
 def normalize_location_path(value: str) -> str | None:
-    """Return a location path or metservice.com address as a location path, or None."""
-    path = "/" + re.sub(r"^https?://[^/]+", "", value.strip()).strip("/").lower()
-    return path if LOCATION_PATH_RE.fullmatch(path) else None
+    """Return the location path in a path or metservice.com address, or None."""
+    path = "/" + re.sub(r"^https?://[^/]+", "", value.strip()).lstrip("/").lower()
+    match = _LOCATION_IN_ADDRESS_RE.fullmatch(path)
+    return match.group(1) if match else None
 
 
 def safe_float(value: object) -> float | None:
