@@ -174,35 +174,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             await self.expand_data_urls(result_daily)
             result_current["warnings_list"] = structured
             result_current["pollen"] = await self.get_pollen_data()
-            try:
-                drying_states = self.get_from_dict(
-                    result_current, ["dryingIndex", "dryingState"]
-                )
-                if isinstance(drying_states, list):
-                    drying_morning = None
-                    drying_afternoon = None
-                    drying_next_good_day = None
-                    for entry in drying_states:
-                        text = entry.get("text", "") if isinstance(entry, dict) else ""
-                        if text.startswith("Morning:"):
-                            drying_morning = text.removeprefix("Morning:").strip()
-                        elif text.startswith("Afternoon:"):
-                            drying_afternoon = text.removeprefix("Afternoon:").strip()
-                        elif text.lower().startswith("next good day"):
-                            drying_next_good_day = (
-                                text.split(":", 1)[-1].strip() if ":" in text else text
-                            )
-                        elif text:
-                            drying_morning = text
-                    if drying_afternoon is None and drying_morning is not None:
-                        drying_afternoon = drying_morning
-                    if drying_next_good_day is None:
-                        drying_next_good_day = "Today"
-                    result_current["drying_morning"] = drying_morning
-                    result_current["drying_afternoon"] = drying_afternoon
-                    result_current["drying_next_good_day"] = drying_next_good_day
-            except Exception as _e:
-                _LOGGER.debug("Could not extract drying index states: %s", _e)
             if self._tide_url:
                 result_current["tideImport"] = await self.get_tides()
             if self._boating_url:
@@ -449,32 +420,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             if error_messages:
                 raise ValueError(f"Error from {url}: {error_messages}")
             raise ValueError(f"Error from {url}")
-
-    def get_from_dict(self, data_dict, map_list):
-        """Recursively look for a given key path within a dictionary."""
-        if not map_list:
-            return data_dict
-        if isinstance(data_dict, list):
-            for idx, item in enumerate(data_dict):
-                if map_list[0].isdigit() and idx == int(map_list[0]):
-                    result = self.get_from_dict(item, map_list[1:])
-                    if result is not None:
-                        return result
-                else:
-                    result = self.get_from_dict(item, map_list)
-                    if result is not None:
-                        return result
-        elif isinstance(data_dict, dict):
-            for key, value in data_dict.items():
-                if key == map_list[0]:
-                    result = self.get_from_dict(value, map_list[1:])
-                    if result is not None:
-                        return result
-                else:
-                    result = self.get_from_dict(value, map_list)
-                    if result is not None:
-                        return result
-        return None
 
     async def expand_data_urls(self, data, parent=None, key=None, _depth=0):
         """Recursively expand dataUrl entries in the data, replacing the entire object."""
