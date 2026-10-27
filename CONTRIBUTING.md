@@ -66,13 +66,6 @@ on Windows.
 
 CI enforces a 95% coverage gate as well as ruff; pull requests must pass both.
 
-For interactive testing against a real Home Assistant instance, a development
-environment in a container is also available and easy to launch if you use
-Visual Studio Code. With this container you will have a stand alone Home
-Assistant instance running; the `config` directory (including
-`configuration.yaml`) is generated on first run by `scripts/develop` rather
-than checked into the repo.
-
 ## License
 
 By contributing, you agree that your contributions will be licensed under its MIT License.
