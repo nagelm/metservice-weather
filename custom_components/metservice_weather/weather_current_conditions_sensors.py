@@ -379,13 +379,20 @@ def _full_text_attr(text: str | None) -> dict[str, StateType]:
 
 
 def _has_observations(coordinator: Any) -> bool:
-    """Location has a weather station (rural pages have none)."""
-    return coordinator.data is not None and coordinator.data.has_observations
+    """Location is not rural, so it has a weather station.
+
+    A station location whose observations are missing from one response keeps
+    its sensors; they read unknown until the data comes back.
+    """
+    return coordinator.data is not None and not coordinator.data.is_rural
 
 
 def _has_breakdown(coordinator: Any) -> bool:
-    """Location's forecast carries morning/afternoon/evening/overnight conditions."""
-    return coordinator.data is not None and coordinator.data.has_breakdown
+    """Morning/afternoon/evening/overnight sensors exist once there is data.
+
+    They read unknown on a day the forecast carries no breakdown.
+    """
+    return coordinator.data is not None
 
 
 def _tides_enabled(coordinator: Any) -> bool:
