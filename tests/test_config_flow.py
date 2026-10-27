@@ -2,8 +2,6 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -544,52 +542,30 @@ async def test_reconfigure_collapses_advanced_section_when_disabled(
     assert matches[0].default() is False
 
 
-@pytest.mark.parametrize(
-    ("typed", "error"),
-    [
-        (
-            "https://www.metservice.com/towns-cities/regions/auckland/locations/makarau/",
-            None,
-        ),
-        ("makarau", "invalid_location"),
-    ],
-)
-async def test_custom_location_not_in_list(hass, mock_marine_session, typed, error):
-    """A typed path or page URL is stored as a clean path; anything else is rejected."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {
-            CONF_NAME: "Makarau",
-            CONF_LOCATION: typed,
-            CONF_MARINE_REGION: "skip",
-            SECTION_ADVANCED_OPTIONS: {},
-        },
-    )
-    if error:
-        assert result["errors"] == {CONF_LOCATION: error}
-    else:
-        assert result["type"] == FlowResultType.CREATE_ENTRY
-        assert result["data"][CONF_LOCATION] == (
-            "/towns-cities/regions/auckland/locations/makarau"
-        )
-
-
 async def test_setup_form_offers_fetched_locations(hass, mock_marine_session):
-    """The location selector lists the fetched index and accepts typed values."""
+    """The location selector lists the fetched index."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     for key, selector in result["data_schema"].schema.items():
         if key == CONF_LOCATION:
             config = selector.config
-            assert config["custom_value"] is True
             assert [o["label"] for o in config["options"]] == ["Napier", "Whangārei"]
             break
     else:
         raise AssertionError("location field missing")
+
+
+async def test_setup_aborts_without_location_list(
+    hass, mock_marine_session, mock_location_index
+):
+    """The flow aborts with cannot_connect when the location list can't be fetched."""
+    mock_location_index.return_value = []
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "cannot_connect"
 
 
 async def test_fetch_locations_parses_index():
@@ -649,7 +625,7 @@ async def test_fetch_locations_parses_index():
 
 
 async def test_fetch_locations_failure_returns_empty():
-    """A failed index fetch leaves an empty list; the field still takes a typed path."""
+    """A failed index fetch returns an empty list."""
     session = MagicMock()
     session.get = AsyncMock(side_effect=Exception("network error"))
     assert await async_fetch_locations(session) == []
