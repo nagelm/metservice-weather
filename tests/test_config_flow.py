@@ -2,6 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -10,6 +12,7 @@ from custom_components.metservice_weather.const import (
     CONF_AUTO_HIDE_SEASONAL,
 )
 from custom_components.metservice_weather.config_flow import (
+    CONF_CUSTOM_LOCATION,
     CONF_MARINE_REGION,
     SECTION_ADVANCED_OPTIONS,
     WeatherFlowHandler,
@@ -457,7 +460,7 @@ async def test_auto_hide_seasonal_empty_section_defaults_false(
 
 
 async def test_reconfigure_prefills_auto_hide_seasonal(hass, mock_marine_session):
-    """Reconfigure of an entry with auto_hide_seasonal=True pre-fills the toggle and opens the section."""
+    """Reconfigure of an entry with auto_hide_seasonal=True pre-fills the toggle; the section stays collapsed."""
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     existing_entry = MockConfigEntry(
@@ -490,7 +493,7 @@ async def test_reconfigure_prefills_auto_hide_seasonal(hass, mock_marine_session
     section_matches = [key for key in schema if key.schema == SECTION_ADVANCED_OPTIONS]
     assert len(section_matches) == 1
     section = schema[section_matches[0]]
-    assert section.options["collapsed"] is False
+    assert section.options["collapsed"] is True
 
     inner_schema = section.schema.schema
     matches = [key for key in inner_schema if key.schema == CONF_AUTO_HIDE_SEASONAL]
@@ -540,6 +543,73 @@ async def test_reconfigure_collapses_advanced_section_when_disabled(
     matches = [key for key in inner_schema if key.schema == CONF_AUTO_HIDE_SEASONAL]
     assert len(matches) == 1
     assert matches[0].default() is False
+
+
+@pytest.mark.parametrize(
+    ("custom", "expected"),
+    [
+        (
+            "https://www.metservice.com/towns-cities/regions/auckland/locations/makarau/",
+            "/towns-cities/regions/auckland/locations/makarau",
+        ),
+        ("makarau", None),
+    ],
+)
+async def test_custom_location_overrides_list(
+    hass, mock_marine_session, custom, expected
+):
+    """A valid custom location is used instead of the list; anything else is rejected."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Makarau",
+            CONF_LOCATION: "/towns-cities/regions/hawkes-bay/locations/napier",
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {CONF_CUSTOM_LOCATION: custom},
+        },
+    )
+    if expected:
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["data"][CONF_LOCATION] == expected
+    else:
+        assert result["errors"] == {"base": "invalid_location"}
+
+
+async def test_reconfigure_custom_location_opens_advanced(hass, mock_marine_session):
+    """An entry on an unlisted location reopens with Advanced expanded and the path filled in."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    custom = "/towns-cities/regions/auckland/locations/makarau"
+    existing_entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-{custom}",
+        data={
+            CONF_NAME: "Makarau",
+            CONF_LOCATION: custom,
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    existing_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": existing_entry.entry_id,
+        },
+    )
+    schema = result["data_schema"].schema
+    section = next(v for k, v in schema.items() if k == SECTION_ADVANCED_OPTIONS)
+    assert section.options["collapsed"] is False
+    field = next(k for k in section.schema.schema if k == CONF_CUSTOM_LOCATION)
+    assert field.description == {"suggested_value": custom}
 
 
 async def test_setup_form_offers_fetched_locations(hass, mock_marine_session):

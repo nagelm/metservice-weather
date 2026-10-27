@@ -22,12 +22,14 @@ from .const import (
     MARINE_INDEX_URL,
     PUBLIC_URL,
 )
+from .helpers import normalize_location_path
 
 CONF_MARINE_REGION = "marine_region"
 CONF_TIDE_URL = "tide_url"
 CONF_BOATING_URL = "boating_url"
 CONF_SURF_URL = "surf_url"
 CONF_API = "api"
+CONF_CUSTOM_LOCATION = "custom_location"
 
 SECTION_ADVANCED_OPTIONS = "advanced_options"
 
@@ -110,16 +112,28 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 data_schema=self._build_setup_schema(),
             )
 
-        self.user_info[CONF_LOCATION] = user_input[CONF_LOCATION]
+        advanced_options = user_input.get(SECTION_ADVANCED_OPTIONS, {})
+        custom_location = advanced_options.get(CONF_CUSTOM_LOCATION, "").strip()
+        location = (
+            normalize_location_path(custom_location)
+            if custom_location
+            else user_input.get(CONF_LOCATION)
+        )
+        if not location:
+            return self.async_show_form(
+                step_id="setup",
+                data_schema=self._build_setup_schema(user_input),
+                errors={"base": "invalid_location"},
+            )
+        self.user_info[CONF_LOCATION] = location
         self.user_info[CONF_NAME] = user_input[CONF_NAME]
         self.user_info[CONF_API] = "public"
-        advanced_options = user_input.get(SECTION_ADVANCED_OPTIONS, {})
         self.user_info[CONF_AUTO_HIDE_SEASONAL] = advanced_options.get(
             CONF_AUTO_HIDE_SEASONAL, False
         )
 
         if not self._is_reconfiguring:
-            await self.async_set_unique_id(f"{DOMAIN}-{user_input[CONF_LOCATION]}")
+            await self.async_set_unique_id(f"{DOMAIN}-{location}")
             self._abort_if_unique_id_configured()
 
         marine_label = user_input.get(CONF_MARINE_REGION, _SKIP)
@@ -145,6 +159,18 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     def _build_setup_schema(self, submitted: dict | None = None) -> vol.Schema:
         """Build the setup form schema."""
         values = submitted if submitted is not None else self.user_info
+        advanced = values.get(SECTION_ADVANCED_OPTIONS, values)
+        location = values.get(CONF_LOCATION, DEFAULT_LOCATION)
+        listed = {option["value"] for option in self.locations}
+        custom_location = advanced.get(CONF_CUSTOM_LOCATION)
+        if custom_location is None:
+            custom_location = (
+                location
+                if location not in listed
+                and isinstance(location, str)
+                and normalize_location_path(location)
+                else ""
+            )
 
         marine_default = _SKIP
         if submitted is None:
@@ -172,9 +198,10 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_NAME,
                     default=values.get(CONF_NAME, self.hass.config.location_name),
                 ): str,
-                vol.Required(
-                    CONF_LOCATION,
-                    default=values.get(CONF_LOCATION, DEFAULT_LOCATION),
+                (
+                    vol.Optional(CONF_LOCATION, default=location)
+                    if location in listed
+                    else vol.Optional(CONF_LOCATION)
                 ): SelectSelector(SelectSelectorConfig(options=self.locations)),
                 vol.Required(
                     CONF_MARINE_REGION, default=marine_default
@@ -183,12 +210,16 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Schema(
                         {
                             vol.Optional(
+                                CONF_CUSTOM_LOCATION,
+                                description={"suggested_value": custom_location},
+                            ): str,
+                            vol.Optional(
                                 CONF_AUTO_HIDE_SEASONAL,
-                                default=values.get(CONF_AUTO_HIDE_SEASONAL, False),
+                                default=advanced.get(CONF_AUTO_HIDE_SEASONAL, False),
                             ): bool,
                         }
                     ),
-                    {"collapsed": not values.get(CONF_AUTO_HIDE_SEASONAL, False)},
+                    {"collapsed": not custom_location},
                 ),
             }
         )
