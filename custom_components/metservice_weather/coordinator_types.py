@@ -16,8 +16,6 @@ from .const import CONDITION_MAP
 
 _LOGGER = logging.getLogger(__name__)
 
-# HA conditions that imply precipitation — used to find the first "rain day"
-# in the daily forecast beyond the hourly series' reach.
 _PRECIPITATION_HA_CONDITIONS = {
     "rainy",
     "pouring",
@@ -30,14 +28,7 @@ _PRECIPITATION_HA_CONDITIONS = {
 
 
 def _round_iso_to_minutes(iso: Any, resolution_minutes: int = 5) -> Any:
-    """Round an ISO timestamp string to the nearest N minutes.
-
-    MetService recomputes astronomical times per request with second-level
-    jitter (observed: the same moon phase served as 19:15:27, then 19:15:46).
-    Rounding at normalize time keeps the snapshot stable across polls so
-    state only changes when the underlying event actually does. Values that
-    aren't parseable ISO strings pass through unchanged.
-    """
+    """Round an ISO timestamp string to the nearest N minutes."""
     if not isinstance(iso, str):
         return iso
     try:
@@ -51,10 +42,7 @@ def _round_iso_to_minutes(iso: Any, resolution_minutes: int = 5) -> Any:
 
 
 def _get(data: Any, *path: str) -> Any:
-    """Exact-path traversal — no depth-first search.
-
-    Numeric path parts are treated as list indices.
-    """
+    """Exact-path traversal — no depth-first search."""
     for part in path:
         if data is None:
             return None
@@ -88,15 +76,7 @@ _CLOCK_TIME_RE = re.compile(r"\d{1,2}:\d{2}\s*[AaPp][Mm]")
 
 
 def _parse_clock_time(clock: str | None, reference: datetime | None) -> str | None:
-    """Combine a bare MetService clock string with reference's date and tz.
-
-    MetService publishes rise/set and UV-window times as bare 12-hour
-    clock strings ("7:07am", "12:26pm") with no date of their own — the
-    calendar day and UTC offset come from the page's `issuedAt` timestamp
-    instead. Returns None (never raises) for a missing/empty clock string,
-    a missing reference, or unparseable input such as the "undefined
-    undefined" UV placeholder.
-    """
+    """Combine a bare MetService clock string with reference's date and tz."""
     if not clock or reference is None:
         return None
     compact = re.sub(r"\s+", "", clock)
@@ -113,13 +93,7 @@ def _parse_clock_time(clock: str | None, reference: datetime | None) -> str | No
 
 
 def _extract_clock_token(text: Any) -> str | None:
-    """Pull the first bare "H:MMam/pm" token out of a longer string.
-
-    The in-season MetService UV window format is unverified — captured
-    fixtures only carry the "undefined undefined" off-season placeholder —
-    so this extracts best-effort from whatever text is present (e.g. a
-    hypothetical "10:00am Saturday").
-    """
+    """Pull the first bare "H:MMam/pm" token out of a longer string."""
     if not isinstance(text, str):
         return None
     match = _CLOCK_TIME_RE.search(text)
@@ -135,16 +109,7 @@ def _find_module(modules: list, key: str) -> dict:
 
 
 def _scan_forecasts(day: Any, key: str) -> Any:
-    """Return the first non-None `key` from forecasts entries, else the day level.
-
-    MetService publishes daily forecasts in several shapes:
-    - towns-cities: one forecasts entry carrying temps, rain probabilities
-      and the statement (temps duplicated at day level)
-    - rural: a regional-text entry (statement only) plus a location entry
-      carrying temps and rain probabilities (statement null); temps and
-      statement also appear at day level
-    Scanning every entry and then the day level covers all of them.
-    """
+    """Return the first non-None `key` from forecasts entries, else the day level."""
     if not isinstance(day, dict):
         return None
     for f in day.get("forecasts") or []:
@@ -153,10 +118,6 @@ def _scan_forecasts(day: Any, key: str) -> Any:
     return day.get(key)
 
 
-# HA core's moon-phase ENUM vocabulary. moonPhases[0] (from the riseSet
-# module) is MetService's next upcoming principal-phase event; when today's
-# local date matches that event's date we're literally on the principal
-# phase, otherwise we're in the intermediate phase that leads up to it.
 _MOON_PHASE_PRINCIPAL_MAP: dict[str, str] = {
     "NEW": "new_moon",
     "FIRST": "first_quarter",
@@ -172,18 +133,7 @@ _MOON_PHASE_INTERMEDIATE_MAP: dict[str, str] = {
 
 
 def _moon_phase_current(moon_phases: Any, reference: datetime | None) -> str | None:
-    """Derive the current-moon-phase ENUM state from MetService's moonPhases list.
-
-    moonPhases[0] is MetService's next upcoming principal-phase event
-    (NEW/FIRST/FULL/LAST) with its own local dateISO. When `reference`'s
-    local date matches that event's date, today IS the principal phase
-    day. On any other day, the moon is in the intermediate phase that
-    leads up to that next event (e.g. the days before a FULL moon are
-    "waxing gibbous"). None-safe throughout: a missing/empty list, a
-    non-dict entry, an unparseable or missing dateISO, a missing
-    `reference`, or an unrecognised phase token all produce None rather
-    than a guess.
-    """
+    """Derive the current-moon-phase ENUM state from MetService's moonPhases list."""
     if not moon_phases or reference is None:
         return None
     next_event = moon_phases[0]
@@ -202,9 +152,6 @@ def _moon_phase_current(moon_phases: Any, reference: datetime | None) -> str | N
     return _MOON_PHASE_INTERMEDIATE_MAP.get(phase_token)
 
 
-# MetService's site-wide pollen status_class taxonomy: good/medium/bad form
-# the exposure severity ramp; medium-good is an informational outlook notice
-# (e.g. pre-season "Imminent"); none means no data for that block.
 _POLLEN_CLASS_TO_STATE = {"good": "low", "medium": "moderate", "bad": "high"}
 _POLLEN_STATE_RANK = {"low": 1, "moderate": 2, "high": 3}
 _UNKNOWN_POLLEN_CLASSES_LOGGED: set[str] = set()
@@ -216,12 +163,7 @@ def _next_rain_from_daily(
     now: datetime,
     last_hourly: datetime | None,
 ) -> str | None:
-    """First future day whose condition MetService itself draws as precipitation.
-
-    Days that ended before the last (dry) hourly entry are already answered
-    by the hourly data and are skipped, as are past days and days with
-    missing/unparseable dates or unknown condition tokens.
-    """
+    """First future day whose condition MetService itself draws as precipitation."""
     for day in daily_entries:
         if CONDITION_MAP.get(day.condition or "") not in _PRECIPITATION_HA_CONDITIONS:
             continue
@@ -242,15 +184,7 @@ def _next_rain_from_daily(
 def _derive_pollen(
     groups: list[dict[str, str | None]],
 ) -> tuple[str | None, dict[str, list[str]], list[str]]:
-    """Derive the one-sensor pollen model from raw MetService status groups.
-
-    Returns (pollen_state, pollen_active, pollen_imminent):
-    - pollen_state: highest-ranked state among the exposure-ramp blocks
-      (good/medium/bad); "none" if groups exist but none are exposure blocks;
-      None if there are no groups at all (module wasn't published).
-    - pollen_active: state -> list of allergens, from good/medium/bad blocks.
-    - pollen_imminent: allergens from medium-good (informational) blocks.
-    """
+    """Derive the one-sensor pollen model from raw MetService status groups."""
     if not groups:
         return None, {}, []
 
@@ -267,10 +201,6 @@ def _derive_pollen(
         elif cls in _POLLEN_CLASS_TO_STATE:
             state = _POLLEN_CLASS_TO_STATE[cls]
             active.setdefault(state, []).extend(allergens)
-            # The state comes from status_class; the free-text `level` label is
-            # expected to be the same word. If MetService ever pairs a richer
-            # label with a known class, the enum would silently drop it — warn
-            # so it gets reported instead.
             label = (group.get("level") or "").strip()
             if (
                 label
@@ -315,18 +245,7 @@ class HourlyEntry:
 
 @dataclass
 class DailyEntry:
-    """Single daily forecast entry.
-
-    rain_prob_1mm / rain_prob_10mm are MetService's rainfall exceedance
-    probabilities (rainFall1 / rainFall10): the % chance of at least
-    1 mm / 10 mm of rain that day. They are probabilities, NOT amounts —
-    the public API does not publish daily rainfall amounts.
-
-    rain_total_mm is an amount, not a probability: it is aggregated by
-    summing the hourly forecast (mm/h) across this day's local calendar
-    date, and is only set when that day has (near-)complete hourly
-    coverage.
-    """
+    """Single daily forecast entry."""
 
     datetime: str | None = None
     condition: str | None = None
@@ -342,7 +261,6 @@ class DailyEntry:
 class MetServicePublicData:
     """Normalised snapshot of public API data for one polling cycle."""
 
-    # Current observations
     temperature: float | None = None
     feels_like: float | None = None
     temp_today_high: float | None = None
@@ -361,7 +279,6 @@ class MetServicePublicData:
     uv_index: str | None = None
     location_name: str | None = None
 
-    # UV detail (sunProtection block; absent entirely outside UV season)
     uv_status_class: str | None = None
     uv_alert_level: str | None = None
     uv_message: str | None = None
@@ -371,13 +288,11 @@ class MetServicePublicData:
     uv_window_start_at: str | None = None
     uv_window_end_at: str | None = None
 
-    # Sub-day breakdown
     breakdown_morning: str | None = None
     breakdown_afternoon: str | None = None
     breakdown_evening: str | None = None
     breakdown_overnight: str | None = None
 
-    # Sun / moon
     sunrise: str | None = None
     sunset: str | None = None
     moonrise: str | None = None
@@ -390,7 +305,6 @@ class MetServicePublicData:
     moonrise_at: str | None = None
     moonset_at: str | None = None
 
-    # Fire weather
     fire_danger: str | None = None
     fire_season: str | None = None
     fire_season_status: str | None = None
@@ -400,19 +314,14 @@ class MetServicePublicData:
     fire_danger_text: str | None = None
     fire_danger_forecast: str | None = None
 
-    # Pollen (injected). pollen_level/type reflect the first (headline)
-    # block; pollen_groups carries every concurrent status block, e.g. a
-    # pre-season "Imminent" for trees alongside a "Low" for active allergens.
     pollen_level: str | None = None
     pollen_type: str | None = None
     pollen_groups: list[dict[str, str | None]] = field(default_factory=list)
 
-    # Derived pollen model (one-sensor design)
     pollen_state: str | None = None  # none | low | moderate | high
     pollen_active: dict[str, list[str]] = field(default_factory=dict)
     pollen_imminent: list[str] = field(default_factory=list)
 
-    # Derived / injected
     weather_warnings: str = "No warnings"
     warnings_list: list[dict[str, str]] = field(default_factory=list)
     tomorrow_condition: str | None = None
@@ -423,31 +332,22 @@ class MetServicePublicData:
     drying_afternoon: str | None = None
     drying_next_good_day: str | None = None
 
-    # Capability flags — structural presence of optional page sections.
-    # Used to decide which sensor entities to create for a location.
-    # Only sections whose absence is permanent for a location belong here;
-    # seasonal products (UV, fire, drying, pollen) must stay ungated.
     has_observations: bool = False
     has_breakdown: bool = False
     is_rural: bool = False
 
-    # Hourly forecast
     hourly_entries: list[HourlyEntry] = field(default_factory=list)
     hourly_obs: int | None = None
     hourly_skip: int | None = None
 
-    # Rain windows — summed from the forecast hourly slice, anchored to
-    # the normalizer's `now` (see normalize_public_data's `now` parameter)
     rain_next_8h_mm: float | None = None
     rain_next_24h_mm: float | None = None
     next_rain_at: str | None = None
     next_rain_precision: str | None = None  # "hour" | "day"
     rain_forecast_horizon: str | None = None  # last daily-forecast day searched
 
-    # Daily forecast
     daily_entries: list[DailyEntry] = field(default_factory=list)
 
-    # Optional marine (None / empty when not configured)
     tides: list[dict[str, Any]] | None = None
     boating_forecast: str | None = None
     boating_status: str | None = None
@@ -467,62 +367,35 @@ class MetServicePublicData:
 def normalize_public_data(
     current: dict, daily: dict, now: datetime | None = None
 ) -> MetServicePublicData:
-    """Build a MetServicePublicData from raw coordinator dicts.
-
-    Uses exact-path traversal (_get) and explicit section extraction —
-    no DFS.  All injected fields (weather_warnings, pollen, drying_*)
-    are already present at the root of `current` when this is called;
-    tomorrow_* fields are derived here from the 7-day data.
-
-    `now` is resolved once (defaulting to dt_util.now()) and used as the
-    anchor for the rain-window fields; callers may inject a fixed value
-    for deterministic tests.
-    """
+    """Build a MetServicePublicData from raw coordinator dicts."""
     now = now or dt_util.now()
 
-    # ------------------------------------------------------------------
-    # Extract key sections from the nested layout structure
-    # ------------------------------------------------------------------
-
-    # Observations: layout.primary.slots.left-major.modules → module with "observations"
-    # Rural locations have no weather station: the currentConditions module
-    # expands to {} (or observations: null), so obs ends up empty.
     left_major = (
         _get(current, "layout", "primary", "slots", "left-major", "modules") or []
     )
     obs = _find_module(left_major, "observations").get("observations") or {}
 
-    # Days / breakdown / fire: layout.primary.slots.main.modules → module with "days"
     main_mods = _get(current, "layout", "primary", "slots", "main", "modules") or []
     days = _find_module(main_mods, "days").get("days") or []
     day0 = days[0] if days and isinstance(days[0], dict) else {}
     breakdown0 = day0.get("breakdown") or {}
 
-    # Hourly graph: layout.primary.slots.main.modules → module with "graph"
     graph_module = _find_module(main_mods, "graph")
     graph = graph_module.get("graph", {})
     graph_series = graph.get("series") or []
     hourly_skip = graph_series[0].get("count", 0) if graph_series else 0
     hourly_obs_count = graph_series[1].get("count", 0) if len(graph_series) > 1 else 0
 
-    # UV: layout.primary.slots.left-minor.modules → module with "uv"
     left_minor = (
         _get(current, "layout", "primary", "slots", "left-minor", "modules") or []
     )
     uv = _find_module(left_minor, "uv").get("uv", {})
 
-    # Sunrise / moon: layout.secondary.slots.major.modules → module with "riseSet"
     secondary = _get(current, "layout", "secondary", "slots", "major", "modules") or []
     rise_mod = _find_module(secondary, "riseSet")
     rise_set = rise_mod.get("riseSet", {})
     moon_phases = rise_mod.get("moonPhases", [])
 
-    # ------------------------------------------------------------------
-    # Reference datetime for combining bare clock strings (sunrise, UV
-    # window, etc.) with a date/timezone offset. Sourced once from day 0's
-    # issuedAt so every clock-string parse in this call uses the same
-    # anchor; an unparseable or missing issuedAt disables all of them.
-    # ------------------------------------------------------------------
     issued_at_raw = day0.get("issuedAt")
     try:
         issued_at_reference = (
@@ -531,19 +404,11 @@ def normalize_public_data(
     except (ValueError, TypeError):
         issued_at_reference = None
 
-    # ------------------------------------------------------------------
-    # Sun / moon clock-time combination
-    # ------------------------------------------------------------------
     sunrise_at = _parse_clock_time(rise_set.get("sunRise"), issued_at_reference)
     sunset_at = _parse_clock_time(rise_set.get("sunSet"), issued_at_reference)
     moonrise_at = _parse_clock_time(rise_set.get("moonRise"), issued_at_reference)
     moonset_at = _parse_clock_time(rise_set.get("moonSet"), issued_at_reference)
 
-    # ------------------------------------------------------------------
-    # UV detail — sunProtection is absent entirely outside NZ's UV season
-    # (winter payloads carry only a displayEndOfSeasonMessage stub with no
-    # "sunProtection" key), so every field here must be None-safe.
-    # ------------------------------------------------------------------
     uv_status_raw = _get(uv, "sunProtection", "status")
     uv_status_class = (
         uv_status_raw.removeprefix("status-")
@@ -578,11 +443,6 @@ def normalize_public_data(
         _extract_clock_token(uv_end_time_raw), issued_at_reference
     )
 
-    # ------------------------------------------------------------------
-    # Fire weather — day 0 carries today's status/index, day 1 carries
-    # tomorrow's forecast danger rating. Rural pages publish
-    # fireWeatherData as an empty list, so every field here is None-safe.
-    # ------------------------------------------------------------------
     day1 = days[1] if len(days) > 1 and isinstance(days[1], dict) else {}
     fire_season_status_raw = _get(
         day0, "fireWeatherData", "fireWeather", "season", "status"
@@ -602,9 +462,6 @@ def normalize_public_data(
         day1, "fireWeatherData", "fireWeather", "danger", "forecast"
     )
 
-    # ------------------------------------------------------------------
-    # Hourly entries
-    # ------------------------------------------------------------------
     hourly_raw = graph.get("columns") or []
     hourly_entries = [
         HourlyEntry(
@@ -618,9 +475,6 @@ def normalize_public_data(
         if isinstance(h, dict)
     ]
 
-    # ------------------------------------------------------------------
-    # Daily entries (from 7-day JSON)
-    # ------------------------------------------------------------------
     raw_days = (
         _get(daily, "layout", "primary", "slots", "main", "modules", "0", "days") or []
     )
@@ -638,22 +492,6 @@ def normalize_public_data(
         if isinstance(d, dict)
     ]
 
-    # ------------------------------------------------------------------
-    # Daily rainfall totals — merge the hourly graph into an hour → mm map
-    # and sum per local calendar day. The forecast section is anchored to
-    # MetService's latest model run (NOT to midnight), so on its own it
-    # covers today only partially for much of the day; the observed section
-    # carries the actual recorded rainfall for today's elapsed hours. Fill
-    # the map from the forecast slice first, then overwrite overlapping
-    # timestamps with observed values (actuals beat predictions — the two
-    # sections both carry today's elapsed hours with different numbers),
-    # giving day 0 the "so far + remainder" total MetService itself quotes.
-    # Only attach a total when a day has near-complete coverage (>= 20 of
-    # 24 hours) so the window's tail fragment never produces a misleading
-    # partial-day figure. Hourly values are display-rounded to 0.1 mm
-    # upstream, so totals can drift ~1 mm from MetService's stated figure
-    # (see the notes cross-check below).
-    # ------------------------------------------------------------------
     observed_hourly = hourly_entries[:hourly_skip]
     forecast_hourly = hourly_entries[hourly_skip : hourly_skip + hourly_obs_count]
     hour_mm: dict[Any, float | None] = {}
@@ -684,10 +522,6 @@ def normalize_public_data(
         if rain_counts.get(entry_date, 0) >= 20:
             entry.rain_total_mm = round(rain_sums[entry_date], 1)
 
-    # Cross-check against MetService's own "Total rainfall forecast for
-    # today" note, when published — debug-only visibility into how far the
-    # summed total drifts from MetService's stated figure. Never raises:
-    # a malformed/missing note must never break normalization.
     with contextlib.suppress(Exception):
         notes = graph_module.get("notes") or []
         note_text = " ".join(n.get("text", "") for n in notes if isinstance(n, dict))
@@ -705,12 +539,6 @@ def normalize_public_data(
                     theirs,
                 )
 
-    # ------------------------------------------------------------------
-    # Rain windows — summed from the forecast hourly slice, anchored to
-    # `now` floored to the top of the hour (so the current hour's entry
-    # still counts as upcoming). Malformed entry datetimes are skipped;
-    # entries before the floor are excluded as already-elapsed.
-    # ------------------------------------------------------------------
     now_floor = now.replace(minute=0, second=0, microsecond=0)
     future_hourly: list[tuple[datetime, HourlyEntry]] = []
     for h in forecast_hourly:
@@ -745,11 +573,6 @@ def normalize_public_data(
     )
     next_rain_precision = "hour" if next_rain_at is not None else None
 
-    # Daily fallback — the hourly series only reaches ~2 days out. When it
-    # shows no rain, the first future precipitation-condition day answers at
-    # day precision. rain_forecast_horizon records the last day searched, so
-    # a None next_rain_at means "no rain expected through <horizon>" rather
-    # than "don't know".
     if next_rain_at is None:
         last_hourly = future_hourly[-1][0] if future_hourly else None
         next_rain_at = _next_rain_from_daily(daily_entries, now, last_hourly)
@@ -760,20 +583,11 @@ def normalize_public_data(
         (daily_entries[-1].datetime or None) if daily_entries else None
     )
 
-    # Tomorrow's forecast is day index 1 of the 7-day data.
     tomorrow = daily_entries[1] if len(daily_entries) > 1 else None
 
-    # ------------------------------------------------------------------
-    # Marine — boating and surf stored nested under their own keys
-    # ------------------------------------------------------------------
     boating = current.get("boating_data") or {}
     surf = current.get("surf_data") or {}
 
-    # ------------------------------------------------------------------
-    # Today's high/low — the current-conditions widget shows day 0's
-    # forecast temps, so falling back to the forecast when there is no
-    # weather station (rural locations) yields the same quantity.
-    # ------------------------------------------------------------------
     temp_today_high = _safe_float(_get(obs, "temperature", "0", "high"))
     if temp_today_high is None:
         temp_today_high = _safe_float(_scan_forecasts(day0, "highTemp"))
@@ -783,18 +597,9 @@ def normalize_public_data(
 
     is_rural = str(day0.get("isRural", "")).lower() == "true"
 
-    # ------------------------------------------------------------------
-    # Pollen — derive the one-sensor model from the raw status groups
-    # ------------------------------------------------------------------
     pollen_groups = current.get("pollen", {}).get("groups") or []
     pollen_state, pollen_active, pollen_imminent = _derive_pollen(pollen_groups)
 
-    # ------------------------------------------------------------------
-    # Moon phase date — MetService recomputes this per backend refresh with
-    # second-level jitter; round to 5 minutes so state only changes when
-    # the phase event actually advances. Log the raw value so prod debug
-    # logs record the jitter series for upstream characterisation.
-    # ------------------------------------------------------------------
     raw_phase_date = _get(moon_phases, "0", "dateISO")
     moon_phase_date = _round_iso_to_minutes(raw_phase_date)
     if moon_phase_date != raw_phase_date:
@@ -803,11 +608,7 @@ def normalize_public_data(
         )
     moon_phase_current = _moon_phase_current(moon_phases, issued_at_reference)
 
-    # ------------------------------------------------------------------
-    # Assemble dataclass
-    # ------------------------------------------------------------------
     data = MetServicePublicData(
-        # Observations
         temperature=_safe_float(_get(obs, "temperature", "0", "current")),
         feels_like=_safe_float(_get(obs, "temperature", "0", "feelsLike")),
         temp_today_high=temp_today_high,
@@ -820,13 +621,11 @@ def normalize_public_data(
         wind_direction=_get(obs, "wind", "0", "direction"),
         wind_strength=_get(obs, "wind", "0", "strength"),
         rainfall=_safe_float(_get(obs, "rain", "0", "rainfall")),
-        # Today's forecast (day 0)
         condition=day0.get("condition"),
         forecast_text=_scan_forecasts(day0, "statement"),
         issued_at=day0.get("issuedAt"),
         uv_index=_get(uv, "sunProtection", "uvAlertLevel"),
         location_name=_get(current, "location", "label"),
-        # UV detail (sunProtection block; absent entirely off-season)
         uv_status_class=uv_status_class,
         uv_alert_level=uv_alert_level,
         uv_message=uv_message,
@@ -835,12 +634,10 @@ def normalize_public_data(
         uv_window_end_raw=uv_window_end_raw,
         uv_window_start_at=uv_window_start_at,
         uv_window_end_at=uv_window_end_at,
-        # Sub-day breakdown
         breakdown_morning=_get(breakdown0, "morning", "condition"),
         breakdown_afternoon=_get(breakdown0, "afternoon", "condition"),
         breakdown_evening=_get(breakdown0, "evening", "condition"),
         breakdown_overnight=_get(breakdown0, "overnight", "condition"),
-        # Sun / moon
         sunrise=rise_set.get("sunRise"),
         sunset=rise_set.get("sunSet"),
         moonrise=rise_set.get("moonRise"),
@@ -852,7 +649,6 @@ def normalize_public_data(
         sunset_at=sunset_at,
         moonrise_at=moonrise_at,
         moonset_at=moonset_at,
-        # Fire weather (from day 0's fireWeatherData)
         fire_danger=_get(
             day0, "fireWeatherData", "fireWeather", "danger", "dailyObservation"
         ),
@@ -863,15 +659,12 @@ def normalize_public_data(
         fire_danger_index=fire_danger_index,
         fire_danger_text=fire_danger_text,
         fire_danger_forecast=fire_danger_forecast,
-        # Pollen (injected at root as {"pollenLevels": {...}})
         pollen_level=_get(current, "pollen", "pollenLevels", "level"),
         pollen_type=_get(current, "pollen", "pollenLevels", "type"),
         pollen_groups=pollen_groups,
-        # Derived pollen model (one-sensor design)
         pollen_state=pollen_state,
         pollen_active=pollen_active,
         pollen_imminent=pollen_imminent,
-        # Injected derived fields
         weather_warnings=current.get("weather_warnings", "No warnings"),
         warnings_list=current.get("warnings_list") or [],
         tomorrow_condition=tomorrow.condition if tomorrow else None,
@@ -881,11 +674,9 @@ def normalize_public_data(
         drying_morning=current.get("drying_morning"),
         drying_afternoon=current.get("drying_afternoon"),
         drying_next_good_day=current.get("drying_next_good_day"),
-        # Capability flags
         has_observations=bool(obs),
         has_breakdown=bool(breakdown0),
         is_rural=is_rural,
-        # Hourly
         hourly_entries=hourly_entries,
         hourly_obs=hourly_obs_count,
         hourly_skip=hourly_skip,
@@ -894,15 +685,11 @@ def normalize_public_data(
         next_rain_at=next_rain_at,
         next_rain_precision=next_rain_precision,
         rain_forecast_horizon=rain_forecast_horizon,
-        # Daily
         daily_entries=daily_entries,
-        # Tides (injected at root as a list)
         tides=current.get("tideImport"),
-        # Boating (injected under "boating_data" key)
         boating_forecast=boating.get("boating_forecast"),
         boating_status=boating.get("boating_status"),
         boating_table=boating.get("boating_table"),
-        # Surf (injected under "surf_data" key)
         surf_conditions=surf.get("surf_conditions"),
         surf_rating=surf.get("surf_rating"),
         surf_wave_height=surf.get("surf_wave_height"),
