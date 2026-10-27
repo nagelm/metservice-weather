@@ -357,6 +357,7 @@ async def async_check_removed_entity(
             DOMAIN,
             issue_id,
             is_fixable=False,
+            is_persistent=True,
             severity=ir.IssueSeverity.WARNING,
             translation_key="removed_entity",
             learn_more_url=_LEARN_MORE_URL,
