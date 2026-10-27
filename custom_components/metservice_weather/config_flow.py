@@ -160,15 +160,16 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Build the setup form schema."""
         values = submitted if submitted is not None else self.user_info
         advanced = values.get(SECTION_ADVANCED_OPTIONS, values)
-        location = values.get(CONF_LOCATION, DEFAULT_LOCATION)
+        stored_location = values.get(CONF_LOCATION)
+        location = stored_location or DEFAULT_LOCATION
         listed = {option["value"] for option in self.locations}
         custom_location = advanced.get(CONF_CUSTOM_LOCATION)
         if custom_location is None:
             custom_location = (
-                location
-                if location not in listed
-                and isinstance(location, str)
-                and normalize_location_path(location)
+                stored_location
+                if isinstance(stored_location, str)
+                and stored_location not in listed
+                and normalize_location_path(stored_location)
                 else ""
             )
 
