@@ -17,10 +17,11 @@ from .coordinator import WeatherUpdateCoordinator, WeatherUpdateCoordinatorConfi
 from .entity import async_register_location_device
 from .const import (
     DOMAIN,
-    LOCATION_PATH_RE,
+    LOCATIONS,
     PUBLIC_URL,
     PUBLIC_WARNINGS_URL,
     API_METRIC,
+    API_URL_METRIC,
 )
 
 PLATFORMS: Final = [Platform.WEATHER, Platform.SENSOR]
@@ -31,12 +32,9 @@ _LOGGER = logging.getLogger(__name__)
 
 _CONF_API = "api"
 
+_VALID_LOCATION_VALUES = {location["value"] for location in LOCATIONS}
+
 _LEGACY_ENTRY_LEARN_MORE_URL = "https://github.com/nagelm/metservice-weather/releases"
-
-
-def _is_location_path(location: object) -> bool:
-    """Return True when location is a public-API location path."""
-    return isinstance(location, str) and LOCATION_PATH_RE.match(location) is not None
 
 
 def _check_legacy_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) -> None:
@@ -47,7 +45,7 @@ def _check_legacy_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) -> No
         location = entry.data.get(CONF_LOCATION)
         if api == "mobile":
             reason = "the private mobile API, which was removed in v1.0.0"
-        elif not _is_location_path(location):
+        elif location not in _VALID_LOCATION_VALUES:
             reason = f"an unrecognised location value ({location!r})"
         else:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
@@ -75,7 +73,7 @@ async def _async_migrate_legacy_unique_ids(
     """Re-key entities registered by v0.9.x onto the current unique_id format."""
     try:
         location = entry.data.get(CONF_LOCATION)
-        if not _is_location_path(location):
+        if location not in _VALID_LOCATION_VALUES:
             return
         new_prefix = f"{location}_".lower()
         ent_reg = er.async_get(hass)
@@ -115,6 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MetServiceConfigEntry):
         tide_url=entry.data.get("tide_url", ""),
         boating_url=entry.data.get("boating_url", ""),
         surf_url=entry.data.get("surf_url", ""),
+        unit_system_api=API_URL_METRIC,
         unit_system=API_METRIC,
         api_url=PUBLIC_URL,
         warnings_url=PUBLIC_WARNINGS_URL,

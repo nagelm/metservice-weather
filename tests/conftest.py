@@ -29,25 +29,6 @@ def auto_enable_custom_integrations(enable_custom_integrations):
     yield
 
 
-MOCK_LOCATIONS = [
-    {"label": "Napier", "value": "/towns-cities/regions/hawkes-bay/locations/napier"},
-    {
-        "label": "Whangārei",
-        "value": "/towns-cities/regions/northland/locations/whangarei",
-    },
-]
-
-
-@pytest.fixture(autouse=True)
-def mock_location_index():
-    """Serve a fixed location index to the config flow."""
-    with patch(
-        "custom_components.metservice_weather.config_flow.async_fetch_locations",
-        AsyncMock(return_value=MOCK_LOCATIONS),
-    ) as mock:
-        yield mock
-
-
 @pytest.fixture
 def mock_coordinator_refresh():
     """Patch coordinator first refresh to avoid real network calls during setup."""

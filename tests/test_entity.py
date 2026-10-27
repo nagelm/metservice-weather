@@ -24,6 +24,7 @@ def _make_coordinator(
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
+        unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",
@@ -42,11 +43,20 @@ async def test_location_device_prefers_api_label(hass):
     assert ent.device_info["name"] == "Porirua"
 
 
+async def test_location_device_falls_back_to_locations_table(hass):
+    """Without data, the bundled LOCATIONS table names the device."""
+    coord = _make_coordinator(hass)
+    coord.data = None
+    ent = MetServiceEntity(coord)
+    assert ent.device_info["name"] == "Napier"
+
+
 async def test_location_device_falls_back_to_entry_name_for_unknown_path(hass):
     """Unknown location path with no data: the typed entry name is the last resort."""
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
+        unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/nowhere/locations/atlantis",
         location_name="My Custom Name",

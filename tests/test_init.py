@@ -194,41 +194,6 @@ async def test_unknown_location_entry_creates_legacy_entry_issue(hass):
     assert "unrecognised location" in issue.translation_placeholders["reason"]
 
 
-async def test_bare_slug_location_entry_creates_legacy_entry_issue(hass):
-    """A pre-v1.0 bare-slug location gets a legacy_entry issue."""
-    entry = _make_entry({**_PUBLIC_ENTRY_DATA, "location": "dargaville"})
-    entry.add_to_hass(hass)
-
-    with patch(
-        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
-        new_callable=AsyncMock,
-    ):
-        await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-
-    assert ir.async_get(hass).async_get_issue(DOMAIN, _legacy_issue_id(entry))
-
-
-async def test_typed_location_path_raises_no_legacy_entry_issue(hass):
-    """A typed public location path outside MetService's index is not flagged."""
-    entry = _make_entry(
-        {
-            **_PUBLIC_ENTRY_DATA,
-            "location": "/towns-cities/regions/auckland/locations/makarau",
-        }
-    )
-    entry.add_to_hass(hass)
-
-    with patch(
-        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
-        new_callable=AsyncMock,
-    ):
-        await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-
-    assert ir.async_get(hass).async_get_issue(DOMAIN, _legacy_issue_id(entry)) is None
-
-
 async def test_self_corrected_user_valid_entry_stays_silent_and_clears_pre_existing_issue(
     hass,
 ):
