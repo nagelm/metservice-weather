@@ -241,7 +241,6 @@ async def test_get_public_weather_returns_data(hass):
 
     result = await coord.get_public_weather()
     assert isinstance(result, MetServicePublicData)
-    assert "Strong Wind" in result.weather_warnings
     assert result.warnings_list == [
         {
             "name": "Strong Wind",
@@ -270,7 +269,6 @@ async def test_get_public_weather_no_warnings(hass):
     coord._session = mock_session
 
     result = await coord.get_public_weather()
-    assert result.weather_warnings == "No warnings"
     assert result.warnings_list == []
 
 
@@ -383,33 +381,33 @@ async def test_get_pollen_data_success(hass):
     coord._session = mock_session
 
     result = await coord.get_pollen_data()
-    assert result["pollenLevels"]["level"] == "Low"
+    assert result["groups"][0]["level"] == "Low"
 
 
 async def test_get_pollen_data_non_200_returns_empty(hass):
-    """get_pollen_data returns empty pollen levels on a non-200 response."""
+    """get_pollen_data returns no pollen groups on a non-200 response."""
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response({}, status=404))
     coord._session = mock_session
 
     result = await coord.get_pollen_data()
-    assert result == {"pollenLevels": {"level": None, "type": None}, "groups": []}
+    assert result == {"groups": []}
 
 
 async def test_get_pollen_data_exception_returns_empty(hass):
-    """get_pollen_data returns empty pollen levels when the fetch raises."""
+    """get_pollen_data returns no pollen groups when the fetch raises."""
     coord = _make_coordinator(hass)
     mock_session = MagicMock()
     mock_session.get = AsyncMock(side_effect=Exception("network error"))
     coord._session = mock_session
 
     result = await coord.get_pollen_data()
-    assert result == {"pollenLevels": {"level": None, "type": None}, "groups": []}
+    assert result == {"groups": []}
 
 
 async def test_get_pollen_data_multiple_blocks(hass):
-    """Concurrent pollen blocks: first is the headline, all appear in groups."""
+    """Concurrent pollen blocks all appear in groups, in page order."""
     coord = _make_coordinator(hass)
     pollen_data = {
         "layout": {
@@ -440,7 +438,6 @@ async def test_get_pollen_data_multiple_blocks(hass):
     coord._session = mock_session
 
     result = await coord.get_pollen_data()
-    assert result["pollenLevels"]["level"] == "Imminent"
     assert len(result["groups"]) == 2
     assert result["groups"][0]["status_class"] == "medium-good"
     assert result["groups"][1]["level"] == "Low"

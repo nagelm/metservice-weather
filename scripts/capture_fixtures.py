@@ -133,20 +133,18 @@ async def capture_location(session, fixtures_dir, name, location):
         result_warnings = await resp.json(content_type=None)
     await expand_data_urls(session, result_warnings)
 
-    warnings_list = [
-        f"{w['name']}, {w['text']}, {w['threatPeriod']}"
+    result_current["warnings_list"] = [
+        {
+            "name": w.get("name") or "Warning",
+            "text": w.get("text") or "",
+            "threat_period": w.get("threatPeriod") or "",
+        }
         for w in result_warnings.get("warnings", [])
     ]
-    result_current["weather_warnings"] = (
-        "\n".join(warnings_list) if warnings_list else "No warnings"
-    )
 
     pollen_url = f"{PUBLIC_URL}{location}/airborne-allergens"
     print(f"Fetching pollen {pollen_url}")
-    result_current["pollen"] = {
-        "pollenLevels": {"level": None, "type": None},
-        "groups": [],
-    }
+    result_current["pollen"] = {"groups": []}
     try:
         async with async_timeout.timeout(10):
             resp = await session.get(pollen_url, headers=HEADERS)
@@ -187,10 +185,7 @@ async def capture_location(session, fixtures_dir, name, location):
                                 }
                             )
                 if groups:
-                    result_current["pollen"] = {
-                        "pollenLevels": groups[0],
-                        "groups": groups,
-                    }
+                    result_current["pollen"] = {"groups": groups}
     except Exception as exc:
         print(f"  [warn] pollen fetch failed: {exc}")
 

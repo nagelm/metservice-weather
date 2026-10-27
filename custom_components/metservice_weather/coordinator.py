@@ -165,10 +165,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 }
                 for warning in result_warnings.get("warnings", [])
             ]
-            warnings_list = [
-                f"{w['name']}, {w['text']}, {w['threat_period']}" for w in structured
-            ]
-            warnings_text = "\n".join(warnings_list) if warnings_list else "No warnings"
             async with asyncio.timeout(10):
                 url = f"{self._api_url}{self.location}/7-days"
                 response = await self._session.get(url, headers=headers)
@@ -177,7 +173,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     raise ValueError("No daily forecast data received.")
                 self._check_errors(url, result_daily)
             await self.expand_data_urls(result_daily)
-            result_current["weather_warnings"] = warnings_text
             result_current["warnings_list"] = structured
             result_current["pollen"] = await self.get_pollen_data()
             try:
@@ -305,7 +300,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 "boating_status_raw": today.get("view", {}).get("status", ""),
                 "boating_forecast": today.get("forecast", {}).get("text", ""),
                 "boating_issued_at": today.get("forecast", {}).get("issuedAt", ""),
-                "boating_table": today.get("table", {}).get("columns", []),
             }
         except (TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.warning(
@@ -412,7 +406,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
 
     async def get_pollen_data(self) -> dict:
         """Fetch pollen/allergen data from MetService allergens endpoint."""
-        empty = {"pollenLevels": {"level": None, "type": None}, "groups": []}
+        empty = {"groups": []}
         try:
             async with asyncio.timeout(10):
                 url = f"{self._api_url}{self._location}/airborne-allergens"
@@ -440,7 +434,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             ]
             if groups:
                 _LOGGER.debug("Pollen groups this cycle: %s", groups)
-                return {"pollenLevels": groups[0], "groups": groups}
+                return {"groups": groups}
         except Exception as err:
             _LOGGER.debug("Could not fetch pollen data: %s", repr(err))
         return empty
