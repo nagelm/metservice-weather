@@ -578,7 +578,7 @@ async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device
 
 
 async def test_setup_entry_rural_skips_observation_sensors(hass):
-    """A rural-like coordinator (all capability flags False) skips observation and breakdown sensors while still creating ungated sensors."""
+    """A rural location skips observation sensors; breakdown and ungated sensors are still created."""
     from custom_components.metservice_weather.sensor import async_setup_entry
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from custom_components.metservice_weather.const import (
@@ -603,9 +603,8 @@ async def test_setup_entry_rural_skips_observation_sensors(hass):
             "surf_url": "",
         },
     )
-    coord = _make_coordinator(
-        hass
-    )  # coord.data = MetServicePublicData() — all capability flags False
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(is_rural=True)
     entry.runtime_data = coord
 
     added = []
@@ -628,14 +627,12 @@ async def test_setup_entry_rural_skips_observation_sensors(hass):
         "rainfall",
         "pressure_trend",
         "temperatureFeelsLike",
-        "breakdown_morning",
-        "breakdown_afternoon",
-        "breakdown_evening",
-        "breakdown_overnight",
     }
     assert keys.isdisjoint(excluded)
 
     included = {
+        "breakdown_morning",
+        "breakdown_overnight",
         "temperature_today_high",
         "temperature_today_low",
         "tomorrow_temp_high",
@@ -723,7 +720,8 @@ async def test_setup_entry_removes_stale_registry_entries(hass):
         },
     )
     entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)  # rural-like: obs sensors will NOT be created
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(is_rural=True)  # obs sensors not created
     entry.runtime_data = coord
     loc = coord.location
 
@@ -1914,3 +1912,101 @@ def test_fork_key_sets_are_disjoint_and_cover_all_deprecated_keys():
 
     assert _DEPRECATED_FORK_KEYS.isdisjoint(_NEW_FORK_KEYS)
     assert set(DEPRECATED_SENSOR_REPLACEMENTS) == _DEPRECATED_FORK_KEYS
+
+
+def _napier_entry(hass):
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.metservice_weather.const import DOMAIN
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "name": "Napier",
+            "location": "/towns-cities/regions/hawkes-bay/locations/napier",
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def test_observation_gap_keeps_station_sensors(hass):
+    """A station location whose observations are missing from one response keeps its rows and sensors."""
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.metservice_weather.const import DOMAIN, FIELD_TEMP
+    from custom_components.metservice_weather.sensor import async_setup_entry
+
+    entry = _napier_entry(hass)
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(has_observations=False, has_breakdown=False)
+    entry.runtime_data = coord
+    ent_reg = er.async_get(hass)
+    temp = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_{FIELD_TEMP}".lower(), config_entry=entry
+    )
+    morning = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{coord.location}_breakdown_morning".lower(),
+        config_entry=entry,
+    )
+
+    added = []
+    await async_setup_entry(
+        hass, entry, lambda entities, *a, **k: added.extend(entities)
+    )
+
+    assert ent_reg.async_get(temp.entity_id) is not None
+    assert ent_reg.async_get(morning.entity_id) is not None
+    keys = {s.entity_description.key for s in added}
+    assert {FIELD_TEMP, "breakdown_morning"} <= keys
+
+
+async def test_setup_without_data_keeps_rows(hass):
+    """With no data yet, nothing is known about the location, so no row is deleted."""
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.metservice_weather.const import DOMAIN, FIELD_TEMP
+    from custom_components.metservice_weather.sensor import async_setup_entry
+
+    entry = _napier_entry(hass)
+    coord = _make_coordinator(hass)
+    coord.data = None
+    entry.runtime_data = coord
+    ent_reg = er.async_get(hass)
+    temp = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_{FIELD_TEMP}".lower(), config_entry=entry
+    )
+
+    await async_setup_entry(hass, entry, lambda *a, **k: None)
+
+    assert ent_reg.async_get(temp.entity_id) is not None
+
+
+async def test_setup_without_data_still_prunes_unconfigured_marine_and_retired_rows(
+    hass,
+):
+    """Marine sensors without a station and retired keys go whatever the data says."""
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.metservice_weather.const import DOMAIN
+    from custom_components.metservice_weather.sensor import async_setup_entry
+
+    entry = _napier_entry(hass)
+    coord = _make_coordinator(hass)
+    coord.data = None
+    entry.runtime_data = coord
+    ent_reg = er.async_get(hass)
+    tide = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_tides_high".lower(), config_entry=entry
+    )
+    retired = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, f"{coord.location}_uvIndex".lower(), config_entry=entry
+    )
+
+    await async_setup_entry(hass, entry, lambda *a, **k: None)
+
+    assert ent_reg.async_get(tide.entity_id) is None
+    assert ent_reg.async_get(retired.entity_id) is None

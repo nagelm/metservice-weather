@@ -119,6 +119,21 @@ def _async_restore_seasonal_rows(
         _async_clear_seasonal_stamp(ent_reg, reg_entry.entity_id)
 
 
+def _is_stale(
+    description: WeatherSensorEntityDescription | None,
+    coordinator: WeatherUpdateCoordinator,
+) -> bool:
+    """Return True when a registry row the integration is not creating can go.
+
+    Only configuration decides: a retired key, a marine sensor whose station is
+    not configured, or (with data in hand) an observation sensor on a rural
+    location. Without data the row is kept for the next setup.
+    """
+    if description is None or description.device == "marine":
+        return True
+    return coordinator.data is not None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry[WeatherUpdateCoordinator],
@@ -147,10 +162,17 @@ async def async_setup_entry(
 
     ent_reg = er.async_get(hass)
     expected_unique_ids = {sensor.unique_id for sensor in sensors}
+    descriptions_by_unique_id = {
+        f"{coordinator.location}_{description.key}".lower(): description
+        for description in SENSOR_DESCRIPTIONS
+    }
     for reg_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
         if (
             reg_entry.domain == SENSOR_DOMAIN
             and reg_entry.unique_id not in expected_unique_ids
+            and _is_stale(
+                descriptions_by_unique_id.get(reg_entry.unique_id), coordinator
+            )
         ):
             await async_check_removed_entity(hass, entry, coordinator, reg_entry)
             ent_reg.async_remove(reg_entry.entity_id)
