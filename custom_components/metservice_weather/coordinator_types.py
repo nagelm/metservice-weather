@@ -58,6 +58,60 @@ def _get(data: Any, *path: str) -> Any:
     return data
 
 
+def _search(data: Any, keys: list[str]) -> Any:
+    """Depth-first search for a key path anywhere inside data; the first non-None hit wins.
+
+    For blocks MetService moves between page modules, such as the drying index.
+    """
+    if not keys:
+        return data
+    if isinstance(data, list):
+        for idx, item in enumerate(data):
+            if keys[0].isdigit() and idx == int(keys[0]):
+                result = _search(item, keys[1:])
+            else:
+                result = _search(item, keys)
+            if result is not None:
+                return result
+    elif isinstance(data, dict):
+        for key, value in data.items():
+            result = _search(value, keys[1:] if key == keys[0] else keys)
+            if result is not None:
+                return result
+    return None
+
+
+def _drying_states(current: dict) -> tuple[str | None, str | None, str | None]:
+    """Return the morning, afternoon and next-good-day drying texts, or Nones.
+
+    Untagged text counts as morning, afternoon falls back to morning, and a
+    missing "Next good day" line means today. Malformed data gives Nones.
+    """
+    try:
+        states = _search(current, ["dryingIndex", "dryingState"])
+    except Exception as err:
+        _LOGGER.debug("Could not extract drying index states: %s", err)
+        return None, None, None
+    if not isinstance(states, list):
+        return None, None, None
+    morning = afternoon = next_good_day = None
+    for entry in states:
+        text = entry.get("text", "") if isinstance(entry, dict) else ""
+        if text.startswith("Morning:"):
+            morning = text.removeprefix("Morning:").strip()
+        elif text.startswith("Afternoon:"):
+            afternoon = text.removeprefix("Afternoon:").strip()
+        elif text.lower().startswith("next good day"):
+            next_good_day = text.split(":", 1)[-1].strip() if ":" in text else text
+        elif text:
+            morning = text
+    if afternoon is None and morning is not None:
+        afternoon = morning
+    if next_good_day is None:
+        next_good_day = "Today"
+    return morning, afternoon, next_good_day
+
+
 def _safe_float(val: Any) -> float | None:
     try:
         return float(val)
@@ -590,6 +644,8 @@ def normalize_public_data(
     pollen_groups = current.get("pollen", {}).get("groups") or []
     pollen_state, pollen_active, pollen_imminent = _derive_pollen(pollen_groups)
 
+    drying_morning, drying_afternoon, drying_next_good_day = _drying_states(current)
+
     raw_phase_date = _get(moon_phases, "0", "dateISO")
     moon_phase_date = _round_iso_to_minutes(raw_phase_date)
     if moon_phase_date != raw_phase_date:
@@ -655,9 +711,9 @@ def normalize_public_data(
         tomorrow_temp_high=tomorrow.temp_high if tomorrow else None,
         tomorrow_temp_low=tomorrow.temp_low if tomorrow else None,
         tomorrow_description=tomorrow.description if tomorrow else None,
-        drying_morning=current.get("drying_morning"),
-        drying_afternoon=current.get("drying_afternoon"),
-        drying_next_good_day=current.get("drying_next_good_day"),
+        drying_morning=drying_morning,
+        drying_afternoon=drying_afternoon,
+        drying_next_good_day=drying_next_good_day,
         has_observations=bool(obs),
         has_breakdown=bool(breakdown0),
         is_rural=is_rural,

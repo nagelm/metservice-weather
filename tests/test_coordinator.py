@@ -105,40 +105,6 @@ async def test_coordinator_properties_with_urls(hass):
     assert coord.tide_url == "https://example.com/tides"
 
 
-async def test_get_from_dict_simple(hass):
-    """get_from_dict resolves a simple nested key path."""
-    coord = _make_coordinator(hass)
-    data = {"a": {"b": {"c": 42}}}
-    assert coord.get_from_dict(data, ["a", "b", "c"]) == 42
-
-
-async def test_get_from_dict_list_traversal(hass):
-    """get_from_dict extracts a field from the first item of a list."""
-    coord = _make_coordinator(hass)
-    data = {"items": [{"val": 1}, {"val": 2}]}
-    assert coord.get_from_dict(data, ["items", "val"]) == 1
-
-
-async def test_get_from_dict_indexed_list(hass):
-    """get_from_dict resolves a numeric string key as a list index."""
-    coord = _make_coordinator(hass)
-    data = [{"val": 10}, {"val": 20}]
-    assert coord.get_from_dict(data, ["1", "val"]) == 20
-
-
-async def test_get_from_dict_missing_key(hass):
-    """get_from_dict returns None when the key path doesn't exist."""
-    coord = _make_coordinator(hass)
-    data = {"a": 1}
-    assert coord.get_from_dict(data, ["b"]) is None
-
-
-async def test_get_from_dict_empty_keys(hass):
-    """get_from_dict returns the original data when no keys are given."""
-    coord = _make_coordinator(hass)
-    assert coord.get_from_dict({"x": 1}, []) == {"x": 1}
-
-
 async def test_check_errors_no_errors(hass):
     """_check_errors does not raise when the response has no errors key."""
     coord = _make_coordinator(hass)
@@ -1013,75 +979,6 @@ async def test_get_public_weather_tomorrow_injection(hass):
     assert result.tomorrow_temp_high == 17.0
     assert result.tomorrow_temp_low == 10
     assert result.tomorrow_description == "Tomorrow cloudy"
-
-
-async def test_get_public_weather_drying_wet_all_day(hass):
-    """Drying index: 'Wet all day' (bare text) path covers lines 295-298 and 302."""
-    warnings_data = {"warnings": []}
-    pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
-
-    coord = _make_coordinator(hass)
-
-    drying_states = [
-        {"text": "Wet all day"},
-        {"text": "Next good day: Thursday"},
-    ]
-
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(
-        side_effect=[
-            _mock_response(_PUBLIC_CURRENT),
-            _mock_response(warnings_data),
-            _mock_response(_PUBLIC_DAILY),
-            _mock_response(pollen_data),
-        ]
-    )
-    coord._session = mock_session
-
-    original_get_from_dict = coord.get_from_dict
-
-    def patched_get_from_dict(data, keys):
-        if keys == ["dryingIndex", "dryingState"]:
-            return drying_states
-        return original_get_from_dict(data, keys)
-
-    with patch.object(coord, "get_from_dict", side_effect=patched_get_from_dict):
-        result = await coord.get_public_weather()
-
-    assert result.drying_morning == "Wet all day"
-    assert result.drying_afternoon == "Wet all day"  # mirrored from morning
-    assert (
-        result.drying_next_good_day == "Thursday"
-    )  # extracted from "Next good day: Thursday"
-
-
-async def test_get_public_weather_drying_exception_silenced(hass):
-    """Exception during drying index extraction is silenced (lines 310-311)."""
-    warnings_data = {"warnings": []}
-    pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
-
-    coord = _make_coordinator(hass)
-
-    mock_session = MagicMock()
-    mock_session.get = AsyncMock(
-        side_effect=[
-            _mock_response(_PUBLIC_CURRENT),
-            _mock_response(warnings_data),
-            _mock_response(_PUBLIC_DAILY),
-            _mock_response(pollen_data),
-        ]
-    )
-    coord._session = mock_session
-
-    def patched_get_from_dict(data, keys):
-        if keys == ["dryingIndex", "dryingState"]:
-            raise RuntimeError("simulated drying error")
-        return coord.__class__.get_from_dict(coord, data, keys)
-
-    with patch.object(coord, "get_from_dict", side_effect=patched_get_from_dict):
-        result = await coord.get_public_weather()
-
-    assert isinstance(result, MetServicePublicData)
 
 
 async def test_get_tides_unexpected_exception_returns_none(hass):

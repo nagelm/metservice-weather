@@ -64,54 +64,6 @@ async def expand_data_urls(session, data, parent=None, key=None, _depth=0):
             await expand_data_urls(session, item, parent=data, key=idx, _depth=_depth)
 
 
-def inject_derived_fields(result_current, result_daily):
-    """Apply the same post-fetch injections the coordinator does."""
-    try:
-        drying_states = None
-
-        def find_key(data, target, _d=0):
-            if _d > 15:
-                return None
-            if isinstance(data, dict):
-                if target in data:
-                    return data[target]
-                for v in data.values():
-                    r = find_key(v, target, _d + 1)
-                    if r is not None:
-                        return r
-            elif isinstance(data, list):
-                for item in data:
-                    r = find_key(item, target, _d + 1)
-                    if r is not None:
-                        return r
-            return None
-
-        drying_states = find_key(result_current, "dryingState")
-        if isinstance(drying_states, list):
-            drying_morning = drying_afternoon = drying_next_good_day = None
-            for entry in drying_states:
-                text = entry.get("text", "") if isinstance(entry, dict) else ""
-                if text.startswith("Morning:"):
-                    drying_morning = text.removeprefix("Morning:").strip()
-                elif text.startswith("Afternoon:"):
-                    drying_afternoon = text.removeprefix("Afternoon:").strip()
-                elif text.lower().startswith("next good day"):
-                    drying_next_good_day = (
-                        text.split(":", 1)[-1].strip() if ":" in text else text
-                    )
-                elif text:
-                    drying_morning = text
-            if drying_afternoon is None and drying_morning is not None:
-                drying_afternoon = drying_morning
-            if drying_next_good_day is None:
-                drying_next_good_day = "Today"
-            result_current["drying_morning"] = drying_morning
-            result_current["drying_afternoon"] = drying_afternoon
-            result_current["drying_next_good_day"] = drying_next_good_day
-    except Exception as exc:
-        print(f"  [warn] drying injection failed: {exc}")
-
-
 async def capture_location(session, fixtures_dir, name, location):
     """Capture current + daily fixtures for one location."""
     url = f"{PUBLIC_URL}{location}"
@@ -197,9 +149,6 @@ async def capture_location(session, fixtures_dir, name, location):
         result_daily = await resp.json(content_type=None)
     print("Expanding dataUrls in result_daily ...")
     await expand_data_urls(session, result_daily)
-
-    print("Injecting derived fields ...")
-    inject_derived_fields(result_current, result_daily)
 
     current_path = fixtures_dir / f"{name}_public_current.json"
     daily_path = fixtures_dir / f"{name}_public_daily.json"

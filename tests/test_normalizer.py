@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -20,6 +21,7 @@ from custom_components.metservice_weather.coordinator_types import (
     _safe_float,
     _safe_int,
     _scan_forecasts,
+    _search,
     normalize_public_data,
 )
 
@@ -1730,3 +1732,95 @@ def test_kumeu_fixture_new_fields_none_for_seasonal_absence(kumeu):
     assert kumeu.uv_window_start_raw is None
     assert kumeu.uv_window_end_raw is None
     assert isinstance(kumeu.sunrise_at, str)
+
+
+def test_search_simple_path():
+    """_search resolves a simple nested key path."""
+    assert _search({"a": {"b": {"c": 42}}}, ["a", "b", "c"]) == 42
+
+
+def test_search_list_traversal():
+    """_search takes the first list item that has the key path."""
+    assert _search({"items": [{"val": 1}, {"val": 2}]}, ["items", "val"]) == 1
+
+
+def test_search_indexed_list():
+    """A numeric key selects a list index."""
+    assert _search([{"val": 10}, {"val": 20}], ["1", "val"]) == 20
+
+
+def test_search_missing_key():
+    """_search returns None when the key path doesn't exist."""
+    assert _search({"a": 1}, ["b"]) is None
+
+
+def test_search_empty_keys():
+    """_search returns the data itself when no keys are given."""
+    assert _search({"x": 1}, []) == {"x": 1}
+
+
+def test_search_skips_a_branch_without_the_full_path():
+    """A dryingIndex without dryingState doesn't stop the search."""
+    data = {"m": [{"dryingIndex": {}}, {"dryingIndex": {"dryingState": ["x"]}}]}
+    assert _search(data, ["dryingIndex", "dryingState"]) == ["x"]
+
+
+def _drying_current(states):
+    return {
+        "layout": {
+            "primary": {
+                "slots": {
+                    "left-minor": {
+                        "modules": [
+                            {"other": 1},
+                            {"dryingIndex": {"dryingState": states}},
+                        ]
+                    }
+                }
+            }
+        }
+    }
+
+
+def test_drying_from_napier_fixture(napier):
+    """The Napier fixture's morning and afternoon drying texts are parsed."""
+    assert napier.drying_morning == "4 - 6 hrs"
+    assert napier.drying_afternoon == "1 - 3 hrs"
+    assert napier.drying_next_good_day == "Today"
+
+
+def test_drying_wet_all_day_with_next_good_day():
+    """Untagged text is morning, afternoon mirrors it, and the next good day is extracted."""
+    result = normalize_public_data(
+        _drying_current([{"text": "Wet all day"}, {"text": "Next good day: Thursday"}]),
+        {},
+    )
+    assert result.drying_morning == "Wet all day"
+    assert result.drying_afternoon == "Wet all day"
+    assert result.drying_next_good_day == "Thursday"
+
+
+def test_drying_empty_list_defaults_next_good_day_to_today():
+    """An empty drying list leaves morning and afternoon unknown and the next good day as today."""
+    result = normalize_public_data(_drying_current([]), {})
+    assert result.drying_morning is None
+    assert result.drying_afternoon is None
+    assert result.drying_next_good_day == "Today"
+
+
+def test_drying_absent_leaves_all_unknown(kumeu):
+    """No dryingState anywhere (Kumeu) leaves all three unknown."""
+    assert kumeu.drying_morning is None
+    assert kumeu.drying_afternoon is None
+    assert kumeu.drying_next_good_day is None
+
+
+def test_drying_exception_is_silenced():
+    """A failure while reading the drying index leaves the fields unknown, not a failed update."""
+    with patch(
+        "custom_components.metservice_weather.coordinator_types._search",
+        side_effect=RuntimeError("boom"),
+    ):
+        result = normalize_public_data(_drying_current([{"text": "Morning: Good"}]), {})
+    assert isinstance(result, MetServicePublicData)
+    assert result.drying_morning is None
