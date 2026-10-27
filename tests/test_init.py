@@ -14,7 +14,10 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.metservice_weather import _async_migrate_legacy_unique_ids
+from custom_components.metservice_weather import (
+    _async_migrate_legacy_unique_ids,
+    async_migrate_entry,
+)
 from custom_components.metservice_weather.const import DOMAIN
 from custom_components.metservice_weather.coordinator import WeatherUpdateCoordinator
 from custom_components.metservice_weather.coordinator_types import (
@@ -407,3 +410,86 @@ async def test_v09_migration_exception_does_not_block_setup(hass):
         await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_migration_1_1_to_1_2_drops_legacy_keys(hass):
+    """The one-time migration removes keys v0.9 entries stored and bumps the minor version."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        minor_version=1,
+        data={
+            **_PUBLIC_ENTRY_DATA,
+            "api_key": "a",
+            "mobile_api_key": "b",
+            "enable_tides": False,
+            "tide_region_url": "x",
+            "boating_region": "y",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry)
+
+    assert entry.minor_version == 2
+    assert dict(entry.data) == _PUBLIC_ENTRY_DATA
+
+
+async def test_migration_rekeys_v09_rows_once(hass):
+    """The v0.9 re-key runs in the migration; a migrated entry isn't re-keyed at setup."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, version=1, minor_version=1, data=_PUBLIC_ENTRY_DATA
+    )
+    entry.add_to_hass(hass)
+    ent_reg = er.async_get(hass)
+    row = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, "Napier,temperature", config_entry=entry
+    )
+
+    assert await async_migrate_entry(hass, entry)
+
+    assert (
+        ent_reg.async_get(row.entity_id).unique_id
+        == f"{_PUBLIC_ENTRY_DATA['location']}_temperature"
+    )
+    assert entry.minor_version == 2
+
+
+async def test_migration_leaves_mobile_entry_without_location_at_1_1(hass):
+    """A v0.9 mobile entry has no location path yet, so it waits for Reconfigure."""
+    data = {"name": "Home", "api": "mobile", "api_key": "k"}
+    entry = MockConfigEntry(domain=DOMAIN, version=1, minor_version=1, data=data)
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry)
+
+    assert entry.minor_version == 1
+    assert dict(entry.data) == data
+
+
+async def test_migration_refuses_newer_major_version(hass):
+    """An entry written by a newer major version is refused."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, version=2, minor_version=1, data=_PUBLIC_ENTRY_DATA
+    )
+    entry.add_to_hass(hass)
+
+    assert not await async_migrate_entry(hass, entry)
+
+
+async def test_setup_migrates_an_old_entry_before_loading(hass):
+    """Setting up a 1.1 entry runs the migration and loads it at 1.2."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, version=1, minor_version=1, data=_PUBLIC_ENTRY_DATA
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
+        new_callable=AsyncMock,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.minor_version == 2

@@ -1191,27 +1191,28 @@ def _warning_details_migration_harness(hass, disabled_by):
     return entry, ent_reg, reg_entry.entity_id
 
 
-async def test_warning_details_default_disable_cleared_on_setup(hass):
-    """A pre-2026.9 default-disabled row is re-enabled on setup."""
+async def test_warning_details_default_disable_cleared_on_migration(hass):
+    """A pre-2026.9 default-disabled row is re-enabled by the 1.1 -> 1.2 migration."""
     from homeassistant.helpers import entity_registry as er
-    from custom_components.metservice_weather.sensor import async_setup_entry
+    from custom_components.metservice_weather import async_migrate_entry
 
     entry, ent_reg, entity_id = _warning_details_migration_harness(
         hass, er.RegistryEntryDisabler.INTEGRATION
     )
-    await async_setup_entry(hass, entry, lambda *a, **k: None)
+    assert await async_migrate_entry(hass, entry)
     assert ent_reg.async_get(entity_id).disabled_by is None
+    assert entry.minor_version == 2
 
 
-async def test_warning_details_user_disable_preserved_on_setup(hass):
+async def test_warning_details_user_disable_preserved_on_migration(hass):
     """A USER-owned disable is the user's own choice — never overridden."""
     from homeassistant.helpers import entity_registry as er
-    from custom_components.metservice_weather.sensor import async_setup_entry
+    from custom_components.metservice_weather import async_migrate_entry
 
     entry, ent_reg, entity_id = _warning_details_migration_harness(
         hass, er.RegistryEntryDisabler.USER
     )
-    await async_setup_entry(hass, entry, lambda *a, **k: None)
+    assert await async_migrate_entry(hass, entry)
     assert ent_reg.async_get(entity_id).disabled_by == er.RegistryEntryDisabler.USER
 
 
