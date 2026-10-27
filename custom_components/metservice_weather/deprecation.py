@@ -119,27 +119,20 @@ DEPRECATED_SENSOR_REPLACEMENTS: dict[str, str] = {
 # install doesn't produce an unreadable wall of entity_ids.
 _MAX_LISTED_REFERENCES = 10
 
-# Explicit display names for every replacement sensor key in
-# DEPRECATED_SENSOR_REPLACEMENTS.values(), sourced from the name= field of
-# that successor's WeatherSensorEntityDescription in
-# weather_current_conditions_sensors.py. _friendly_key's mechanical
-# snake_case -> Title Case conversion diverges from several real display
-# names (e.g. uv_risk's sensor is named "UV index", not "Uv Risk"; moon_phase's
-# replacement, moon_phase_current, is named "Moon phase"), so this map is
-# the source of truth for repair-issue replacement text.
+# Every replacement sensor key from DEPRECATED_SENSOR_REPLACEMENTS.values(),
+# resolved to its live WeatherSensorEntityDescription — used to read the
+# replacement's display name= for both the canonical object_id computation
+# and the issue's sensor_name placeholder. Built once at import time from
+# the same list sensor.py builds entities from, so it stays in sync
+# automatically if a replacement sensor's name= ever changes.
+_REPLACEMENT_DESCRIPTIONS_BY_KEY: dict[str, WeatherSensorEntityDescription] = {
+    description.key: description
+    for description in current_condition_sensor_descriptions_public
+}
+
 _REPLACEMENT_DISPLAY_NAMES: dict[str, str] = {
-    "uv_risk": "UV index",
-    "warning_level": "Warnings",
-    "pressure_trend": "Pressure tendency",
-    "wind_strength_level": "Wind strength",
-    "fire_season_status": "Fire season",
-    "fire_danger_level": "Fire danger",
-    "moon_phase_current": "Moon phase",
-    "sunrise_at": "Sunrise",
-    "sunset_at": "Sunset",
-    "moonrise_at": "Moonrise",
-    "moonset_at": "Moonset",
-    "pollen": "Pollen",
+    key: str(_REPLACEMENT_DESCRIPTIONS_BY_KEY[key].name)
+    for key in DEPRECATED_SENSOR_REPLACEMENTS.values()
 }
 
 
@@ -854,17 +847,6 @@ async def async_check_marine_device_move(
 # ---------------------------------------------------------------------------
 # Detector 5: entity-ID reclaim (the one FIXABLE issue — see repairs.py)
 # ---------------------------------------------------------------------------
-
-# Every replacement sensor key from DEPRECATED_SENSOR_REPLACEMENTS.values(),
-# resolved to its live WeatherSensorEntityDescription — used to read the
-# replacement's display name= for both the canonical object_id computation
-# and the issue's sensor_name placeholder. Built once at import time from
-# the same list sensor.py builds entities from, so it stays in sync
-# automatically if a replacement sensor's name= ever changes.
-_REPLACEMENT_DESCRIPTIONS_BY_KEY: dict[str, WeatherSensorEntityDescription] = {
-    description.key: description
-    for description in current_condition_sensor_descriptions_public
-}
 
 
 def _reclaim_issue_id(entry_id: str) -> str:

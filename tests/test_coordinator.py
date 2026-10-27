@@ -17,6 +17,7 @@ from custom_components.metservice_weather.coordinator import (
 from custom_components.metservice_weather.coordinator_types import (
     MetServicePublicData,
 )
+from custom_components.metservice_weather.helpers import format_timestamp
 
 # ---------------------------------------------------------------------------
 # Fixtures & helpers
@@ -41,7 +42,6 @@ def _make_config(
     return WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",
@@ -236,9 +236,8 @@ async def test_parse_pollen_html_empty(hass):
 
 
 async def test_format_timestamp(hass):
-    """_format_timestamp converts a local ISO timestamp to UTC."""
-    coord = _make_coordinator(hass)
-    result = coord._format_timestamp("2024-06-15T12:00:00+12:00")
+    """format_timestamp converts a local ISO timestamp to UTC."""
+    result = format_timestamp("2024-06-15T12:00:00+12:00")
     assert "2024-06-15" in result
     assert (
         result.endswith("+00:00")

@@ -430,7 +430,6 @@ LOCATIONS = [
 PUBLIC_URL = "https://www.metservice.com/publicData/webdata"
 PUBLIC_WARNINGS_URL = "https://www.metservice.com/publicData/webdata/warnings-service"
 API_METRIC: Final = "metric"
-API_URL_METRIC: Final = "m"
 DEFAULT_LOCATION = "/towns-cities/regions/bay-of-plenty/locations/tauranga"
 
 TEMPUNIT = "temperature"

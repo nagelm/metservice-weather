@@ -36,7 +36,6 @@ def _make_coordinator(
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",

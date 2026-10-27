@@ -27,7 +27,6 @@ from .const import (
     PRESSUREUNIT,
 )
 from .coordinator_types import MetServicePublicData, normalize_public_data
-from .helpers import format_timestamp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +43,6 @@ class WeatherUpdateCoordinatorConfig:
 
     api_url: str
     warnings_url: str
-    unit_system_api: str
     unit_system: str
     location: str
     location_name: str
@@ -68,7 +66,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self._tide_url = config.tide_url
         self._boating_url = config.boating_url
         self._surf_url = config.surf_url
-        self._unit_system_api = config.unit_system_api
         self._base_url = "https://www.metservice.com"
         self.unit_system = config.unit_system
         # Device registry id of the town/rural location device, set by
@@ -544,11 +541,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     if result is not None:
                         return result
         return None
-
-    @staticmethod
-    def _format_timestamp(timestamp_val: str) -> str:
-        """Format timestamp to ISO format in UTC."""
-        return format_timestamp(timestamp_val)
 
     async def expand_data_urls(self, data, parent=None, key=None, _depth=0):
         """Recursively expand dataUrl entries in the data, replacing the entire object.

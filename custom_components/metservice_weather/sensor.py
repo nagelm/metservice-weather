@@ -21,7 +21,6 @@ from typing import Any
 from .coordinator import WeatherUpdateCoordinator
 from .entity import MetServiceEntity
 from .deprecation import (
-    DEPRECATED_SENSOR_REPLACEMENTS,
     async_check_deprecated_entities,
     async_check_marine_device_move,
     async_check_removed_entity,
@@ -180,10 +179,7 @@ async def async_setup_entry(
     Every exists_fn-passing description gets a WeatherSensor built for it —
     seasonal ones (UV, fire danger, clothes drying) included — so the stale-
     registry cleanup above never touches them. When CONF_AUTO_HIDE_SEASONAL
-    is enabled, every dataless seasonal description whose key isn't one of
-    DEPRECATED_SENSOR_REPLACEMENTS' OLD keys (those no longer correspond to
-    any live description as of v2026.9.0 — this guard is now vacuous but
-    stays as a harmless belt-and-braces check) instead has its registry row
+    is enabled, every dataless seasonal description instead has its registry row
     disabled and hidden — INTEGRATION-owned, stamped via
     deprecation.async_merge_entity_options — before async_add_entities runs.
     Home Assistant's entity platform never instantiates an entity whose
@@ -260,8 +256,6 @@ async def async_setup_entry(
         for sensor in sensors:
             description = sensor.entity_description
             if not description.seasonal:
-                continue
-            if description.key in DEPRECATED_SENSOR_REPLACEMENTS:
                 continue
             if not _seasonal_is_dataless(description):
                 continue
