@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from homeassistant.util import dt as dt_util
+
+from .const import LOCATION_PATH_RE
 
 
 def format_timestamp(timestamp_val: str) -> str:
@@ -14,6 +17,12 @@ def format_timestamp(timestamp_val: str) -> str:
         .astimezone(dt_util.get_time_zone("UTC"))
         .isoformat()
     )
+
+
+def normalize_location_path(value: str) -> str | None:
+    """Return a typed path or metservice.com URL as a location path, or None."""
+    path = "/" + re.sub(r"^https?://[^/]+", "", value.strip()).strip("/").lower()
+    return path if LOCATION_PATH_RE.fullmatch(path) else None
 
 
 def safe_float(value: object) -> float | None:

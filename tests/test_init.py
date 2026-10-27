@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -192,6 +194,40 @@ async def test_unknown_location_entry_creates_legacy_entry_issue(hass):
     assert issue is not None
     assert issue.severity == ir.IssueSeverity.ERROR
     assert "unrecognised location" in issue.translation_placeholders["reason"]
+
+
+async def test_bare_slug_location_entry_creates_legacy_entry_issue(hass):
+    """A pre-v1.0 bare-slug location gets a legacy_entry issue."""
+    entry = _make_entry({**_PUBLIC_ENTRY_DATA, "location": "dargaville"})
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
+        new_callable=AsyncMock,
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, _legacy_issue_id(entry))
+
+
+@pytest.mark.parametrize(
+    "location",
+    ["/towns-cities/regions/auckland/locations/makarau", "/rural/regions/nelson"],
+)
+async def test_typed_location_path_raises_no_legacy_entry_issue(hass, location):
+    """Public location paths, including Golden Bay's region page, are not flagged."""
+    entry = _make_entry({**_PUBLIC_ENTRY_DATA, "location": location})
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
+        new_callable=AsyncMock,
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, _legacy_issue_id(entry)) is None
 
 
 async def test_self_corrected_user_valid_entry_stays_silent_and_clears_pre_existing_issue(

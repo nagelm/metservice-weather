@@ -42,14 +42,6 @@ async def test_location_device_prefers_api_label(hass):
     assert ent.device_info["name"] == "Porirua"
 
 
-async def test_location_device_falls_back_to_locations_table(hass):
-    """Without data, the bundled LOCATIONS table names the device."""
-    coord = _make_coordinator(hass)
-    coord.data = None
-    ent = MetServiceEntity(coord)
-    assert ent.device_info["name"] == "Napier"
-
-
 async def test_location_device_falls_back_to_entry_name_for_unknown_path(hass):
     """Unknown location path with no data: the typed entry name is the last resort."""
     config = WeatherUpdateCoordinatorConfig(

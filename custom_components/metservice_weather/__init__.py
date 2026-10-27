@@ -17,7 +17,7 @@ from .coordinator import WeatherUpdateCoordinator, WeatherUpdateCoordinatorConfi
 from .entity import async_register_location_device
 from .const import (
     DOMAIN,
-    LOCATIONS,
+    LOCATION_PATH_RE,
     PUBLIC_URL,
     PUBLIC_WARNINGS_URL,
     API_METRIC,
@@ -31,7 +31,13 @@ _LOGGER = logging.getLogger(__name__)
 
 _CONF_API = "api"
 
-_VALID_LOCATION_VALUES = {location["value"] for location in LOCATIONS}
+
+def _is_location_path(location: object) -> bool:
+    """Return True when location is a public-API location path."""
+    return (
+        isinstance(location, str) and LOCATION_PATH_RE.fullmatch(location) is not None
+    )
+
 
 _LEGACY_ENTRY_LEARN_MORE_URL = "https://github.com/nagelm/metservice-weather/releases"
 
@@ -44,7 +50,7 @@ def _check_legacy_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) -> No
         location = entry.data.get(CONF_LOCATION)
         if api == "mobile":
             reason = "the private mobile API, which was removed in v1.0.0"
-        elif location not in _VALID_LOCATION_VALUES:
+        elif not _is_location_path(location):
             reason = f"an unrecognised location value ({location!r})"
         else:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
@@ -72,7 +78,7 @@ async def _async_migrate_legacy_unique_ids(
     """Re-key entities registered by v0.9.x onto the current unique_id format."""
     try:
         location = entry.data.get(CONF_LOCATION)
-        if location not in _VALID_LOCATION_VALUES:
+        if not _is_location_path(location):
             return
         new_prefix = f"{location}_".lower()
         ent_reg = er.async_get(hass)

@@ -2,6 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -13,6 +15,7 @@ from custom_components.metservice_weather.config_flow import (
     CONF_MARINE_REGION,
     SECTION_ADVANCED_OPTIONS,
     WeatherFlowHandler,
+    async_fetch_locations,
 )
 from homeassistant.const import CONF_NAME, CONF_LOCATION
 
@@ -539,3 +542,114 @@ async def test_reconfigure_collapses_advanced_section_when_disabled(
     matches = [key for key in inner_schema if key.schema == CONF_AUTO_HIDE_SEASONAL]
     assert len(matches) == 1
     assert matches[0].default() is False
+
+
+@pytest.mark.parametrize(
+    ("typed", "error"),
+    [
+        (
+            "https://www.metservice.com/towns-cities/regions/auckland/locations/makarau/",
+            None,
+        ),
+        ("makarau", "invalid_location"),
+    ],
+)
+async def test_custom_location_not_in_list(hass, mock_marine_session, typed, error):
+    """A typed path or page URL is stored as a clean path; anything else is rejected."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Makarau",
+            CONF_LOCATION: typed,
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {},
+        },
+    )
+    if error:
+        assert result["errors"] == {CONF_LOCATION: error}
+    else:
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["data"][CONF_LOCATION] == (
+            "/towns-cities/regions/auckland/locations/makarau"
+        )
+
+
+async def test_setup_form_offers_fetched_locations(hass, mock_marine_session):
+    """The location selector lists the fetched index and accepts typed values."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    for key, selector in result["data_schema"].schema.items():
+        if key == CONF_LOCATION:
+            config = selector.config
+            assert config["custom_value"] is True
+            assert [o["label"] for o in config["options"]] == ["Napier", "Whangārei"]
+            break
+    else:
+        raise AssertionError("location field missing")
+
+
+async def test_fetch_locations_parses_index():
+    """Every valid child of every region becomes an option, in MetService's order."""
+    response = AsyncMock()
+    response.json = AsyncMock(
+        return_value={
+            "layout": {
+                "search": {
+                    "searchLocations": [
+                        {
+                            "items": [
+                                {
+                                    "children": [
+                                        {
+                                            "label": "Kaikohe",
+                                            "url": "/rural/regions/northland/locations/kaikohe",
+                                        },
+                                        {
+                                            "label": "Kaitaia",
+                                            "url": "/towns-cities/regions/northland/locations/kaitaia",
+                                        },
+                                        {"label": "No URL"},
+                                        {"label": "Search", "url": "/search?q=x"},
+                                    ]
+                                },
+                                {"heading": {"label": "Empty"}},
+                            ]
+                        },
+                        {
+                            "items": [
+                                {
+                                    "children": [
+                                        {
+                                            "label": "Te Anau",
+                                            "url": "/rural/regions/southland/locations/te-anau",
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                    ]
+                }
+            }
+        }
+    )
+    session = MagicMock()
+    session.get = AsyncMock(return_value=response)
+    assert await async_fetch_locations(session) == [
+        {"value": "/rural/regions/northland/locations/kaikohe", "label": "Kaikohe"},
+        {
+            "value": "/towns-cities/regions/northland/locations/kaitaia",
+            "label": "Kaitaia",
+        },
+        {"value": "/rural/regions/southland/locations/te-anau", "label": "Te Anau"},
+    ]
+
+
+async def test_fetch_locations_failure_returns_empty():
+    """A failed index fetch leaves an empty list; the field still takes a typed path."""
+    session = MagicMock()
+    session.get = AsyncMock(side_effect=Exception("network error"))
+    assert await async_fetch_locations(session) == []
