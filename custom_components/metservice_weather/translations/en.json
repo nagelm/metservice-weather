@@ -11,7 +11,7 @@
         },
         "data_description": {
           "name": "Shown in the integrations list. The device and its entities are named after the selected weather location itself (e.g. \"Napier Temperature\"). Add the integration again to cover more locations.",
-          "location": "The MetService town or rural location weather data is fetched for. Choose the one closest to you. Not in the list? Type its MetService location path, e.g. /towns-cities/regions/auckland/locations/makarau",
+          "location": "The MetService town or rural location weather data is fetched for. Choose the one closest to you.",
           "marine_region": "Optional. Select the coastal region nearest to you to enable tide times, boating conditions, and surf sensors. You will choose specific stations for each on the next screen. Choose \"None — skip marine data\" if you don't need any of these."
         },
         "sections": {
@@ -41,7 +41,6 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to MetService.",
-      "invalid_location": "Not a MetService location. Pick one from the list, or type its path or metservice.com address, e.g. /towns-cities/regions/auckland/locations/makarau",
       "tide_location_not_found": "Could not determine the URL for the selected tide station.",
       "boating_location_not_found": "Could not determine the URL for the selected boating location.",
       "surf_location_not_found": "Could not determine the URL for the selected surf location."

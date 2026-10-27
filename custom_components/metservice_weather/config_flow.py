@@ -22,7 +22,6 @@ from .const import (
     MARINE_INDEX_URL,
     PUBLIC_URL,
 )
-from .helpers import normalize_location_path
 
 CONF_MARINE_REGION = "marine_region"
 CONF_TIDE_URL = "tide_url"
@@ -103,20 +102,15 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 _async_fetch_search_locations(session, MARINE_INDEX_URL),
             )
             self.regions = marine[0].get("items", []) if marine else []
+            if not self.locations:
+                return self.async_abort(reason="cannot_connect")
 
             return self.async_show_form(
                 step_id="setup",
                 data_schema=self._build_setup_schema(),
             )
 
-        location = normalize_location_path(user_input[CONF_LOCATION])
-        if location is None:
-            return self.async_show_form(
-                step_id="setup",
-                data_schema=self._build_setup_schema(user_input),
-                errors={CONF_LOCATION: "invalid_location"},
-            )
-        self.user_info[CONF_LOCATION] = location
+        self.user_info[CONF_LOCATION] = user_input[CONF_LOCATION]
         self.user_info[CONF_NAME] = user_input[CONF_NAME]
         self.user_info[CONF_API] = "public"
         advanced_options = user_input.get(SECTION_ADVANCED_OPTIONS, {})
@@ -125,7 +119,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
         if not self._is_reconfiguring:
-            await self.async_set_unique_id(f"{DOMAIN}-{location}")
+            await self.async_set_unique_id(f"{DOMAIN}-{user_input[CONF_LOCATION]}")
             self._abort_if_unique_id_configured()
 
         marine_label = user_input.get(CONF_MARINE_REGION, _SKIP)
@@ -181,9 +175,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_LOCATION,
                     default=values.get(CONF_LOCATION, DEFAULT_LOCATION),
-                ): SelectSelector(
-                    SelectSelectorConfig(options=self.locations, custom_value=True)
-                ),
+                ): SelectSelector(SelectSelectorConfig(options=self.locations)),
                 vol.Required(
                     CONF_MARINE_REGION, default=marine_default
                 ): SelectSelector(SelectSelectorConfig(options=region_opts)),
