@@ -630,6 +630,7 @@ async def test_removed_entity_issue_created_when_referenced(hass):
     assert issue.translation_placeholders["replacement"] == "UV index"
     assert issue.severity == ir.IssueSeverity.WARNING
     assert issue.is_fixable is False
+    assert issue.is_persistent is True
     assert issue.data == {"entity_id": reg_entry.entity_id}
 
 
