@@ -34,7 +34,9 @@ _CONF_API = "api"
 
 def _is_location_path(location: object) -> bool:
     """Return True when location is a public-API location path."""
-    return isinstance(location, str) and LOCATION_PATH_RE.match(location) is not None
+    return (
+        isinstance(location, str) and LOCATION_PATH_RE.fullmatch(location) is not None
+    )
 
 
 _LEGACY_ENTRY_LEARN_MORE_URL = "https://github.com/nagelm/metservice-weather/releases"

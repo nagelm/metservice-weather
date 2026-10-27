@@ -41,6 +41,7 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to MetService.",
+      "invalid_location": "Not a MetService location. Pick one from the list, or type its path or metservice.com address, e.g. /towns-cities/regions/auckland/locations/makarau",
       "tide_location_not_found": "Could not determine the URL for the selected tide station.",
       "boating_location_not_found": "Could not determine the URL for the selected boating location.",
       "surf_location_not_found": "Could not determine the URL for the selected surf location."
@@ -426,7 +427,7 @@
     },
     "legacy_entry": {
       "title": "This MetService Weather entry needs reconfiguration",
-      "description": "This entry uses {reason}. Only the public API's current set of ~150 supported locations works since v1.0.0. Select **Reconfigure** on this integration entry and choose one of the current locations, or stay on integration version v0.9.19 if you need the previous behaviour."
+      "description": "This entry uses {reason}, which stopped working in v1.0.0. Select **Reconfigure** on this integration entry and choose a current MetService location, or stay on integration version v0.9.19 if you need the previous behaviour."
     },
     "forecast_attributes_removed": {
       "title": "Removed forecast_hourly/forecast_daily attributes are still read",

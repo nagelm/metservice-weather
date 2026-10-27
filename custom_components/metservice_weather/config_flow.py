@@ -17,10 +17,12 @@ from .const import (
     DOMAIN,
     DEFAULT_LOCATION,
     CONF_AUTO_HIDE_SEASONAL,
+    LOCATION_PATH_RE,
     LOCATIONS_INDEX_URL,
     MARINE_INDEX_URL,
     PUBLIC_URL,
 )
+from .helpers import normalize_location_path
 
 CONF_MARINE_REGION = "marine_region"
 CONF_TIDE_URL = "tide_url"
@@ -38,21 +40,27 @@ _SKIP = "skip"
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_fetch_locations(session) -> list[dict[str, str]]:
-    """Return MetService's town and rural locations as selector options."""
+async def _async_fetch_search_locations(session, url: str) -> list[dict]:
+    """Return the searchLocations groups of a MetService index page, or []."""
     try:
         async with asyncio.timeout(10):
-            response = await session.get(LOCATIONS_INDEX_URL)
-        data = await response.json(content_type=None)
-        return [
-            {"value": child["url"], "label": child["label"]}
-            for island in data["layout"]["search"]["searchLocations"]
-            for region in island["items"]
-            for child in region.get("children", [])
-        ]
+            response = await session.get(url)
+            data = await response.json(content_type=None)
+        return data["layout"]["search"]["searchLocations"]
     except Exception:
-        _LOGGER.exception("Failed to fetch MetService locations")
+        _LOGGER.exception("Failed to fetch %s", url)
         return []
+
+
+async def async_fetch_locations(session) -> list[dict[str, str]]:
+    """Return MetService's town and rural locations as selector options."""
+    return [
+        {"value": child["url"], "label": child["label"]}
+        for island in await _async_fetch_search_locations(session, LOCATIONS_INDEX_URL)
+        for region in island.get("items", [])
+        for child in region.get("children", [])
+        if child.get("label") and LOCATION_PATH_RE.fullmatch(child.get("url") or "")
+    ]
 
 
 class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -90,24 +98,25 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Page 1: location, name and an optional marine region."""
         if user_input is None:
             session = async_get_clientsession(self.hass)
-            self.locations = await async_fetch_locations(session)
-            try:
-                async with asyncio.timeout(10):
-                    response = await session.get(MARINE_INDEX_URL)
-                data = await response.json(content_type=None)
-                self.regions = data["layout"]["search"]["searchLocations"][0]["items"]
-            except Exception:
-                _LOGGER.exception(
-                    "Failed to fetch marine regions — marine options unavailable"
-                )
-                self.regions = []
+            self.locations, marine = await asyncio.gather(
+                async_fetch_locations(session),
+                _async_fetch_search_locations(session, MARINE_INDEX_URL),
+            )
+            self.regions = marine[0].get("items", []) if marine else []
 
             return self.async_show_form(
                 step_id="setup",
                 data_schema=self._build_setup_schema(),
             )
 
-        self.user_info[CONF_LOCATION] = user_input[CONF_LOCATION]
+        location = normalize_location_path(user_input[CONF_LOCATION])
+        if location is None:
+            return self.async_show_form(
+                step_id="setup",
+                data_schema=self._build_setup_schema(user_input),
+                errors={CONF_LOCATION: "invalid_location"},
+            )
+        self.user_info[CONF_LOCATION] = location
         self.user_info[CONF_NAME] = user_input[CONF_NAME]
         self.user_info[CONF_API] = "public"
         advanced_options = user_input.get(SECTION_ADVANCED_OPTIONS, {})
@@ -116,7 +125,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
         if not self._is_reconfiguring:
-            await self.async_set_unique_id(f"{DOMAIN}-{user_input[CONF_LOCATION]}")
+            await self.async_set_unique_id(f"{DOMAIN}-{location}")
             self._abort_if_unique_id_configured()
 
         marine_label = user_input.get(CONF_MARINE_REGION, _SKIP)

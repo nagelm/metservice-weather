@@ -2,6 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -542,9 +544,18 @@ async def test_reconfigure_collapses_advanced_section_when_disabled(
     assert matches[0].default() is False
 
 
-async def test_custom_location_not_in_list(hass, mock_marine_session):
-    """A location path not in MetService's index is accepted and stored verbatim."""
-    custom_location = "/towns-cities/regions/auckland/locations/makarau"
+@pytest.mark.parametrize(
+    ("typed", "error"),
+    [
+        (
+            "https://www.metservice.com/towns-cities/regions/auckland/locations/makarau/",
+            None,
+        ),
+        ("makarau", "invalid_location"),
+    ],
+)
+async def test_custom_location_not_in_list(hass, mock_marine_session, typed, error):
+    """A typed path or page URL is stored as a clean path; anything else is rejected."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -552,13 +563,18 @@ async def test_custom_location_not_in_list(hass, mock_marine_session):
         result["flow_id"],
         {
             CONF_NAME: "Makarau",
-            CONF_LOCATION: custom_location,
+            CONF_LOCATION: typed,
             CONF_MARINE_REGION: "skip",
             SECTION_ADVANCED_OPTIONS: {},
         },
     )
-    assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_LOCATION] == custom_location
+    if error:
+        assert result["errors"] == {CONF_LOCATION: error}
+    else:
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["data"][CONF_LOCATION] == (
+            "/towns-cities/regions/auckland/locations/makarau"
+        )
 
 
 async def test_setup_form_offers_fetched_locations(hass, mock_marine_session):
@@ -577,7 +593,7 @@ async def test_setup_form_offers_fetched_locations(hass, mock_marine_session):
 
 
 async def test_fetch_locations_parses_index():
-    """Every child of every region becomes an option, in MetService's order."""
+    """Every valid child of every region becomes an option, in MetService's order."""
     response = AsyncMock()
     response.json = AsyncMock(
         return_value={
@@ -596,6 +612,8 @@ async def test_fetch_locations_parses_index():
                                             "label": "Kaitaia",
                                             "url": "/towns-cities/regions/northland/locations/kaitaia",
                                         },
+                                        {"label": "No URL"},
+                                        {"label": "Search", "url": "/search?q=x"},
                                     ]
                                 },
                                 {"heading": {"label": "Empty"}},
