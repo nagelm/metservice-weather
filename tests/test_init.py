@@ -493,3 +493,63 @@ async def test_setup_migrates_an_old_entry_before_loading(hass):
 
     assert entry.state is ConfigEntryState.LOADED
     assert entry.minor_version == 2
+
+
+async def test_setup_removes_devices_left_without_entities(hass):
+    """A device from an old location or turned-off marine data, with no entities left, is removed."""
+    entry = _make_entry(_PUBLIC_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    old_location = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "/towns-cities/regions/auckland/locations/makarau")},
+        name="Makarau",
+    )
+    old_marine = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"{_PUBLIC_ENTRY_DATA['location']}_marine")},
+        name="Hawke's Bay",
+    )
+
+    with patch(
+        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
+        new_callable=AsyncMock,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert dev_reg.async_get(old_location.id) is None
+    assert dev_reg.async_get(old_marine.id) is None
+    location_device = dev_reg.async_get_device_by_identifier(
+        (DOMAIN, entry.runtime_data.location), entry.entry_id
+    )
+    assert location_device is not None
+
+
+async def test_setup_keeps_a_device_whose_entities_are_disabled(hass):
+    """A device whose only entities are disabled still has entities, so it stays."""
+    entry = _make_entry(_PUBLIC_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "/towns-cities/regions/auckland/locations/makarau")},
+        name="Makarau",
+    )
+    ent_reg.async_get_or_create(
+        "sensor",
+        "other_domain",
+        "kept",
+        device_id=device.id,
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+
+    with patch(
+        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
+        new_callable=AsyncMock,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert dev_reg.async_get(device.id) is not None

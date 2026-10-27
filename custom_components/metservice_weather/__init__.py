@@ -11,6 +11,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from .coordinator import WeatherUpdateCoordinator, WeatherUpdateCoordinatorConfig
@@ -141,7 +142,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: MetServiceConfigEntry):
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _remove_empty_devices(hass, entry)
     return True
+
+
+@callback
+def _remove_empty_devices(hass: HomeAssistant, entry: MetServiceConfigEntry) -> None:
+    """Detach this entry from its devices that no longer have any entities.
+
+    Left behind when marine data is turned off or Reconfigure changes the location.
+    """
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id):
+        if not er.async_entries_for_device(
+            ent_reg, device.id, include_disabled_entities=True
+        ):
+            _LOGGER.debug("Removing device %s, which has no entities left", device.name)
+            dev_reg.async_update_device(
+                device.id, remove_config_entry_id=entry.entry_id
+            )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) -> bool:
