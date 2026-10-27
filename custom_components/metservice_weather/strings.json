@@ -17,13 +17,13 @@
         "sections": {
           "advanced_options": {
             "name": "Advanced",
-            "description": "Seasonal products (UV, fire danger, clothes drying) pause for part of the year. Turn on the automatic-disable option to disable and hide their sensors while MetService pauses the product — their history and settings are kept, and they're re-enabled automatically, no restart required, when data resumes. Leave it off (default) and they stay visible, reading unknown while paused.",
             "data": {
               "custom_location": "Custom location",
               "auto_hide_seasonal": "Automatically disable sensors while MetService publishes no data"
             },
             "data_description": {
-              "custom_location": "Only if your town isn't in the list: its MetService location path or metservice.com address, e.g. /towns-cities/regions/auckland/locations/makarau. Used instead of the location above."
+              "custom_location": "For a town missing from the list, paste its metservice.com page address.",
+              "auto_hide_seasonal": "Hides UV, fire danger and clothes drying sensors while MetService has no data for them."
             }
           }
         }
