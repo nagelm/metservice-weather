@@ -16,8 +16,10 @@ from homeassistant.helpers.selector import (
 from .const import (
     DOMAIN,
     DEFAULT_LOCATION,
-    LOCATIONS,
     CONF_AUTO_HIDE_SEASONAL,
+    LOCATIONS_INDEX_URL,
+    MARINE_INDEX_URL,
+    PUBLIC_URL,
 )
 
 CONF_MARINE_REGION = "marine_region"
@@ -39,7 +41,22 @@ _SKIP = "skip"
 
 _LOGGER = logging.getLogger(__name__)
 
-_BASE_URL = "https://www.metservice.com/publicData/webdata"
+
+async def async_fetch_locations(session) -> list[dict[str, str]]:
+    """Return MetService's town and rural locations as selector options."""
+    try:
+        async with asyncio.timeout(10):
+            response = await session.get(LOCATIONS_INDEX_URL)
+        data = await response.json(content_type=None)
+        return [
+            {"value": child["url"], "label": child["label"]}
+            for island in data["layout"]["search"]["searchLocations"]
+            for region in island["items"]
+            for child in region.get("children", [])
+        ]
+    except Exception:
+        _LOGGER.exception("Failed to fetch MetService locations")
+        return []
 
 
 class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
@@ -86,14 +103,13 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     # ------------------------------------------------------------------ #
 
     async def async_step_setup(self, user_input=None):
-        """Page 1: location, name, one optional marine region, mobile API."""
+        """Page 1: location, name and an optional marine region."""
         if user_input is None:
+            session = async_get_clientsession(self.hass)
+            self.locations = await async_fetch_locations(session)
             try:
-                session = async_get_clientsession(self.hass)
                 async with asyncio.timeout(10):
-                    response = await session.get(
-                        "https://www.metservice.com/publicData/webdata/marine"
-                    )
+                    response = await session.get(MARINE_INDEX_URL)
                 data = await response.json(content_type=None)
                 self.regions = data["layout"]["search"]["searchLocations"][0]["items"]
             except Exception:
@@ -185,7 +201,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_LOCATION,
                     default=values.get(CONF_LOCATION, DEFAULT_LOCATION),
-                ): SelectSelector(SelectSelectorConfig(options=LOCATIONS)),
+                ): SelectSelector(
+                    SelectSelectorConfig(options=self.locations, custom_value=True)
+                ),
                 vol.Required(
                     CONF_MARINE_REGION, default=marine_default
                 ): SelectSelector(SelectSelectorConfig(options=region_opts)),
@@ -262,7 +280,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if not url:
                 errors[CONF_TIDE_URL] = "tide_location_not_found"
             else:
-                self.user_info[CONF_TIDE_URL] = f"{_BASE_URL}/{url.lstrip('/')}"
+                self.user_info[CONF_TIDE_URL] = f"{PUBLIC_URL}/{url.lstrip('/')}"
 
         # Boating
         boating_label = user_input.get(CONF_BOATING_URL, _SKIP)
@@ -279,7 +297,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if not url:
                 errors[CONF_BOATING_URL] = "boating_location_not_found"
             else:
-                self.user_info[CONF_BOATING_URL] = f"{_BASE_URL}/{url.lstrip('/')}"
+                self.user_info[CONF_BOATING_URL] = f"{PUBLIC_URL}/{url.lstrip('/')}"
 
         # Surf
         surf_label = user_input.get(CONF_SURF_URL, _SKIP)
@@ -292,7 +310,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             if not url:
                 errors[CONF_SURF_URL] = "surf_location_not_found"
             else:
-                self.user_info[CONF_SURF_URL] = f"{_BASE_URL}/{url.lstrip('/')}"
+                self.user_info[CONF_SURF_URL] = f"{PUBLIC_URL}/{url.lstrip('/')}"
 
         if errors:
             return self.async_show_form(
@@ -357,7 +375,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     # ------------------------------------------------------------------ #
 
     async def _fetch_tide_locations(self, session, marine_region: str) -> list:
-        url = f"{_BASE_URL}/{marine_region}/tides"
+        url = f"{PUBLIC_URL}/{marine_region}/tides"
         async with asyncio.timeout(10):
             response = await session.get(url)
         data = await response.json(content_type=None)
@@ -370,7 +388,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _fetch_boating_locations(self, session, marine_region: str) -> list:
         region_slug = marine_region.split("/")[-1]
-        url = f"{_BASE_URL}/{marine_region}/boating"
+        url = f"{PUBLIC_URL}/{marine_region}/boating"
         async with asyncio.timeout(10):
             response = await session.get(url)
         data = await response.json(content_type=None)
@@ -391,7 +409,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _fetch_surf_locations(self, session, marine_region: str) -> list:
         region_slug = marine_region.split("/")[-1]
-        url = f"{_BASE_URL}/{marine_region}/surf"
+        url = f"{PUBLIC_URL}/{marine_region}/surf"
         async with asyncio.timeout(10):
             response = await session.get(url)
         data = await response.json(content_type=None)

@@ -17,7 +17,7 @@ from .coordinator import WeatherUpdateCoordinator, WeatherUpdateCoordinatorConfi
 from .entity import async_register_location_device
 from .const import (
     DOMAIN,
-    LOCATIONS,
+    LOCATION_PATH_RE,
     PUBLIC_URL,
     PUBLIC_WARNINGS_URL,
     API_METRIC,
@@ -35,10 +35,11 @@ _LOGGER = logging.getLogger(__name__)
 # location.
 _CONF_API = "api"
 
-# The current, v1.0+ set of supported public location values — used to
-# flag config entries left over from the mobile-API era whose stored
-# location no longer matches any of today's public location paths.
-_VALID_LOCATION_VALUES = {location["value"] for location in LOCATIONS}
+
+def _is_location_path(location: object) -> bool:
+    """Return True when location is a public-API location path."""
+    return isinstance(location, str) and LOCATION_PATH_RE.match(location) is not None
+
 
 _LEGACY_ENTRY_LEARN_MORE_URL = "https://github.com/nagelm/metservice-weather/releases"
 
@@ -47,10 +48,9 @@ def _check_legacy_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) -> No
     """Create or clear a repair issue for a pre-v1.0.0 entry.
 
     Flags entries still using the removed mobile API, or whose stored
-    location no longer matches a current public location value. Runs
-    before any fetching so it never depends on network access. Either
-    condition means the entry predates the public-API-only, ~150-location
-    current form of the integration — this only surfaces an ERROR-severity,
+    location is not a public location path. Runs before any fetching so
+    it never depends on network access. Either condition means the entry
+    predates the public-API-only current form of the integration — this only surfaces an ERROR-severity,
     non-fixable repair issue pointing the user at Reconfigure; it does NOT
     change setup behaviour otherwise (setup still proceeds, retries, or
     fails on the real data exactly as it would without this check).
@@ -64,7 +64,7 @@ def _check_legacy_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) -> No
         location = entry.data.get(CONF_LOCATION)
         if api == "mobile":
             reason = "the private mobile API, which was removed in v1.0.0"
-        elif location not in _VALID_LOCATION_VALUES:
+        elif not _is_location_path(location):
             reason = f"an unrecognised location value ({location!r})"
         else:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
@@ -110,7 +110,7 @@ async def _async_migrate_legacy_unique_ids(
     """
     try:
         location = entry.data.get(CONF_LOCATION)
-        if location not in _VALID_LOCATION_VALUES:
+        if not _is_location_path(location):
             return
         new_prefix = f"{location}_".lower()
         ent_reg = er.async_get(hass)

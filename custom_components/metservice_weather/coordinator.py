@@ -21,6 +21,7 @@ from homeassistant.const import (
 )
 
 from .const import (
+    BASE_URL,
     TEMPUNIT,
     LENGTHUNIT,
     SPEEDUNIT,
@@ -69,7 +70,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self._boating_url = config.boating_url
         self._surf_url = config.surf_url
         self._unit_system_api = config.unit_system_api
-        self._base_url = "https://www.metservice.com"
         self.unit_system = config.unit_system
         # Device registry id of the town/rural location device, set by
         # entity.async_register_location_device during entry setup. The
@@ -563,7 +563,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         if isinstance(data, dict):
             if "dataUrl" in data:
                 url = data["dataUrl"]
-                full_url = f"{self._base_url}{url}" if url.startswith("/") else url
+                full_url = f"{BASE_URL}{url}" if url.startswith("/") else url
                 try:
                     async with asyncio.timeout(10):
                         response = await self._session.get(
