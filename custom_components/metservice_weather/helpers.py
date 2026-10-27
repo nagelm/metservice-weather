@@ -12,6 +12,8 @@ from .const import LOCATION_PATH_RE
 _LOCATION_IN_ADDRESS_RE = re.compile(
     rf"(?:/publicdata/webdata)?({LOCATION_PATH_RE.pattern})(?:[/?#].*)?"
 )
+_ADDRESS_HOST_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*:)?//([^/?#]*)", re.I)
+_METSERVICE_HOSTS = frozenset({"metservice.com", "www.metservice.com"})
 
 
 def format_timestamp(timestamp_val: str) -> str:
@@ -24,10 +26,18 @@ def format_timestamp(timestamp_val: str) -> str:
 
 
 def normalize_location_path(value: str) -> str | None:
-    """Return the location path in a path or metservice.com address, or None."""
+    """Return the location path in a path or metservice.com address, or None.
+
+    An address on any host other than metservice.com or www.metservice.com is
+    rejected.
+    """
     if len(value) > 512:
         return None
-    address = re.sub(r"^(?:[a-z][a-z0-9+.-]*:)?//[^/]*", "", value.strip(), flags=re.I)
+    address = value.strip()
+    if host := _ADDRESS_HOST_RE.match(address):
+        if host.group(1).lower() not in _METSERVICE_HOSTS:
+            return None
+        address = address[host.end() :]
     address = re.sub(r"^(?:www\.)?metservice\.com(?=[/?#]|$)", "", address, flags=re.I)
     path = "/" + address.lstrip("/").lower()
     match = _LOCATION_IN_ADDRESS_RE.fullmatch(path)
