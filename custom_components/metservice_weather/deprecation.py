@@ -119,29 +119,19 @@ DEPRECATED_SENSOR_REPLACEMENTS: dict[str, str] = {
 # install doesn't produce an unreadable wall of entity_ids.
 _MAX_LISTED_REFERENCES = 10
 
-# Every replacement sensor key from DEPRECATED_SENSOR_REPLACEMENTS.values(),
-# resolved to its live WeatherSensorEntityDescription — used to read the
-# replacement's display name= for both the canonical object_id computation
-# and the issue's sensor_name placeholder. Built once at import time from
-# the same list sensor.py builds entities from, so it stays in sync
-# automatically if a replacement sensor's name= ever changes.
+# Every public sensor description by key, built from the same list sensor.py
+# builds entities from — replacement display names (repair text and Detector
+# 5's canonical object_id) are read from its name= so they stay in sync.
 _REPLACEMENT_DESCRIPTIONS_BY_KEY: dict[str, WeatherSensorEntityDescription] = {
     description.key: description
     for description in current_condition_sensor_descriptions_public
-}
-
-_REPLACEMENT_DISPLAY_NAMES: dict[str, str] = {
-    key: str(_REPLACEMENT_DESCRIPTIONS_BY_KEY[key].name)
-    for key in DEPRECATED_SENSOR_REPLACEMENTS.values()
 }
 
 
 def _friendly_key(key: str) -> str:
     """Return a human-readable form of a snake_case replacement sensor key.
 
-    Fallback only — _REPLACEMENT_DISPLAY_NAMES is the source of truth for
-    every key in DEPRECATED_SENSOR_REPLACEMENTS.values(); this mechanical
-    conversion covers any key that map doesn't (yet) have an entry for.
+    Fallback only, for a key with no live description or no string name=.
     """
     return " ".join(
         word.upper() if word == "uv" else word.capitalize() for word in key.split("_")
@@ -150,7 +140,9 @@ def _friendly_key(key: str) -> str:
 
 def _replacement_display_name(key: str) -> str:
     """Return the replacement sensor's display name for repair-issue text."""
-    return _REPLACEMENT_DISPLAY_NAMES.get(key, _friendly_key(key))
+    description = _REPLACEMENT_DESCRIPTIONS_BY_KEY.get(key)
+    name = description.name if description else None
+    return name if isinstance(name, str) else _friendly_key(key)
 
 
 # Extra sentence appended to the removed-entity repair's replacement text,
