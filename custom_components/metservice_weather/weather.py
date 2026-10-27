@@ -84,7 +84,7 @@ def _nearest_hourly_entry(data: MetServicePublicData) -> HourlyEntry | None:
             continue
         try:
             diff = abs(datetime.fromisoformat(entry.datetime) - now)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
         if diff < best_diff:
             best, best_diff = entry, diff
@@ -290,7 +290,7 @@ class MetServiceForecastPublic(MetServicePublic):
             day_condition = _map_condition(day.condition)
             try:
                 forecast_time = format_timestamp(day.datetime) if day.datetime else None
-            except (ValueError, AttributeError):
+            except ValueError, AttributeError:
                 forecast_time = day.datetime
             entry = Forecast(
                 {
