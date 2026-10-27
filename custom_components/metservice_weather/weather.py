@@ -1,8 +1,4 @@
-"""Support for MetService weather service.
-
-For more details about this platform, please refer to the documentation at
-https://github.com/nagelm/metservice-weather.
-"""
+"""Support for MetService weather service."""
 
 from __future__ import annotations
 
@@ -56,13 +52,7 @@ _UNMAPPED_LOGGED: set[str] = set()
 
 
 def _map_condition(raw: str | None) -> str | None:
-    """Map a MetService condition token to an HA condition, or None if unknown.
-
-    Night variants fall back to their day token ("showers-night" → "showers");
-    a night variant of a sunny condition maps to clear-night. Unknown tokens
-    are logged once per runtime and reported as None rather than passed
-    through as an invalid HA condition.
-    """
+    """Map a MetService condition token to an HA condition, or None if unknown."""
     if raw is None:
         return None
     if raw in CONDITION_MAP:
@@ -81,21 +71,11 @@ def _map_condition(raw: str | None) -> str | None:
     return None
 
 
-# How far the nearest hourly forecast entry may be from now before it is
-# too stale to stand in for a current observation.
 _FORECAST_FALLBACK_WINDOW = timedelta(hours=3)
 
 
 def _nearest_hourly_entry(data: MetServicePublicData) -> HourlyEntry | None:
-    """Return the hourly forecast entry closest to now, within 3 hours.
-
-    Stationless locations (rural pages without a weather station — note
-    some rural pages DO have stations, so this keys on the missing value,
-    never on is_rural) and stations mid-dropout publish no current
-    observations; the forecast for the current hour is the best available
-    stand-in. Only temperature and wind can be backfilled this way —
-    humidity and pressure have no hourly forecast source.
-    """
+    """Return the hourly forecast entry closest to now, within 3 hours."""
     now = dt_util.now()
     best: HourlyEntry | None = None
     best_diff = _FORECAST_FALLBACK_WINDOW
@@ -116,21 +96,7 @@ async def async_setup_entry(
     entry: ConfigEntry[WeatherUpdateCoordinator],
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Add weather entity.
-
-    Stale weather-domain registry entries left behind by earlier versions
-    (e.g. the duplicated-name entity from the old entity_id collision) are
-    removed, mirroring the sensor platform's cleanup — otherwise they
-    survive every upgrade as permanently-unavailable restored entities.
-    Before each removal, async_check_removed_entity raises a
-    (self-clearing) repair issue if the entity being deleted is still
-    referenced by an automation or script.
-
-    After the entity is added, async_check_removed_forecast_attributes
-    raises (or clears) a repair issue for any automation/script still
-    reading the forecast_hourly/forecast_daily weather-entity attributes
-    removed since v0.9.x.
-    """
+    """Add weather entity."""
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
     entity = MetServiceForecastPublic(coordinator)
 
@@ -334,17 +300,10 @@ class MetServiceForecastPublic(MetServicePublic):
                     ATTR_FORECAST_TIME: forecast_time,
                 }
             )
-            # MetService publishes the % chance of ≥1 mm of rain
-            # (an exceedance probability), not a rainfall amount, so it
-            # maps to precipitation_probability — never to precipitation.
             if day.rain_prob_1mm is not None:
                 entry[ATTR_FORECAST_PRECIPITATION_PROBABILITY] = round(
                     day.rain_prob_1mm
                 )
-            # Unlike the daily chance-of-rain above (a probability),
-            # rain_total_mm is a genuine amount aggregated from the hourly
-            # forecast, so it belongs in native_precipitation, not
-            # precipitation_probability.
             if day.rain_total_mm is not None:
                 entry[ATTR_FORECAST_NATIVE_PRECIPITATION] = day.rain_total_mm
             forecast.append(entry)

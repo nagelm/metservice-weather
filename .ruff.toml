@@ -1,4 +1,3 @@
-# The contents of this file is based on https://github.com/home-assistant/core/blob/dev/pyproject.toml
 
 target-version = "py313"
 
@@ -39,7 +38,6 @@ lint.ignore = [
 ]
 
 [lint.per-file-ignores]
-# Dev/CLI scripts legitimately print to the terminal.
 "scripts/*" = ["T20"]
 
 [lint.flake8-pytest-style]

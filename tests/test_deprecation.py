@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.exceptions import HomeAssistantError
@@ -21,7 +23,7 @@ from custom_components.metservice_weather.coordinator_types import MetServicePub
 from custom_components.metservice_weather.deprecation import (
     DEPRECATED_SENSOR_REPLACEMENTS,
     _GENERIC_REMOVED_REPLACEMENT_FALLBACK,
-    _REPLACEMENT_DISPLAY_NAMES,
+    _REPLACEMENT_DESCRIPTIONS_BY_KEY,
     _config_entries_referencing,
     _dump_json,
     _format_evidence,
@@ -93,18 +95,12 @@ class _FakeEntityComponent:
         return self._entities.get(entity_id)
 
 
-# ---------------------------------------------------------------------------
-# Helper: minimal coordinator + config entry (mirrors test_sensor.py)
-# ---------------------------------------------------------------------------
-
-
 def _make_coordinator(
     hass, tide_url="", boating_url="", surf_url=""
 ) -> WeatherUpdateCoordinator:
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location=LOCATION,
         location_name="Napier",
@@ -136,11 +132,6 @@ def _issue_id(entry: MockConfigEntry, old_key: str) -> str:
     return f"deprecated_entity_{entry.entry_id}_{old_key}"
 
 
-# ---------------------------------------------------------------------------
-# Test: DEPRECATED_SENSOR_REPLACEMENTS data contract
-# ---------------------------------------------------------------------------
-
-
 def test_deprecated_sensor_replacements_covers_all_fourteen_old_keys():
     """Every OLD key from the fork table is mapped, pollen_levels/pollen_type -> pollen."""
     assert set(DEPRECATED_SENSOR_REPLACEMENTS) == {
@@ -164,11 +155,6 @@ def test_deprecated_sensor_replacements_covers_all_fourteen_old_keys():
     assert DEPRECATED_SENSOR_REPLACEMENTS["uvIndex"] == "uv_risk"
 
 
-# ---------------------------------------------------------------------------
-# Test: _friendly_key / _format_references helpers
-# ---------------------------------------------------------------------------
-
-
 def test_friendly_key_formats_snake_case_with_uv_uppercased():
     """Snake_case keys become title-cased words, with 'uv' specially uppercased."""
     assert _friendly_key("uv_risk") == "UV Risk"
@@ -176,11 +162,15 @@ def test_friendly_key_formats_snake_case_with_uv_uppercased():
     assert _friendly_key("pollen") == "Pollen"
 
 
-def test_replacement_display_names_cover_every_replacement_key():
-    """_REPLACEMENT_DISPLAY_NAMES has an entry for every value in DEPRECATED_SENSOR_REPLACEMENTS."""
-    assert set(DEPRECATED_SENSOR_REPLACEMENTS.values()) <= set(
-        _REPLACEMENT_DISPLAY_NAMES
+def test_replacement_display_names_match_en_json():
+    """Every replacement's repair name matches the name Home Assistant shows."""
+    en = Path(__file__).parents[1] / (
+        "custom_components/metservice_weather/translations/en.json"
     )
+    names = json.loads(en.read_text(encoding="utf-8"))["entity"]["sensor"]
+    for key in set(DEPRECATED_SENSOR_REPLACEMENTS.values()):
+        translation_key = _REPLACEMENT_DESCRIPTIONS_BY_KEY[key].translation_key
+        assert _replacement_display_name(key) == names[translation_key]["name"]
 
 
 def test_replacement_display_name_diverges_from_friendly_key_for_uv_risk():
@@ -203,7 +193,7 @@ def test_replacement_display_name_moon_sensors_map_to_moon_phase_current():
 
 
 def test_replacement_display_name_falls_back_to_friendly_key_for_unmapped_key():
-    """A key with no explicit entry in _REPLACEMENT_DISPLAY_NAMES falls back to _friendly_key."""
+    """A key with no live description falls back to _friendly_key."""
     assert _replacement_display_name("some_unmapped_key") == _friendly_key(
         "some_unmapped_key"
     )
@@ -224,17 +214,6 @@ def test_format_references_caps_long_list_with_suffix():
     assert result.endswith("(+5 more)")
     assert all(f"automation.a{i}" in result for i in range(10))
     assert "automation.a14" not in result
-
-
-# ---------------------------------------------------------------------------
-# Test: async_check_deprecated_entities — v2026.9.0 rework. No deprecated
-# sensor descriptions remain (see weather_current_conditions_sensors.py), so
-# this function no longer runs a disable/hide usage sweep; it only clears
-# any leftover pre-2026.9.0 deprecation issues and hands off to the
-# entity-ID reclaim detector (async_check_entity_id_reclaim, exercised
-# through async_check_deprecated_entities here to prove the wiring; its own
-# behaviour is covered in detail in tests/test_repairs.py).
-# ---------------------------------------------------------------------------
 
 
 def _hidden_notice_id(entry: MockConfigEntry) -> str:
@@ -327,7 +306,6 @@ async def test_cleanup_is_idempotent_when_nothing_left_to_clear(hass):
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
 
-    # Must not raise, and must not create anything new.
     await async_check_deprecated_entities(hass, entry, coord)
 
     for old_key in DEPRECATED_SENSOR_REPLACEMENTS:
@@ -349,19 +327,11 @@ async def test_exception_inside_cleanup_does_not_propagate(hass):
         "custom_components.metservice_weather.deprecation.ir.async_get",
         side_effect=RuntimeError("boom"),
     ):
-        # Must not raise.
         await async_check_deprecated_entities(hass, entry, coord)
 
 
 async def test_deprecated_entities_check_invokes_entity_id_reclaim_detector(hass):
-    """async_check_deprecated_entities hands off to the entity-ID reclaim detector.
-
-    Full reclaim-detector behaviour (fixable vs. referenced vs. self-clear)
-    is covered in tests/test_repairs.py — this just proves the wiring, using
-    a plain AsyncMock (no side_effect) so the call itself is observed
-    without exercising async_check_entity_id_reclaim's own, independent
-    exception guard.
-    """
+    """async_check_deprecated_entities hands off to the entity-ID reclaim detector."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -375,27 +345,10 @@ async def test_deprecated_entities_check_invokes_entity_id_reclaim_detector(hass
     mock_reclaim.assert_called_once_with(hass, entry, coord)
 
 
-# ---------------------------------------------------------------------------
-# Part 2: removal rehearsal — the real v2026.9.0 upgrade path, via genuine
-# config-entry setup (coordinator + weather + sensor platforms), not a
-# hand-rolled add_entities callback. This is what actually happens the
-# first time an existing install with an old, still-registered deprecated
-# sensor row starts up on v2026.9.0: sensor.py's stale-registry cleanup
-# removes it (having asked async_check_removed_entity to raise a repair
-# first if it's still referenced).
-# ---------------------------------------------------------------------------
-
-
 async def _async_setup_full(
     hass, entry: MockConfigEntry, data: MetServicePublicData
 ) -> WeatherUpdateCoordinator:
-    """Run the real config-entry setup (coordinator + weather + sensor platforms).
-
-    Mirrors test_seasonal_gating.py's helper of the same name.
-    _async_update_data is patched so the coordinator's `.data` ends up
-    holding exactly the MetServicePublicData passed in, with no real
-    network I/O.
-    """
+    """Run the real config-entry setup (coordinator + weather + sensor platforms)."""
     entry.add_to_hass(hass)
     with patch.object(
         WeatherUpdateCoordinator,
@@ -416,9 +369,6 @@ async def test_2026_9_upgrade_removes_referenced_deprecated_row_with_repair(hass
     ent_reg = er.async_get(hass)
     unique_id = f"{LOCATION}_uvIndex".lower()
     stale = ent_reg.async_get_or_create("sensor", DOMAIN, unique_id, config_entry=entry)
-    # Simulate an install where this row survived enabled — e.g. it was
-    # never swept by an older integration version, or the user re-enabled
-    # it themselves at some point.
     ent_reg.async_update_entity(stale.entity_id, disabled_by=None)
     entity_id = stale.entity_id
     assert ent_reg.async_get(entity_id).disabled_by is None
@@ -431,12 +381,9 @@ async def test_2026_9_upgrade_removes_referenced_deprecated_row_with_repair(hass
     ):
         await _async_setup_full(hass, entry, MetServicePublicData())
 
-    # The row is gone from the registry.
     assert ent_reg.async_get(entity_id) is None
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id) is None
 
-    # A removed_entity repair was raised naming the reference and the
-    # replacement's display name.
     issue_id = f"removed_entity_{entry.entry_id}_{slugify(entity_id)}"
     issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
     assert issue is not None
@@ -474,10 +421,6 @@ async def test_2026_9_upgrade_removes_unreferenced_deprecated_row_silently(hass)
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
 
-
-# ---------------------------------------------------------------------------
-# Test: _usage_signals — one test per evidence source, plus failure paths
-# ---------------------------------------------------------------------------
 
 _UV_ENTITY_ID = "sensor.napier_uvindex"
 
@@ -824,11 +767,6 @@ def test_format_evidence_empty_signals_says_no_specific_usage():
     assert _format_evidence({}) == "no specific usage detected"
 
 
-# ---------------------------------------------------------------------------
-# Detector 1: async_check_removed_entity (removed entity still referenced)
-# ---------------------------------------------------------------------------
-
-
 def _removed_issue_id(entry: MockConfigEntry, entity_id: str) -> str:
     return f"removed_entity_{entry.entry_id}_{slugify(entity_id)}"
 
@@ -864,12 +802,7 @@ async def test_removed_entity_issue_created_when_referenced(hass):
 
 
 async def test_removed_weather_warnings_replacement_names_warning_details(hass):
-    """weather_warnings removal points at Warning details for the full text (GH #32).
-
-    The Warnings enum alone doesn't carry what the old sensor's state held,
-    so its removed_entity replacement text appends the Warning details /
-    active_warnings pointer via _REPLACEMENT_DETAIL_HINTS.
-    """
+    """weather_warnings removal points at Warning details for the full text."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
@@ -907,8 +840,6 @@ async def test_removed_entity_unknown_key_uses_generic_replacement_fallback(hass
     coord = _make_coordinator(hass)
 
     ent_reg = er.async_get(hass)
-    # Pre-fork unique_id scheme (comma-separated, no location_ prefix) —
-    # no recognisable key suffix at all.
     reg_entry = ent_reg.async_get_or_create(
         "weather", DOMAIN, "napier,weather", config_entry=entry
     )
@@ -1026,16 +957,10 @@ async def test_removed_entity_exception_inside_check_does_not_propagate(hass):
         "custom_components.metservice_weather.deprecation._referencing_items",
         side_effect=RuntimeError("boom"),
     ):
-        # Must not raise.
         await async_check_removed_entity(hass, entry, coord, reg_entry)
 
     issue_id = _removed_issue_id(entry, reg_entry.entity_id)
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
-
-
-# ---------------------------------------------------------------------------
-# Detector 3: async_check_removed_forecast_attributes (old issue #11)
-# ---------------------------------------------------------------------------
 
 
 def _forecast_issue_id(entry: MockConfigEntry) -> str:
@@ -1189,7 +1114,6 @@ async def test_forecast_attributes_raw_config_access_raising_is_swallowed(hass):
     hass.data["automation"] = _BrokenComponent()
 
     with patch(_AUTOMATIONS_PATCH, return_value=["automation.storm_watch"]):
-        # Must not raise.
         await async_check_removed_forecast_attributes(hass, entry, coord)
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, _forecast_issue_id(entry)) is None
@@ -1229,9 +1153,7 @@ async def test_forecast_attributes_missing_component_key_is_swallowed(hass):
     )
 
     hass.config.components.add("automation")
-    # No hass.data["automation"] entry at all.
     with patch(_AUTOMATIONS_PATCH, return_value=["automation.storm_watch"]):
-        # Must not raise.
         await async_check_removed_forecast_attributes(hass, entry, coord)
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, _forecast_issue_id(entry)) is None
@@ -1258,14 +1180,8 @@ async def test_forecast_attributes_exception_inside_check_does_not_propagate(has
         "custom_components.metservice_weather.deprecation.er.async_get",
         side_effect=RuntimeError("boom"),
     ):
-        # Must not raise.
         await async_check_removed_forecast_attributes(hass, entry, coord)
 
-
-# ---------------------------------------------------------------------------
-# Detector 4: async_check_marine_device_move (marine sensors moved off the
-# location device onto their own marine device)
-# ---------------------------------------------------------------------------
 
 _TIDE_URL = (
     "https://www.metservice.com/publicData/webdata/marine/regions/"
@@ -1444,8 +1360,6 @@ async def test_marine_device_move_silent_when_no_marine_configured(hass):
 
     with patch(_AUTOMATIONS_DEVICE_PATCH) as mock_automations:
         await async_check_marine_device_move(hass, entry, coord)
-        # No marine service configured -> short-circuits before ever
-        # looking up the device or its referencing automations.
         mock_automations.assert_not_called()
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, _marine_issue_id(entry)) is None
@@ -1514,5 +1428,4 @@ async def test_marine_device_move_exception_inside_check_does_not_propagate(hass
         "custom_components.metservice_weather.deprecation.dr.async_get",
         side_effect=RuntimeError("boom"),
     ):
-        # Must not raise.
         await async_check_marine_device_move(hass, entry, coord)

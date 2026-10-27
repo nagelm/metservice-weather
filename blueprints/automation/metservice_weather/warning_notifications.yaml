@@ -55,15 +55,13 @@ variables:
   min_severity: !input min_severity
 
 trigger:
-  # A bare state trigger also fires on attribute-only changes, so one
-  # trigger covers both a severity change and a count-only change.
+  # Also fires on attribute-only changes.
   - platform: state
     entity_id: !input warning_sensor
 
 condition:
   - condition: template
-    # Fire only when something got worse or something new arrived:
-    # severity_level rose, or count rose while at/above the chosen level.
+    # Only when severity or count rose.
     value_template: >-
       {% set old = trigger.from_state %}
       {% set new = trigger.to_state %}

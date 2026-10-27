@@ -17,10 +17,8 @@ from custom_components.metservice_weather.coordinator import (
 from custom_components.metservice_weather.coordinator_types import (
     MetServicePublicData,
 )
+from custom_components.metservice_weather.helpers import format_timestamp
 
-# ---------------------------------------------------------------------------
-# Fixtures & helpers
-# ---------------------------------------------------------------------------
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -41,7 +39,6 @@ def _make_config(
     return WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",
@@ -64,11 +61,6 @@ def _mock_response(data, status=200):
     return resp
 
 
-# ---------------------------------------------------------------------------
-# Test: properties
-# ---------------------------------------------------------------------------
-
-
 async def test_coordinator_properties(hass):
     """Coordinator exposes location and disables tides/boating/surf by default."""
     coord = _make_coordinator(hass)
@@ -77,11 +69,6 @@ async def test_coordinator_properties(hass):
     assert coord.enable_tides is False
     assert coord.enable_boating is False
     assert coord.enable_surf is False
-
-
-# ---------------------------------------------------------------------------
-# Test: marine_region_slug (drives the marine device's display name)
-# ---------------------------------------------------------------------------
 
 
 async def test_marine_region_slug_empty_when_no_marine_urls(hass):
@@ -140,11 +127,6 @@ async def test_coordinator_properties_with_urls(hass):
     assert coord.tide_url == "https://example.com/tides"
 
 
-# ---------------------------------------------------------------------------
-# Test: get_from_dict (DFS)
-# ---------------------------------------------------------------------------
-
-
 async def test_get_from_dict_simple(hass):
     """get_from_dict resolves a simple nested key path."""
     coord = _make_coordinator(hass)
@@ -179,11 +161,6 @@ async def test_get_from_dict_empty_keys(hass):
     assert coord.get_from_dict({"x": 1}, []) == {"x": 1}
 
 
-# ---------------------------------------------------------------------------
-# Test: _check_errors
-# ---------------------------------------------------------------------------
-
-
 async def test_check_errors_no_errors(hass):
     """_check_errors does not raise when the response has no errors key."""
     coord = _make_coordinator(hass)
@@ -205,15 +182,9 @@ async def test_check_errors_raises(hass):
         )
 
 
-# ---------------------------------------------------------------------------
-# Test: _parse_pollen_html
-# ---------------------------------------------------------------------------
-
-
 async def test_parse_pollen_html_level_and_plants(hass):
     """_parse_pollen_html extracts level, plant types and the status class."""
     coord = _make_coordinator(hass)
-    # status-good is a real MetService class (green / low concern)
     html = '<span class="status-good">Low</span><br/>Grass, Timothy'
     result = coord._parse_pollen_html(html)
     assert result["level"] == "Low"
@@ -230,15 +201,9 @@ async def test_parse_pollen_html_empty(hass):
     assert result["status_class"] is None
 
 
-# ---------------------------------------------------------------------------
-# Test: _format_timestamp
-# ---------------------------------------------------------------------------
-
-
 async def test_format_timestamp(hass):
-    """_format_timestamp converts a local ISO timestamp to UTC."""
-    coord = _make_coordinator(hass)
-    result = coord._format_timestamp("2024-06-15T12:00:00+12:00")
+    """format_timestamp converts a local ISO timestamp to UTC."""
+    result = format_timestamp("2024-06-15T12:00:00+12:00")
     assert "2024-06-15" in result
     assert (
         result.endswith("+00:00")
@@ -246,11 +211,6 @@ async def test_format_timestamp(hass):
         or "UTC" in result
         or "00:00" in result
     )
-
-
-# ---------------------------------------------------------------------------
-# Test: get_public_weather — happy path
-# ---------------------------------------------------------------------------
 
 
 async def test_get_public_weather_returns_data(hass):
@@ -388,11 +348,6 @@ async def test_get_public_weather_api_error_raises_update_failed(hass):
         await coord.get_public_weather()
 
 
-# ---------------------------------------------------------------------------
-# Test: _async_update_data dispatches correctly
-# ---------------------------------------------------------------------------
-
-
 async def test_async_update_data_public(hass):
     """_async_update_data delegates to get_public_weather."""
     coord = _make_coordinator(hass)
@@ -404,11 +359,6 @@ async def test_async_update_data_public(hass):
     ) as mock:
         await coord._async_update_data()
         mock.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# Test: get_pollen_data
-# ---------------------------------------------------------------------------
 
 
 async def test_get_pollen_data_success(hass):
@@ -498,11 +448,6 @@ async def test_get_pollen_data_multiple_blocks(hass):
     assert "Cypress" in result["groups"][1]["type"]
 
 
-# ---------------------------------------------------------------------------
-# Test: get_tides
-# ---------------------------------------------------------------------------
-
-
 async def test_get_tides_success(hass):
     """get_tides returns the parsed tide entries."""
     tide_data = {
@@ -577,11 +522,6 @@ async def test_get_tides_network_error_returns_none(hass):
 
     result = await coord.get_tides()
     assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Test: get_boating_data
-# ---------------------------------------------------------------------------
 
 
 async def test_get_boating_data_success(hass):
@@ -664,11 +604,6 @@ async def test_get_boating_data_network_error_returns_empty(hass):
     assert await coord.get_boating_data() == {}
 
 
-# ---------------------------------------------------------------------------
-# Test: get_surf_data
-# ---------------------------------------------------------------------------
-
-
 def _surf_marker(path="/marine/regions/northland/surf/locations/waihi-beach"):
     return {
         "action": {
@@ -742,11 +677,6 @@ async def test_get_surf_data_network_error_returns_empty(hass):
     assert await coord.get_surf_data() == {}
 
 
-# ---------------------------------------------------------------------------
-# Test: expand_data_urls
-# ---------------------------------------------------------------------------
-
-
 async def test_expand_data_urls_replaces_node(hass):
     """expand_data_urls replaces a dataUrl node with the fetched payload."""
     coord = _make_coordinator(hass)
@@ -808,11 +738,6 @@ async def test_expand_data_urls_max_depth_guard(hass):
     data = {"dataUrl": "/should/not/fetch"}
     await coord.expand_data_urls(data, _depth=11)
     mock_session.get.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# Test: tide/boating/surf injected into public weather fetch
-# ---------------------------------------------------------------------------
 
 
 async def test_get_public_weather_injects_tides(hass):
@@ -1033,10 +958,6 @@ async def test_get_public_weather_drying_wet_all_day(hass):
     warnings_data = {"warnings": []}
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
 
-    # Build a current fixture with dryingIndex.dryingState containing a "next good day" entry
-    # and a bare "Wet all day" entry, so we exercise those branches.
-    # We'll patch get_from_dict to return the crafted state instead of relying on
-    # fixture data having a dryingIndex key.
     coord = _make_coordinator(hass)
 
     drying_states = [
@@ -1098,13 +1019,7 @@ async def test_get_public_weather_drying_exception_silenced(hass):
     with patch.object(coord, "get_from_dict", side_effect=patched_get_from_dict):
         result = await coord.get_public_weather()
 
-    # Should succeed without raising; drying fields simply None
     assert isinstance(result, MetServicePublicData)
-
-
-# ---------------------------------------------------------------------------
-# Test: exception paths in marine helpers
-# ---------------------------------------------------------------------------
 
 
 async def test_get_tides_unexpected_exception_returns_none(hass):
@@ -1154,11 +1069,6 @@ async def test_get_surf_data_bad_marker_skipped(hass):
     assert result["surf_rating"] == 3
 
 
-# ---------------------------------------------------------------------------
-# Test: expand_data_urls exception path
-# ---------------------------------------------------------------------------
-
-
 async def test_expand_data_urls_exception_sets_none(hass):
     """When session.get raises (not timeout/client), parent key is set to None (lines 636-639)."""
     coord = _make_coordinator(hass)
@@ -1177,11 +1087,7 @@ async def test_get_public_weather_tomorrow_extraction_exception_silenced(hass):
 
     warnings_data = {"warnings": []}
     pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
-    # modules is explicitly [] — normalize_public_data's _get returns None
-    # for the out-of-range "0" index instead of raising IndexError.
-    # Use a fresh current dict to avoid cross-test mutation of _PUBLIC_CURRENT.
     current_copy = copy.deepcopy(_PUBLIC_CURRENT)
-    # Remove any pre-existing tomorrow key so the assertion is meaningful.
     current_copy.pop("tomorrow_condition", None)
     daily_bad = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
 
@@ -1198,6 +1104,5 @@ async def test_get_public_weather_tomorrow_extraction_exception_silenced(hass):
     coord._session = mock_session
 
     result = await coord.get_public_weather()
-    # Should succeed; IndexError is caught and tomorrow fields remain None.
     assert isinstance(result, MetServicePublicData)
     assert result.tomorrow_condition is None

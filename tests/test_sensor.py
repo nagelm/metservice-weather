@@ -52,16 +52,10 @@ def _desc(key: str) -> WeatherSensorEntityDescription:
     return next(d for d in current_condition_sensor_descriptions_public if d.key == key)
 
 
-# ---------------------------------------------------------------------------
-# Helper: minimal coordinator with pre-loaded data
-# ---------------------------------------------------------------------------
-
-
 def _make_coordinator(hass) -> WeatherUpdateCoordinator:
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",
@@ -75,12 +69,7 @@ def _make_coordinator(hass) -> WeatherUpdateCoordinator:
 
 
 def _make_sensor(coordinator, key="temperature", value=18.5) -> WeatherSensor:
-    """Create a WeatherSensor with the simplest possible description.
-
-    value is captured in the closure so value_fn returns it directly, allowing
-    tests to assert on a known scalar even though _sensor_data is now
-    MetServicePublicData for the public API path.
-    """
+    """Create a WeatherSensor with the simplest possible description."""
     captured = value
     desc = WeatherSensorEntityDescription(
         key=key,
@@ -90,11 +79,6 @@ def _make_sensor(coordinator, key="temperature", value=18.5) -> WeatherSensor:
     )
     sensor = WeatherSensor(coordinator, desc)
     return sensor
-
-
-# ---------------------------------------------------------------------------
-# Test: helper functions in weather_current_conditions_sensors.py
-# ---------------------------------------------------------------------------
 
 
 def test_safe_float_none():
@@ -158,11 +142,6 @@ def test_next_tide_time_wrong_type_returns_none():
     tides = [{"type": "LOW", "time": future}]
     result = _next_tide_time(tides, "HIGH")
     assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Test: _warning_severity / _warnings_state
-# ---------------------------------------------------------------------------
 
 
 def test_warning_severity_red_beats_orange():
@@ -243,12 +222,7 @@ def test_warnings_state_embedded_newline_survives_in_attribute():
 
 
 def test_warnings_state_attr_count_matches_list_length():
-    """The attribute count matches the number of active warnings.
-
-    Targets the warning_level ENUM sensor, whose attributes are fully flat
-    (headline + count) — the structured list moved to the opt-in
-    warning_details carrier instead.
-    """
+    """The attribute count matches the number of active warnings."""
     warnings = [
         {"name": "Strong Wind Watch", "text": "a", "threat_period": "Today"},
         {"name": "Heavy Rain Warning", "text": "b", "threat_period": "Tonight"},
@@ -275,19 +249,10 @@ def test_warnings_state_truncates_to_255_chars():
     assert state == long_name[:255]
 
 
-# ---------------------------------------------------------------------------
-# Test: sensor descriptions are non-empty lists
-# ---------------------------------------------------------------------------
-
-
 def test_public_sensor_descriptions_non_empty():
     """current_condition_sensor_descriptions_public is a non-empty list."""
     assert len(current_condition_sensor_descriptions_public) > 0
 
-
-# ---------------------------------------------------------------------------
-# Test: device="marine" is flagged on exactly the 14 marine sensors
-# ---------------------------------------------------------------------------
 
 _MARINE_SENSOR_KEYS = {
     "tides_high",
@@ -326,11 +291,6 @@ def test_non_marine_descriptions_default_to_location_device():
             assert desc.device == "location", desc.key
 
 
-# ---------------------------------------------------------------------------
-# Test: pollen sensor description (one-sensor redesign)
-# ---------------------------------------------------------------------------
-
-
 def test_pollen_sensor_present_and_deprecated_siblings_removed():
     """The "pollen" ENUM sensor is present; pollen_levels/pollen_type were removed in v2026.9.0."""
     keys = {d.key for d in current_condition_sensor_descriptions_public}
@@ -349,11 +309,7 @@ def test_pollen_sensor_is_enum_with_four_options():
 
 
 def test_pollen_sensor_value_and_attrs_from_derived_fields():
-    """value_fn/attr_fn read pollen_state and the derived attribute fields.
-
-    Per-level/imminent allergen lists are flattened into joined strings;
-    levels absent from pollen_active are omitted.
-    """
+    """value_fn/attr_fn read pollen_state and the derived attribute fields."""
     desc = next(
         d for d in current_condition_sensor_descriptions_public if d.key == "pollen"
     )
@@ -371,11 +327,7 @@ def test_pollen_sensor_value_and_attrs_from_derived_fields():
 
 
 def test_pollen_sensor_attrs_omit_empty_levels_and_imminent():
-    """attr_fn omits empty allergen data.
-
-    Levels absent from pollen_active (or present with an empty list) and an
-    empty pollen_imminent are omitted from the attributes entirely.
-    """
+    """attr_fn omits empty allergen data."""
     desc = next(
         d for d in current_condition_sensor_descriptions_public if d.key == "pollen"
     )
@@ -399,11 +351,6 @@ def test_pollen_sensor_attrs_empty_when_state_unknown():
     assert desc.attr_fn(data) == {}
 
 
-# ---------------------------------------------------------------------------
-# Test: WeatherSensor properties
-# ---------------------------------------------------------------------------
-
-
 async def test_sensor_name(hass):
     """WeatherSensor.name reflects the entity description's name."""
     coord = _make_coordinator(hass)
@@ -415,7 +362,6 @@ async def test_sensor_native_value_with_data(hass):
     """WeatherSensor.native_value returns the value_fn result when data is present."""
     coord = _make_coordinator(hass)
     sensor = _make_sensor(coord, value=18.5)
-    # _sensor_data was set to 18.5 in the constructor; value_fn just returns data
     assert sensor.native_value == 18.5
 
 
@@ -493,11 +439,6 @@ async def test_sensor_available_when_coordinator_ok(hass):
     assert sensor.available is True
 
 
-# ---------------------------------------------------------------------------
-# Test: async_setup_entry creates expected sensors
-# ---------------------------------------------------------------------------
-
-
 async def test_sensor_setup_entry_public_skips_tide_sensors(hass):
     """When no tide URL, tides_high and tides_low are excluded."""
     from custom_components.metservice_weather.sensor import (
@@ -532,11 +473,6 @@ async def test_sensor_setup_entry_public_skips_tide_sensors(hass):
     keys = [s.entity_description.key for s in added]
     assert "tides_high" not in keys
     assert "tides_low" not in keys
-
-
-# ---------------------------------------------------------------------------
-# Test: async_setup_entry marine device grouping
-# ---------------------------------------------------------------------------
 
 
 async def test_marine_skip_setup_creates_no_marine_device_entities(hass):
@@ -576,11 +512,7 @@ async def test_marine_skip_setup_creates_no_marine_device_entities(hass):
 
 
 async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device(hass):
-    """Marine sensors land on a device distinct from the location device.
-
-    Linked to it via via_device_id, while non-marine sensors stay on the
-    location device as before.
-    """
+    """Marine sensors land on a device distinct from the location device."""
     from custom_components.metservice_weather.sensor import async_setup_entry
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     from custom_components.metservice_weather.const import DOMAIN
@@ -613,7 +545,6 @@ async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system_api="m",
         unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",
@@ -656,11 +587,6 @@ async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device
         assert info["identifiers"] == {location_identifier}
         assert info.get("via_device") is None
         assert info.get("via_device_id") is None
-
-
-# ---------------------------------------------------------------------------
-# Test: async_setup_entry sensor gating by capability flags
-# ---------------------------------------------------------------------------
 
 
 async def test_setup_entry_rural_skips_observation_sensors(hass):
@@ -814,12 +740,9 @@ async def test_setup_entry_removes_stale_registry_entries(hass):
     loc = coord.location
 
     ent_reg = er.async_get(hass)
-    # FIELD_TEMP is gated on has_observations, which the default (rural-like)
-    # coordinator data does not have — so it will be treated as stale.
     stale = ent_reg.async_get_or_create(
         "sensor", DOMAIN, f"{loc}_{FIELD_TEMP}".lower(), config_entry=entry
     )
-    # warning_level is ungated, so it is always (re)created.
     keep = ent_reg.async_get_or_create(
         "sensor", DOMAIN, f"{loc}_warning_level".lower(), config_entry=entry
     )
@@ -884,12 +807,6 @@ async def test_setup_entry_removes_deprecated_pollen_registry_entries(hass):
     assert f"{loc}_pollen_levels".lower() not in unique_ids
     assert f"{loc}_pollen_type".lower() not in unique_ids
     assert f"{loc}_pollen".lower() in unique_ids
-
-
-# ---------------------------------------------------------------------------
-# Test: new rain-window sensors (rain_next_8_hours / rain_next_24_hours /
-# next_rain_at)
-# ---------------------------------------------------------------------------
 
 
 def test_rain_next_8_hours_value_passthrough():
@@ -984,11 +901,6 @@ def test_next_rain_at_attrs_empty_without_forecast_data():
     assert desc.attr_fn(MetServicePublicData()) == {}
 
 
-# ---------------------------------------------------------------------------
-# Test: UV ENUM sensor (uv_risk, sourced from uv_alert_level)
-# ---------------------------------------------------------------------------
-
-
 def test_uv_alert_level_known_mappings():
     """Every documented UV alert level label maps to its snake_case state."""
     assert _uv_alert_level_state("Low") == "low"
@@ -996,7 +908,6 @@ def test_uv_alert_level_known_mappings():
     assert _uv_alert_level_state("High") == "high"
     assert _uv_alert_level_state("Very High") == "very_high"
     assert _uv_alert_level_state("Extreme") == "extreme"
-    # Case/whitespace insensitive.
     assert _uv_alert_level_state("  very high  ") == "very_high"
 
 
@@ -1013,7 +924,7 @@ def test_uv_alert_level_known_mappings():
     ],
 )
 def test_uv_alert_level_in_season_labels(raw, state):
-    """The in-season Dangerous / Not dangerous labels (#63) map by prefix."""
+    """The in-season Dangerous / Not dangerous labels map by prefix."""
     assert _uv_alert_level_state(raw) == state
 
 
@@ -1069,13 +980,11 @@ def test_uv_risk_description_value_and_attrs():
     assert attrs["protection_window_start"] == "2026-07-16T09:00:00+12:00"
     assert attrs["protection_window_end"] == "2026-07-16T17:00:00+12:00"
     assert attrs["has_alert"] is True
-    # The manual attribution key is deliberately absent: the platform-wide
-    # _attr_attribution covers it.
     assert "attribution" not in attrs
 
 
 def test_uv_risk_description_dangerous_later_keeps_label_and_window():
-    """A timed in-season label (#63) sets the state and keeps its attributes."""
+    """A timed in-season label sets the state and keeps its attributes."""
     desc = _desc("uv_risk")
     data = MetServicePublicData(
         uv_alert_level="Dangerous today from 9:55 AM",
@@ -1110,11 +1019,6 @@ def test_uv_risk_description_attrs_empty_when_state_none():
     data = MetServicePublicData()
     assert desc.value_fn(data, "metric") is None
     assert desc.attr_fn(data) == {}
-
-
-# ---------------------------------------------------------------------------
-# Test: weather_warnings ENUM sensor
-# ---------------------------------------------------------------------------
 
 
 def test_warnings_enum_state_none_when_no_warnings():
@@ -1244,13 +1148,8 @@ def test_warning_level_description_headline_truncates_to_255():
     assert attrs["headline"] == long_name[:255]
 
 
-# ---------------------------------------------------------------------------
-# Test: warning_details opt-in carrier sensor
-# ---------------------------------------------------------------------------
-
-
 def test_warning_details_is_default_enabled_carrier_with_count_state():
-    """warning_details is enabled by default (GH #32); state = warning count."""
+    """warning_details is enabled by default; state = warning count."""
     desc = _desc("warning_details")
     assert desc.entity_registry_enabled_default is True
     assert desc.device == "location"
@@ -1305,12 +1204,7 @@ def _warning_details_migration_harness(hass, disabled_by):
 
 
 async def test_warning_details_default_disable_cleared_on_setup(hass):
-    """A pre-2026.9 default-disabled row is re-enabled on setup (GH #32).
-
-    entity_registry_enabled_default only applies at first registration, so
-    installs that registered warning_details under the old opt-in default
-    carry disabled_by=INTEGRATION forever without this migration.
-    """
+    """A pre-2026.9 default-disabled row is re-enabled on setup."""
     from homeassistant.helpers import entity_registry as er
     from custom_components.metservice_weather.sensor import async_setup_entry
 
@@ -1331,11 +1225,6 @@ async def test_warning_details_user_disable_preserved_on_setup(hass):
     )
     await async_setup_entry(hass, entry, lambda *a, **k: None)
     assert ent_reg.async_get(entity_id).disabled_by == er.RegistryEntryDisabler.USER
-
-
-# ---------------------------------------------------------------------------
-# Test: warning_level severity_level numeric attribute (GH issue #32)
-# ---------------------------------------------------------------------------
 
 
 def test_severity_level_attribute_zero_when_clear():
@@ -1385,19 +1274,10 @@ def test_severity_level_attribute_orders_consistently_with_enum_state():
 
 
 def test_carrier_payload_attributes_are_recorder_exempt():
-    """The machine-payload attribute names are excluded from the recorder.
-
-    Matching is by attribute name class-wide, so each name must stay
-    unique to its carrier sensor.
-    """
+    """The machine-payload attribute names are excluded from the recorder."""
     assert WeatherSensor._unrecorded_attributes == frozenset(
         {"tide_table", "active_warnings", "daily_conditions"}
     )
-
-
-# ---------------------------------------------------------------------------
-# Test: condition_today raw-token sensor (issue #33)
-# ---------------------------------------------------------------------------
 
 
 def test_condition_today_state_is_raw_token_verbatim():
@@ -1418,11 +1298,7 @@ def test_condition_today_none_without_condition():
 
 
 def test_condition_today_daily_conditions_attribute_is_date_keyed_and_raw():
-    """daily_conditions carries the pre-mapping token per day, keyed by date.
-
-    Entries without a condition are dropped; an entry without a datetime
-    keeps its token with date None rather than being silently lost.
-    """
+    """daily_conditions carries the pre-mapping token per day, keyed by date."""
     desc = _desc("condition_today")
     data = MetServicePublicData(
         condition="fine",
@@ -1440,11 +1316,6 @@ def test_condition_today_daily_conditions_attribute_is_date_keyed_and_raw():
             {"date": None, "condition": "frost"},
         ]
     }
-
-
-# ---------------------------------------------------------------------------
-# Test: pressure_tendency_trend ENUM sensor
-# ---------------------------------------------------------------------------
 
 
 def test_pressure_trend_known_mappings():
@@ -1478,11 +1349,6 @@ def test_pressure_trend_description_is_enum():
     assert desc.options == ["rising", "falling", "stable"]
     data = MetServicePublicData(pressure_trend="Rising")
     assert desc.value_fn(data, "metric") == "rising"
-
-
-# ---------------------------------------------------------------------------
-# Test: wind_strength ENUM sensor
-# ---------------------------------------------------------------------------
 
 
 def test_wind_strength_known_mappings():
@@ -1529,11 +1395,6 @@ def test_wind_strength_level_description_is_enum():
     }
     data = MetServicePublicData(wind_strength="Light winds")
     assert desc.value_fn(data, "metric") == "light_winds"
-
-
-# ---------------------------------------------------------------------------
-# Test: fire_season ENUM sensor
-# ---------------------------------------------------------------------------
 
 
 def test_fire_season_known_mappings():
@@ -1584,11 +1445,6 @@ def test_fire_season_status_description_attrs_empty_when_state_none():
     assert desc.attr_fn(data) == {}
 
 
-# ---------------------------------------------------------------------------
-# Test: fire_danger ENUM sensor
-# ---------------------------------------------------------------------------
-
-
 def test_fire_danger_index_primary_mapping():
     """The 1-5 dailyObservationIndex is the primary mapping source."""
     assert _fire_danger_state(1, None) == "low"
@@ -1602,7 +1458,6 @@ def test_fire_danger_label_fallback_when_index_none():
     """The label is only consulted when the index is None."""
     assert _fire_danger_state(None, "Very High") == "very_high"
     assert _fire_danger_state(None, "Extreme") == "extreme"
-    # Index present (even if unmapped) short-circuits the label fallback.
     assert _fire_danger_state(3, "Extreme") == "high"
 
 
@@ -1632,12 +1487,7 @@ def test_fire_danger_unknown_label_warns_once(caplog):
 
 
 def test_fire_danger_label_drift_warns_once(caplog):
-    """A label that doesn't match its index's band warns once per runtime.
-
-    The state comes from the index, so a richer label (e.g. "Very High" on
-    index 3) would be silently collapsed to the enum — the tripwire warning
-    is the only trace of it.
-    """
+    """A label that doesn't match its index's band warns once per runtime."""
     _FIRE_DANGER_LABEL_DRIFT_LOGGED.clear()
     with caplog.at_level(logging.WARNING):
         assert _fire_danger_state(3, "Very High") == "high"
@@ -1682,11 +1532,6 @@ def test_fire_danger_level_description_attrs_empty_when_state_none():
     assert desc.attr_fn(data) == {}
 
 
-# ---------------------------------------------------------------------------
-# Test: moon_phase ENUM sensor
-# ---------------------------------------------------------------------------
-
-
 def test_moon_phase_enum_known_mappings():
     """The four principal-phase tokens map to their snake_case states."""
     assert _moon_phase_enum_state("NEW") == "new"
@@ -1712,11 +1557,7 @@ def test_moon_phase_enum_unknown_warns_once(caplog):
 
 
 def test_next_moon_phase_sensor_is_removed():
-    """The prerelease-only next_moon_phase sensor is gone.
-
-    Its data lives on moon_phase_current's next_phase/next_phase_at
-    attributes instead.
-    """
+    """The prerelease-only next_moon_phase sensor is gone."""
     keys = {d.key for d in current_condition_sensor_descriptions_public}
     assert "next_moon_phase" not in keys
 
@@ -1743,11 +1584,6 @@ def test_moon_phase_current_attrs_sparse_when_upstream_missing():
     assert desc.attr_fn(only_date) == {"next_phase_at": "2026-07-21T22:55:00+12:00"}
     only_phase = MetServicePublicData(moon_phase="FULL")
     assert desc.attr_fn(only_phase) == {"next_phase": "full"}
-
-
-# ---------------------------------------------------------------------------
-# Test: moon_phase_current ENUM sensor
-# ---------------------------------------------------------------------------
 
 
 def test_moon_phase_current_description_is_enum_with_eight_options():
@@ -1791,11 +1627,6 @@ def test_moon_phase_current_description_none_safe():
     desc = _desc("moon_phase_current")
     data = MetServicePublicData()
     assert desc.value_fn(data, "metric") is None
-
-
-# ---------------------------------------------------------------------------
-# Test: sunrise_at/sunset_at/moonrise_at/moonset_at are TIMESTAMP sensors
-# ---------------------------------------------------------------------------
 
 
 def test_sunrise_at_description_parses_iso_datetime_and_display_attr():
@@ -1876,11 +1707,6 @@ def test_moonset_at_description_none_safe():
     assert desc.attr_fn(data) == {}
 
 
-# ---------------------------------------------------------------------------
-# Test: tide attribute helpers (height_m)
-# ---------------------------------------------------------------------------
-
-
 def test_tide_attrs_height_from_upcoming_entry():
     """height_m comes from the same upcoming entry the value_fn selects."""
     future1 = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=2)).isoformat()
@@ -1906,11 +1732,6 @@ def test_tide_attrs_empty_when_tides_not_a_list():
     """attr_fn returns {} when tides is None (no marine location configured)."""
     data = MetServicePublicData(tides=None)
     assert _tide_attrs(data, "HIGH") == {}
-
-
-# ---------------------------------------------------------------------------
-# Test: tide_direction opt-in carrier sensor
-# ---------------------------------------------------------------------------
 
 
 def _future_tides(*types: str) -> list[dict]:
@@ -1967,7 +1788,6 @@ def test_tide_direction_unknown_when_exhausted_or_absent():
         desc.value_fn(MetServicePublicData(tides=_future_tides("KING")), "metric")
         is None
     )
-    # Non-dict entries are skipped rather than crashing the derivation.
     junk_then_low = ["junk"] + _future_tides("LOW")
     assert (
         desc.value_fn(MetServicePublicData(tides=junk_then_low), "metric") == "falling"
@@ -1984,11 +1804,6 @@ def test_tide_direction_attr_carries_full_table():
     assert desc.attr_fn(MetServicePublicData(tides=[])) == {}
 
 
-# ---------------------------------------------------------------------------
-# Test: long free-text sensors — truncated state + full_description (GH #50)
-# ---------------------------------------------------------------------------
-
-# (sensor key, MetServicePublicData field, state when the text is missing)
 _LONG_TEXT_SENSORS = [
     ("wxPhraseLong", "forecast_text", "No description"),
     ("tomorrow_description", "tomorrow_description", None),
@@ -2047,17 +1862,6 @@ def test_tides_low_description_attrs_match_value_fn_selection():
     assert attrs["height_m"] == 0.3
 
 
-# ---------------------------------------------------------------------------
-# Test: entity_registry default-flag policy across the whole fork
-# ---------------------------------------------------------------------------
-
-# The 14 OLD keys deprecated by the v2026.7.1 fork — removed outright in
-# v2026.9.0 (see weather_current_conditions_sensors.py), so no live
-# WeatherSensorEntityDescription exists for any of them any more. This set
-# stays purely as a key-name fixture for
-# test_fork_key_sets_are_disjoint_and_cover_all_deprecated_keys below —
-# their entity_registry_enabled_default/visible_default flags are no
-# longer testable since the descriptions themselves are gone.
 _DEPRECATED_FORK_KEYS = {
     "uvIndex",
     "weather_warnings",

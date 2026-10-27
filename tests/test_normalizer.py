@@ -42,11 +42,6 @@ def kumeu():
     return normalize_public_data(current, daily)
 
 
-# ---------------------------------------------------------------------------
-# _get — exact-path traversal
-# ---------------------------------------------------------------------------
-
-
 def test_get_simple_dict():
     """_get returns the value at a simple single-key path."""
     assert _get({"a": 1}, "a") == 1
@@ -96,15 +91,9 @@ def test_get_empty_path_returns_data():
 
 def test_get_does_not_search_depth_first():
     """_get matches only the exact path, not a depth-first search."""
-    # DFS would find "val" anywhere in the tree; exact-path must not.
     data = {"level1": {"other": {"val": 999}}, "val": 42}
     assert _get(data, "val") == 42  # top-level hit only
     assert _get(data, "level1", "val") is None  # "val" not a direct child of level1
-
-
-# ---------------------------------------------------------------------------
-# _safe_float / _safe_int
-# ---------------------------------------------------------------------------
 
 
 def test_safe_float_numeric():
@@ -129,11 +118,6 @@ def test_safe_int_invalid():
     """_safe_int returns None for None or non-numeric strings."""
     assert _safe_int(None) is None
     assert _safe_int("bad") is None
-
-
-# ---------------------------------------------------------------------------
-# normalize_public_data — against Napier fixture
-# ---------------------------------------------------------------------------
 
 
 def test_returns_correct_type(napier):
@@ -174,12 +158,7 @@ def test_pollen_level_present(napier):
 
 
 def test_pollen_state_none_for_fixtures_without_groups(napier, kumeu):
-    """Fixtures predate the groups format, so pollen_state falls back to None.
-
-    The checked-in fixtures' pollen payload has no "groups" key, so the
-    derived one-sensor model must fall back to pollen_state None (unknown)
-    rather than inventing a state.
-    """
+    """Fixtures predate the groups format, so pollen_state falls back to None."""
     assert napier.pollen_state is None
     assert kumeu.pollen_state is None
 
@@ -224,11 +203,6 @@ def test_sunrise_is_string(napier):
 def test_moon_phase_is_string(napier):
     """Normalized moon_phase is a string."""
     assert isinstance(napier.moon_phase, str)
-
-
-# ---------------------------------------------------------------------------
-# normalize_public_data — marine field extraction
-# ---------------------------------------------------------------------------
 
 
 def test_marine_fields_none_when_absent():
@@ -283,11 +257,6 @@ def test_surf_extracted_from_surf_data():
     assert result.surf_rating == 3
 
 
-# ---------------------------------------------------------------------------
-# normalize_public_data — edge cases
-# ---------------------------------------------------------------------------
-
-
 def test_empty_dicts_returns_defaults():
     """normalize_public_data must not raise on completely empty input."""
     result = normalize_public_data({}, {})
@@ -310,11 +279,6 @@ def test_warnings_list_passes_through_when_injected():
     current = {"weather_warnings": "Strong Wind Watch", "warnings_list": structured}
     result = normalize_public_data(current, {})
     assert result.warnings_list == structured
-
-
-# ---------------------------------------------------------------------------
-# _scan_forecasts — forecast entry scanning
-# ---------------------------------------------------------------------------
 
 
 def test_scan_forecasts_towns_shape_prefers_forecasts_entry():
@@ -363,11 +327,6 @@ def test_scan_forecasts_non_dict_forecast_entries_skipped():
     """_scan_forecasts skips non-dict entries in the forecasts list."""
     day = {"forecasts": ["junk", {"highTemp": 5}]}
     assert _scan_forecasts(day, "highTemp") == 5
-
-
-# ---------------------------------------------------------------------------
-# daily entry shape heuristics
-# ---------------------------------------------------------------------------
 
 
 def _daily_payload(days):
@@ -476,11 +435,6 @@ def test_daily_entry_string_temps_coerced_to_float():
     assert isinstance(entry.temp_high, float)
 
 
-# ---------------------------------------------------------------------------
-# tomorrow derivation
-# ---------------------------------------------------------------------------
-
-
 def test_tomorrow_derived_from_day_index_1():
     """Tomorrow fields are derived from daily_entries index 1."""
     days = [
@@ -530,11 +484,6 @@ def test_tomorrow_none_with_empty_daily_dict():
     assert result.tomorrow_description is None
 
 
-# ---------------------------------------------------------------------------
-# today's high/low fallback
-# ---------------------------------------------------------------------------
-
-
 def _current_payload(obs=None, days=None):
     left = [{"observations": obs}] if obs is not None else []
     main = [{"days": days}] if days is not None else []
@@ -580,11 +529,6 @@ def test_today_high_low_none_when_both_absent():
     result = normalize_public_data(_current_payload(), {})
     assert result.temp_today_high is None
     assert result.temp_today_low is None
-
-
-# ---------------------------------------------------------------------------
-# capability flags
-# ---------------------------------------------------------------------------
 
 
 def test_capability_flags_napier(napier):
@@ -642,11 +586,6 @@ def test_is_rural_false_when_absent():
     """is_rural defaults to False when isRural is absent."""
     result = normalize_public_data(_current_payload(days=[{}]), {})
     assert result.is_rural is False
-
-
-# ---------------------------------------------------------------------------
-# kumeu (rural) end-to-end contract
-# ---------------------------------------------------------------------------
 
 
 def test_kumeu_observation_fields_are_none(kumeu):
@@ -721,11 +660,6 @@ def test_napier_daily_entries_have_temp_high_and_description(napier):
 def test_napier_daily_entries_have_some_rain_probability(napier):
     """Towns pages publish rain probabilities from day ~2 onward, not day 0."""
     assert any(d.rain_prob_1mm is not None for d in napier.daily_entries)
-
-
-# ---------------------------------------------------------------------------
-# Daily rainfall aggregation — hourly forecast summed per local day
-# ---------------------------------------------------------------------------
 
 
 def _graph_payload(columns, skip=0, forecast_count=None, notes=None):
@@ -804,11 +738,7 @@ def test_rain_total_separates_by_local_calendar_day():
 
 
 def test_rain_total_includes_observed_history_for_elapsed_hours():
-    """Observed-history hours count toward the day: actual-so-far + forecast-remainder.
-
-    The forecast section anchors to MetService's latest model run, so the
-    observed section is what completes day 0's coverage for elapsed hours.
-    """
+    """Observed-history hours count toward the day: actual-so-far + forecast-remainder."""
     observed = [
         _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 2.0) for h in range(4)
     ]
@@ -822,11 +752,7 @@ def test_rain_total_includes_observed_history_for_elapsed_hours():
 
 
 def test_rain_total_observed_overrides_forecast_on_overlap():
-    """When observed and forecast sections carry the same timestamps, actuals win.
-
-    The graph keeps the model's original predictions for elapsed hours
-    alongside the recorded actuals — summing both would double-count.
-    """
+    """When observed and forecast sections carry the same timestamps, actuals win."""
     observed = [
         _hourly_column(f"2026-07-16T{h:02d}:00:00+12:00", 1.0) for h in range(6)
     ]
@@ -836,7 +762,6 @@ def test_rain_total_observed_overrides_forecast_on_overlap():
     current = _graph_payload(observed + forecast, skip=6, forecast_count=24)
     daily = _daily_payload([{"date": "2026-07-16T12:00:00+12:00"}])
     result = normalize_public_data(current, daily)
-    # hours 0-5 use observed (6 * 1.0), hours 6-23 use forecast (18 * 0.5)
     assert result.daily_entries[0].rain_total_mm == 15.0
 
 
@@ -933,10 +858,6 @@ def test_rain_total_fixture_regression(location, napier, kumeu):
     assert rain_total is None or (isinstance(rain_total, float) and rain_total >= 0)
 
 
-# ---------------------------------------------------------------------------
-# Debug logging for transient observation nulls
-# ---------------------------------------------------------------------------
-
 _TYPES_LOGGER = "custom_components.metservice_weather.coordinator_types"
 
 
@@ -980,11 +901,6 @@ def test_debug_log_absent_for_kumeu_rural_fixture(caplog):
         normalize_public_data(current, daily)
     matches = [r for r in caplog.records if "empty/absent" in r.getMessage()]
     assert matches == []
-
-
-# ---------------------------------------------------------------------------
-# _round_iso_to_minutes — moon-phase timestamp jitter suppression
-# ---------------------------------------------------------------------------
 
 
 def test_round_iso_collapses_second_level_jitter():
@@ -1061,11 +977,6 @@ def test_moon_phase_raw_jitter_logged_at_debug(caplog):
         result = normalize_public_data(current, {})
     assert result.moon_phase_date == "2026-07-07T19:15:00+00:00"
     assert any("rounded to" in r.getMessage() for r in caplog.records)
-
-
-# ---------------------------------------------------------------------------
-# moon_phase_current — current-phase derivation from moonPhases[0] + issuedAt
-# ---------------------------------------------------------------------------
 
 
 def _moon_phase_current_payload(moon_phases, issued_at) -> dict:
@@ -1192,11 +1103,6 @@ def test_moon_phase_current_none_when_issued_at_garbage():
     assert result.moon_phase_current is None
 
 
-# ---------------------------------------------------------------------------
-# Pollen groups — multiple concurrent status blocks
-# ---------------------------------------------------------------------------
-
-
 def test_pollen_groups_pass_through():
     """Injected pollen groups land on pollen_groups; headline stays level/type."""
     current = {
@@ -1218,11 +1124,6 @@ def test_pollen_groups_default_empty():
     """pollen_groups defaults to an empty list when no pollen data is injected."""
     result = normalize_public_data({}, {})
     assert result.pollen_groups == []
-
-
-# ---------------------------------------------------------------------------
-# Pollen — derived one-sensor model (state, active, imminent)
-# ---------------------------------------------------------------------------
 
 
 def _pollen_current(groups: list[dict]) -> dict:
@@ -1328,12 +1229,7 @@ def test_pollen_unknown_class_ignored_and_warns_once(caplog):
 
 
 def test_pollen_label_drift_warns_once(caplog):
-    """A label that doesn't match its status class warns once per runtime.
-
-    The state comes from status_class, so a richer label (e.g. "Very High" on
-    a "bad" block) would be silently collapsed to the enum — the tripwire
-    warning is the only trace of it.
-    """
+    """A label that doesn't match its status class warns once per runtime."""
     from custom_components.metservice_weather import coordinator_types
 
     coordinator_types._POLLEN_LABEL_DRIFT_LOGGED.clear()
@@ -1393,10 +1289,6 @@ def test_pollen_empty_type_splits_to_empty_list():
     result = normalize_public_data(current, {})
     assert result.pollen_active["low"] == []
 
-
-# ---------------------------------------------------------------------------
-# _parse_clock_time / _extract_clock_token
-# ---------------------------------------------------------------------------
 
 _REF = datetime.fromisoformat("2026-05-13T17:12:00+12:00")
 
@@ -1460,11 +1352,6 @@ def test_extract_clock_token_none_when_absent():
     assert _extract_clock_token(42) is None
 
 
-# ---------------------------------------------------------------------------
-# Sun / moon *_at fields — clock strings combined with issuedAt
-# ---------------------------------------------------------------------------
-
-
 def _riseset_payload(rise_set: dict, issued_at: str | None) -> dict:
     """Build a `current`-shaped payload carrying issuedAt (via days) and a riseSet module."""
     return {
@@ -1518,11 +1405,6 @@ def test_sun_moon_at_none_when_issued_at_garbage():
     result = normalize_public_data(current, {})
     assert result.sunrise_at is None
     assert result.sunset_at is None
-
-
-# ---------------------------------------------------------------------------
-# UV detail — sunProtection block
-# ---------------------------------------------------------------------------
 
 
 def _uv_payload(
@@ -1622,11 +1504,6 @@ def test_uv_window_at_extracts_clock_token_from_in_season_string():
     assert result.uv_window_end_at == "2026-01-10T16:00:00+13:00"
 
 
-# ---------------------------------------------------------------------------
-# Fire weather — season/danger detail
-# ---------------------------------------------------------------------------
-
-
 def _fire_days_payload(day0_fire, day1_fire=None) -> dict:
     """Build a `current`-shaped payload with fireWeatherData on day 0 (and optionally day 1)."""
     days = [{"fireWeatherData": day0_fire}]
@@ -1679,11 +1556,6 @@ def test_fire_danger_forecast_none_with_only_one_day():
     current = _fire_days_payload({"fireWeather": {"season": {"status": "open"}}})
     result = normalize_public_data(current, {})
     assert result.fire_danger_forecast is None
-
-
-# ---------------------------------------------------------------------------
-# Rain windows — rain_next_8h_mm / rain_next_24h_mm / next_rain_at
-# ---------------------------------------------------------------------------
 
 
 def test_rain_windows_8h_and_24h_sums():
@@ -1808,7 +1680,6 @@ def test_next_rain_falls_back_to_first_rainy_daily_condition():
 def test_next_rain_daily_skips_days_covered_by_dry_hourly():
     """A rainy-condition day that ended before the last dry hourly entry is skipped."""
     now = datetime.fromisoformat("2026-07-16T06:00:00+12:00")
-    # 30 dry hours reach midday on the 17th.
     columns = [
         _hourly_column((now + timedelta(hours=i)).isoformat(), 0.0) for i in range(30)
     ]
@@ -1854,19 +1725,8 @@ def test_next_rain_horizon_none_without_daily_data():
     assert result.next_rain_precision is None
 
 
-# ---------------------------------------------------------------------------
-# Fixture regression — new fields must not crash against real payloads
-# ---------------------------------------------------------------------------
-
-
 def test_napier_fixture_new_fields_populate_without_crashing(napier):
-    """New fields normalize without crashing against the napier fixture.
-
-    The May fixture has sunProtection, riseSet, and a two-day fireWeatherData
-    block, so those fields should populate rather than stay None; the
-    rain-window fields may legitimately be None because the fixture's hourly
-    forecast predates whatever real clock the test runs under.
-    """
+    """New fields normalize without crashing against the napier fixture."""
     assert isinstance(napier.sunrise_at, str)
     assert isinstance(napier.sunset_at, str)
     assert isinstance(napier.moonrise_at, str)
@@ -1875,7 +1735,6 @@ def test_napier_fixture_new_fields_populate_without_crashing(napier):
     assert napier.uv_alert_level == "Low"
     assert isinstance(napier.uv_message, str)
     assert napier.uv_has_alert is True
-    # The fixture's UV window times are the "undefined undefined" placeholder.
     assert napier.uv_window_start_raw is None
     assert napier.uv_window_end_raw is None
     assert napier.uv_window_start_at is None
@@ -1911,5 +1770,4 @@ def test_kumeu_fixture_new_fields_none_for_seasonal_absence(kumeu):
     assert kumeu.uv_has_alert is None
     assert kumeu.uv_window_start_raw is None
     assert kumeu.uv_window_end_raw is None
-    # Kumeu still has a riseSet module, so sunrise_at should populate.
     assert isinstance(kumeu.sunrise_at, str)
