@@ -484,39 +484,6 @@ async def test_usage_signals_voice_exposure_not_ready_contributes_no_signal(hass
     assert "voice" not in signals
 
 
-async def test_usage_signals_detects_in_process_listener(hass):
-    """A non-empty callback list keyed by entity_id in the private bookkeeping dict counts as usage."""
-    hass.data["track_state_change_data"] = {_UV_ENTITY_ID: [object()]}
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["listeners"] is True
-
-
-async def test_usage_signals_listener_veto_ignores_non_dict_shape(hass):
-    """Current core stores a dataclass here, not a dict — the isinstance guard means no signal, no crash."""
-
-    class _NotADict:
-        pass
-
-    hass.data["track_state_change_data"] = _NotADict()
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "listeners" not in signals
-
-
-async def test_usage_signals_listener_veto_failure_contributes_no_signal(hass):
-    """A raising .get() on the (dict-shaped) bookkeeping object degrades to no signal, not a crash."""
-
-    class _BrokenDict(dict):
-        def get(self, *args, **kwargs):
-            raise RuntimeError("boom")
-
-    hass.data["track_state_change_data"] = _BrokenDict()
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "listeners" not in signals
-
-
 async def test_usage_signals_automations_lookup_failure_contributes_no_signal(hass):
     """automations_with_entity raising degrades to no signal, not a crash."""
     hass.config.components.add("automation")
@@ -603,20 +570,6 @@ async def test_usage_signals_dashboard_without_entity_contributes_no_signal(hass
     assert "dashboards" not in signals
 
 
-async def test_dashboards_referencing_falls_back_when_lovelace_data_not_importable(
-    hass, monkeypatch
-):
-    """If LOVELACE_DATA isn't importable (older core), the plain "lovelace" string key is used instead."""
-    import homeassistant.components.lovelace as lovelace_module
-
-    monkeypatch.delattr(lovelace_module, "LOVELACE_DATA")
-    hass.config.components.add("lovelace")
-    hass.data["lovelace"] = _FakeLovelaceData({})
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "dashboards" not in signals
-
-
 def test_dump_json_returns_none_for_circular_reference():
     """json.dumps can't serialise a self-referencing structure even with default=str."""
     circular: dict = {}
@@ -650,11 +603,10 @@ def test_homekit_includes_swallows_per_entry_exception(hass):
         assert _homekit_includes(hass, _UV_ENTITY_ID) is False
 
 
-def test_format_evidence_includes_homekit_and_listeners():
-    """The two boolean-only sources render as fixed phrases, not joined lists."""
-    text = _format_evidence({"homekit": True, "listeners": True})
+def test_format_evidence_includes_homekit():
+    """The boolean-only HomeKit source renders as a fixed phrase, not a joined list."""
+    text = _format_evidence({"homekit": True})
     assert "HomeKit" in text
-    assert "an in-process listener" in text
 
 
 def test_format_evidence_empty_signals_says_no_specific_usage():

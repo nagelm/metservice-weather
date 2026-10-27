@@ -104,9 +104,6 @@ def _referencing_items(hass: HomeAssistant, entity_id: str) -> list[str]:
     return references
 
 
-_TRACK_STATE_CHANGE_DATA_KEY = "track_state_change_data"
-
-
 def _dump_json(value: Any) -> str | None:
     """Best-effort JSON dump for substring matching; None on failure."""
     try:
@@ -155,25 +152,14 @@ def _voice_assistant_exposure(hass: HomeAssistant, entity_id: str) -> list[str]:
     ]
 
 
-def _has_in_process_listener(hass: HomeAssistant, entity_id: str) -> bool:
-    """Best-effort check for an in-process state-change listener on entity_id."""
-    callbacks = hass.data.get(_TRACK_STATE_CHANGE_DATA_KEY)
-    if isinstance(callbacks, dict):
-        return bool(callbacks.get(entity_id))
-    return False
-
-
 async def _dashboards_referencing(hass: HomeAssistant, entity_id: str) -> list[str]:
     """Return a title/url_path for every Lovelace dashboard whose config mentions entity_id."""
     if "lovelace" not in hass.config.components:
         return []
 
-    try:
-        from homeassistant.components.lovelace import LOVELACE_DATA as _lovelace_key
-    except ImportError:
-        _lovelace_key = "lovelace"
+    from homeassistant.components.lovelace import LOVELACE_DATA
 
-    lovelace_data = hass.data.get(_lovelace_key)
+    lovelace_data = hass.data.get(LOVELACE_DATA)
     dashboards = getattr(lovelace_data, "dashboards", None)
     if not dashboards:
         return []
@@ -258,12 +244,6 @@ async def _usage_signals(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    try:
-        if _has_in_process_listener(hass, entity_id):
-            signals["listeners"] = True
-    except Exception:
-        pass
-
     return signals
 
 
@@ -288,8 +268,6 @@ def _format_evidence(signals: dict[str, Any]) -> str:
             parts.append(f"{label}: {_format_references(items)}")
     if signals.get("homekit"):
         parts.append("HomeKit")
-    if signals.get("listeners"):
-        parts.append("an in-process listener")
     return "; ".join(parts) if parts else "no specific usage detected"
 
 
