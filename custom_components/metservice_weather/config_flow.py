@@ -188,6 +188,13 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="already_configured")
 
         marine_label = user_input.get(CONF_MARINE_REGION, _SKIP)
+        if marine_label == _SKIP and self._is_reconfiguring and not self.regions:
+            # The marine index didn't load, so "skip" was the only choice offered:
+            # keep the stored marine settings rather than wiping them.
+            _LOGGER.warning(
+                "Marine regions unavailable; keeping the stored marine settings"
+            )
+            return self._finish_flow()
         if marine_label == _SKIP:
             self.user_info[CONF_MARINE_REGION] = ""
             self.user_info[CONF_TIDE_URL] = ""
@@ -308,10 +315,12 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             )
 
+            self._failed_station_lists = set()
             for key in ("tide", "boating", "surf"):
                 if isinstance(results[key], Exception):
                     _LOGGER.error("Failed to fetch %s locations: %s", key, results[key])
                     results[key] = []
+                    self._failed_station_lists.add(key)
 
             self._tide_locations = results["tide"]
             self._boating_locations = results["boating"]
@@ -327,9 +336,12 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         errors = {}
+        keep = self._stations_to_keep(marine_region, user_input)
 
         tide_label = user_input.get(CONF_TIDE_URL, _SKIP)
-        if tide_label == _SKIP:
+        if CONF_TIDE_URL in keep:
+            pass
+        elif tide_label == _SKIP:
             self.user_info[CONF_TIDE_URL] = ""
         elif self._tide_map:
             url = self._resolve_url(
@@ -341,7 +353,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self.user_info[CONF_TIDE_URL] = f"{PUBLIC_URL}/{url.lstrip('/')}"
 
         boating_label = user_input.get(CONF_BOATING_URL, _SKIP)
-        if boating_label == _SKIP:
+        if CONF_BOATING_URL in keep:
+            pass
+        elif boating_label == _SKIP:
             self.user_info[CONF_BOATING_URL] = ""
         elif self._boating_map:
             url = self._resolve_url(
@@ -357,7 +371,9 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 self.user_info[CONF_BOATING_URL] = f"{PUBLIC_URL}/{url.lstrip('/')}"
 
         surf_label = user_input.get(CONF_SURF_URL, _SKIP)
-        if surf_label == _SKIP:
+        if CONF_SURF_URL in keep:
+            pass
+        elif surf_label == _SKIP:
             self.user_info[CONF_SURF_URL] = ""
         elif self._surf_map:
             url = self._resolve_url(
@@ -376,6 +392,28 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         return self._finish_flow()
+
+    def _stations_to_keep(self, marine_region: str, user_input: dict) -> set[str]:
+        """Return the station fields to leave as stored on this Reconfigure.
+
+        A station list that failed to load isn't shown, so its field can't be
+        answered; when the marine region is unchanged, keep the stored station.
+        """
+        if not self._is_reconfiguring or marine_region != self._reconfig_entry.data.get(
+            CONF_MARINE_REGION, ""
+        ):
+            return set()
+        fields = {
+            "tide": CONF_TIDE_URL,
+            "boating": CONF_BOATING_URL,
+            "surf": CONF_SURF_URL,
+        }
+        return {
+            field
+            for key, field in fields.items()
+            if key in getattr(self, "_failed_station_lists", set())
+            and field not in user_input
+        }
 
     def _build_label_map(self, markers: list) -> dict:
         """Build an index→label map from a markers list."""

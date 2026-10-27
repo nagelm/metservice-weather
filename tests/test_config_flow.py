@@ -13,6 +13,7 @@ from custom_components.metservice_weather.const import (
     CONF_AUTO_HIDE_SEASONAL,
 )
 from custom_components.metservice_weather.helpers import normalize_location_path
+from tests.conftest import MOCK_MARINE_RESPONSE
 from custom_components.metservice_weather.config_flow import (
     CONF_CUSTOM_LOCATION,
     CONF_MARINE_REGION,
@@ -957,3 +958,110 @@ async def test_fetch_locations_failure_returns_empty():
     session = MagicMock()
     session.get = AsyncMock(side_effect=Exception("network error"))
     assert await async_fetch_locations(session) == []
+
+
+_NORTHLAND_TIDE_URL = (
+    "https://www.metservice.com/publicData/webdata"
+    "/marine/regions/northland/tides/locations/whangarei"
+)
+
+
+def _northland_marine_entry():
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-/towns-cities/regions/northland/locations/whangarei",
+        data={
+            CONF_NAME: "Whangarei",
+            CONF_LOCATION: "/towns-cities/regions/northland/locations/whangarei",
+            "api": "public",
+            "marine_region": "marine/regions/northland",
+            "tide_url": _NORTHLAND_TIDE_URL,
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    return entry
+
+
+async def test_reconfigure_keeps_marine_settings_when_marine_index_fails(
+    hass, mock_coordinator_refresh
+):
+    """With the marine index down, only "skip" is offered, so the stored marine settings stay."""
+    entry = _northland_marine_entry()
+    entry.add_to_hass(hass)
+
+    session_mock = MagicMock()
+    session_mock.get = AsyncMock(side_effect=Exception("marine index down"))
+    with patch(
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
+        return_value=session_mock,
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={
+                "source": config_entries.SOURCE_RECONFIGURE,
+                "entry_id": entry.entry_id,
+            },
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_NAME: "Whangarei",
+                CONF_LOCATION: "/towns-cities/regions/northland/locations/whangarei",
+                CONF_MARINE_REGION: "skip",
+                SECTION_ADVANCED_OPTIONS: {},
+            },
+        )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data["marine_region"] == "marine/regions/northland"
+    assert entry.data["tide_url"] == _NORTHLAND_TIDE_URL
+
+
+async def test_reconfigure_keeps_station_when_its_list_fails(
+    hass, mock_coordinator_refresh
+):
+    """A tide list that fails to load leaves the stored tide station alone in the same region."""
+    entry = _northland_marine_entry()
+    entry.add_to_hass(hass)
+
+    marine_resp = AsyncMock()
+    marine_resp.json = AsyncMock(return_value=MOCK_MARINE_RESPONSE)
+    marine_resp.status = 200
+    empty_resp = AsyncMock()
+    empty_resp.json = AsyncMock(
+        return_value={"layout": {"primary": {"map": {"modules": [], "markers": []}}}}
+    )
+    empty_resp.status = 200
+
+    session_mock = MagicMock()
+    session_mock.get = AsyncMock(
+        side_effect=[marine_resp, Exception("tide list down"), empty_resp, empty_resp]
+    )
+    with patch(
+        "custom_components.metservice_weather.config_flow.async_get_clientsession",
+        return_value=session_mock,
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={
+                "source": config_entries.SOURCE_RECONFIGURE,
+                "entry_id": entry.entry_id,
+            },
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_NAME: "Whangarei",
+                CONF_LOCATION: "/towns-cities/regions/northland/locations/whangarei",
+                CONF_MARINE_REGION: "Northland",
+                SECTION_ADVANCED_OPTIONS: {},
+            },
+        )
+        assert result["step_id"] == "locations"
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data["tide_url"] == _NORTHLAND_TIDE_URL
