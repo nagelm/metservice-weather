@@ -18,3 +18,4 @@ venv/
 *.credentials.md
 .env
 secrets.yaml
+/config/

@@ -15,13 +15,17 @@ jobs:
       contents: write
     steps:
       - name: "Checkout the repository"
-        uses: "actions/checkout@v7.0.1"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: "Adjust version number"
         shell: "bash"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"
+          VERSION="${TAG#v}"
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([ab][0-9]+)?$ ]] || { echo "Unexpected tag: ${TAG}"; exit 1; }
           yq -i -o json ".version=\"${VERSION}\"" \
             "${{ github.workspace }}/custom_components/metservice_weather/manifest.json"
 
@@ -32,6 +36,6 @@ jobs:
           zip metservice_weather.zip -r ./
 
       - name: "Upload the ZIP file to the release"
-        uses: softprops/action-gh-release@v3.0.3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: ${{ github.workspace }}/custom_components/metservice_weather/metservice_weather.zip
