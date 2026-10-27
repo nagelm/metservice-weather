@@ -7,6 +7,7 @@ from datetime import timedelta
 import logging
 import re
 import asyncio
+from typing import Any
 
 import aiohttp
 
@@ -22,6 +23,8 @@ from homeassistant.const import (
 
 from .const import (
     BASE_URL,
+    PUBLIC_HEADERS,
+    REQUEST_TIMEOUT,
     TEMPUNIT,
     LENGTHUNIT,
     SPEEDUNIT,
@@ -124,38 +127,38 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 return match.group(1)
         return ""
 
-    _PUBLIC_HEADERS: dict[str, str] = {
-        "Accept-Encoding": "gzip",
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
-        ),
-    }
-
     async def _async_update_data(self) -> MetServicePublicData:
         """Fetch data from API."""
         return await self.get_public_weather()
 
+    async def _async_fetch_required_json(self, url: str, what: str) -> Any:
+        """GET a required MetService page and return its JSON body.
+
+        A non-200 reply, an empty body or a MetService errors list raises ValueError.
+        """
+        async with asyncio.timeout(REQUEST_TIMEOUT):
+            response = await self._session.get(url, headers=PUBLIC_HEADERS)
+            if response.status != 200:
+                raise ValueError(f"HTTP {response.status} from {url}")
+            result = await response.json(content_type=None)
+        if result is None:
+            raise ValueError(f"No {what} data received.")
+        self._check_errors(url, result)
+        return result
+
     async def get_public_weather(self):
         """Get weather data from public API."""
-        headers = self._PUBLIC_HEADERS
         try:
-            async with asyncio.timeout(10):
-                url = f"{self._api_url}{self.location}"
-                _LOGGER.debug("Fetching MetService public data from %s", url)
-                response = await self._session.get(url, headers=headers)
-                result_current = await response.json(content_type=None)
-                if result_current is None:
-                    raise ValueError("No current weather data received.")
-                self._check_errors(url, result_current)
+            url = f"{self._api_url}{self.location}"
+            _LOGGER.debug("Fetching MetService public data from %s", url)
+            result_current = await self._async_fetch_required_json(
+                url, "current weather"
+            )
             await self.expand_data_urls(result_current)
-            async with asyncio.timeout(10):
-                url = f"{self._warnings_url}/{result_current['location']['type']}/{result_current['location']['key']}"
-                response = await self._session.get(url, headers=headers)
-                result_warnings = await response.json(content_type=None)
-                if result_warnings is None:
-                    raise ValueError("No warnings data received.")
-                self._check_errors(url, result_warnings)
+            result_warnings = await self._async_fetch_required_json(
+                f"{self._warnings_url}/{result_current['location']['type']}/{result_current['location']['key']}",
+                "warnings",
+            )
             await self.expand_data_urls(result_warnings)
             structured = [
                 {
@@ -165,13 +168,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 }
                 for warning in result_warnings.get("warnings", [])
             ]
-            async with asyncio.timeout(10):
-                url = f"{self._api_url}{self.location}/7-days"
-                response = await self._session.get(url, headers=headers)
-                result_daily = await response.json(content_type=None)
-                if result_daily is None:
-                    raise ValueError("No daily forecast data received.")
-                self._check_errors(url, result_daily)
+            result_daily = await self._async_fetch_required_json(
+                f"{self._api_url}{self.location}/7-days", "daily forecast"
+            )
             await self.expand_data_urls(result_daily)
             result_current["warnings_list"] = structured
             result_current["pollen"] = await self.get_pollen_data()
@@ -222,10 +221,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     async def get_tides(self):
         """Get tides data. Returns None if unavailable rather than raising."""
         try:
-            async with asyncio.timeout(10):
+            async with asyncio.timeout(REQUEST_TIMEOUT):
                 url = self._tide_url
                 _LOGGER.info("Fetching tides data from %s", url)
-                response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
+                response = await self._session.get(url, headers=PUBLIC_HEADERS)
                 if response.status != 200:
                     _LOGGER.warning(
                         "Tides endpoint returned HTTP %s — tides data will be unavailable",
@@ -271,10 +270,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     async def get_boating_data(self) -> dict:
         """Get boating/surf conditions. Returns empty dict if unavailable."""
         try:
-            async with asyncio.timeout(10):
+            async with asyncio.timeout(REQUEST_TIMEOUT):
                 url = self._boating_url
                 _LOGGER.info("Fetching boating data from %s", url)
-                response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
+                response = await self._session.get(url, headers=PUBLIC_HEADERS)
                 if response.status != 200:
                     _LOGGER.warning(
                         "Boating endpoint returned HTTP %s — boating data unavailable",
@@ -321,10 +320,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             location_path = self._surf_url.split("publicData/webdata")[-1]
 
             _LOGGER.info("Fetching surf data from %s", regional_url)
-            async with asyncio.timeout(10):
-                response = await self._session.get(
-                    regional_url, headers=self._PUBLIC_HEADERS
-                )
+            async with asyncio.timeout(REQUEST_TIMEOUT):
+                response = await self._session.get(regional_url, headers=PUBLIC_HEADERS)
                 if response.status != 200:
                     _LOGGER.warning(
                         "Surf endpoint returned HTTP %s — surf data unavailable",
@@ -408,10 +405,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         """Fetch pollen/allergen data from MetService allergens endpoint."""
         empty = {"groups": []}
         try:
-            async with asyncio.timeout(10):
+            async with asyncio.timeout(REQUEST_TIMEOUT):
                 url = f"{self._api_url}{self._location}/airborne-allergens"
                 _LOGGER.debug("Fetching pollen data from %s", url)
-                response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
+                response = await self._session.get(url, headers=PUBLIC_HEADERS)
                 if response.status != 200:
                     _LOGGER.debug(
                         "Pollen endpoint returned HTTP %s — pollen data unavailable",
@@ -444,8 +441,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         if "errors" not in response:
             return
         if errors := response["errors"]:
-            error_messages = "; ".join([e["message"] for e in errors])
-            raise ValueError(f"Error from {url}: {error_messages}")
+            error_messages = "; ".join(
+                str(e["message"])
+                for e in errors
+                if isinstance(e, dict) and e.get("message")
+            )
+            if error_messages:
+                raise ValueError(f"Error from {url}: {error_messages}")
+            raise ValueError(f"Error from {url}")
 
     def get_from_dict(self, data_dict, map_list):
         """Recursively look for a given key path within a dictionary."""
@@ -492,9 +495,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         parent[key] = None
                     return
                 try:
-                    async with asyncio.timeout(10):
+                    async with asyncio.timeout(REQUEST_TIMEOUT):
                         response = await self._session.get(
-                            full_url, headers=self._PUBLIC_HEADERS
+                            full_url, headers=PUBLIC_HEADERS
                         )
                         if response.status != 200:
                             _LOGGER.warning(
