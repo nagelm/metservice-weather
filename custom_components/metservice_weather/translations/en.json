@@ -18,7 +18,7 @@
           "advanced_options": {
             "name": "Advanced",
             "data": {
-              "auto_hide_seasonal": "Automatically disable sensors while MetService publishes no data",
+              "auto_hide_seasonal": "Automatically disable sensors when they are seasonally unavailable",
               "custom_location": "Custom location"
             },
             "data_description": {
