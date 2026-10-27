@@ -38,13 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _warn_once(logged: set[str], category: str, raw: str) -> None:
-    """Log one warning per runtime per unmapped raw value in a category.
-
-    HA raises if an ENUM sensor reports a state outside its declared
-    `options`, so every raw-value → enum mapping in this module must fall
-    back to None on an unrecognised value instead of passing it through —
-    this is the shared "tell us about it once" side effect for that path.
-    """
+    """Log one warning per runtime per unmapped raw value in a category."""
     if raw in logged:
         return
     logged.add(raw)
@@ -57,11 +51,7 @@ def _warn_once(logged: set[str], category: str, raw: str) -> None:
 
 
 def _next_tide_entry(data: list | None, tide_type: str) -> dict | None:
-    """Return the next-upcoming tide entry dict of the given type, or None.
-
-    Shared by the tide sensors' value_fn (via _next_tide_time) and attr_fn
-    (_tide_attrs) so the selected entry can never diverge between the two.
-    """
+    """Return the next-upcoming tide entry dict of the given type, or None."""
     if not isinstance(data, list):
         return None
     now = dt_util.utcnow()
@@ -105,11 +95,7 @@ def _next_tide_event(data: list | None) -> dict | None:
 
 
 def _tide_direction_state(tides: list | None) -> str | None:
-    """Direction the tide is moving: next event HIGH means rising, LOW falling.
-
-    None (unknown) when the day's table is exhausted, absent, or the next
-    entry has an unrecognised type.
-    """
+    """Direction the tide is moving: next event HIGH means rising, LOW falling."""
     entry = _next_tide_event(tides)
     if entry is None:
         return None
@@ -117,11 +103,7 @@ def _tide_direction_state(tides: list | None) -> str | None:
 
 
 def _tide_table_attr(data: Any) -> dict[str, Any]:
-    """Full-day tide table for the opt-in carrier sensor.
-
-    Excluded from the recorder via WeatherSensor._unrecorded_attributes —
-    the UI and templates see it live, the database never stores it.
-    """
+    """Full-day tide table for the opt-in carrier sensor."""
     if not isinstance(data.tides, list) or not data.tides:
         return {}
     return {
@@ -134,14 +116,7 @@ def _tide_table_attr(data: Any) -> dict[str, Any]:
 
 
 def _warning_severity(name: str) -> int:
-    """Rank a MetService warning name: Red > Orange > other Warning > Watch.
-
-    Rank 1 ("other Warning") is a fallback bucket, not a real MetService
-    tier: the official severe-weather scale is Watch → Orange → Red only.
-    Names that say "warning" without a colour word (road/frost/marine
-    products from the rural warnings feed) land here so they outrank a
-    Watch without claiming Orange status. See the README's warnings notes.
-    """
+    """Rank a MetService warning name: Red > Orange > other Warning > Watch."""
     lowered = name.lower()
     if "red" in lowered:
         return 3
@@ -153,13 +128,7 @@ def _warning_severity(name: str) -> int:
 
 
 def _warnings_severity_number(data: Any) -> int:
-    """Numeric severity: 0 none / 1 watch / 2 warning / 3 orange / 4 red.
-
-    One above the _warning_severity rank of the most severe active warning,
-    reserving 0 for quiet. Carried as warning_level's severity_level
-    attribute so numeric_state triggers ("above: 2" = orange or worse) can
-    order what the ENUM's string states cannot.
-    """
+    """Numeric severity: 0 none / 1 watch / 2 warning / 3 orange / 4 red."""
     warnings = data.warnings_list
     if not warnings:
         return 0
@@ -167,12 +136,7 @@ def _warnings_severity_number(data: Any) -> int:
 
 
 def _warnings_state(data: Any) -> str:
-    """Most severe warning name, with a (+N more) suffix when several are active.
-
-    Used as the "headline" attribute on the warning_level ENUM sensor — kept
-    as its own helper (rather than inlined) so its 255-char truncation stays
-    independently testable.
-    """
+    """Most severe warning name, with a (+N more) suffix when several are active."""
     warnings = data.warnings_list
     if not warnings:
         return "No warnings"
@@ -201,10 +165,6 @@ def _warnings_enum_state(data: Any) -> str:
     return _WARNING_ENUM_BY_RANK[top_rank]
 
 
-# ---------------------------------------------------------------------------
-# UV alert level
-# ---------------------------------------------------------------------------
-
 _UV_ALERT_LEVEL_MAP: dict[str, str] = {
     "low": "low",
     "moderate": "moderate",
@@ -212,9 +172,6 @@ _UV_ALERT_LEVEL_MAP: dict[str, str] = {
     "very high": "very_high",
     "extreme": "extreme",
 }
-# In-season labels that embed a time ("Dangerous today from 9:55 AM") or a
-# day ("Not dangerous until tomorrow") are matched by prefix. Order matters:
-# the more specific "dangerous today from" must be tried before "dangerous".
 _UV_ALERT_LEVEL_PREFIXES: tuple[tuple[str, str], ...] = (
     ("not dangerous", "not_dangerous"),
     ("dangerous today from", "dangerous_later"),
@@ -256,12 +213,7 @@ def _uv_alert_level_state(raw: str | None) -> str | None:
 
 
 def _uv_attrs(data: Any) -> dict[str, StateType]:
-    """Return UV detail attributes, populated only when the state itself mapped.
-
-    status_class is the one upstream field independent of the state's source
-    label; its in-season vocabulary is unverified, so it stays exposed until
-    a summer capture shows whether it carries anything the state doesn't.
-    """
+    """Return UV detail attributes, populated only when the state itself mapped."""
     if _uv_alert_level_state(data.uv_alert_level) is None:
         return {}
     return {
@@ -273,10 +225,6 @@ def _uv_attrs(data: Any) -> dict[str, StateType]:
         "has_alert": data.uv_has_alert,
     }
 
-
-# ---------------------------------------------------------------------------
-# Pressure tendency trend
-# ---------------------------------------------------------------------------
 
 _PRESSURE_TREND_OPTIONS = ["rising", "falling", "stable"]
 _UNKNOWN_PRESSURE_TREND_LOGGED: set[str] = set()
@@ -293,13 +241,6 @@ def _pressure_trend_state(raw: str | None) -> str | None:
     return None
 
 
-# ---------------------------------------------------------------------------
-# Wind strength
-# ---------------------------------------------------------------------------
-
-# Live MetService values observed to date: "Light winds", "Moderate", "Fresh".
-# The remaining entries are the plausible rest of MetService's Beaufort-style
-# scale, included defensively; unknown raw values warn once and read unknown.
 _WIND_STRENGTH_MAP: dict[str, str] = {
     "calm": "calm",
     "light winds": "light_winds",
@@ -334,10 +275,6 @@ def _wind_strength_state(raw: str | None) -> str | None:
     return mapped
 
 
-# ---------------------------------------------------------------------------
-# Fire season / fire danger
-# ---------------------------------------------------------------------------
-
 _FIRE_SEASON_OPTIONS = ["open", "restricted", "prohibited"]
 _UNKNOWN_FIRE_SEASON_LOGGED: set[str] = set()
 
@@ -370,9 +307,6 @@ def _fire_danger_state(index: int | None, label: str | None) -> str | None:
     if index is not None:
         mapped = _FIRE_DANGER_INDEX_MAP.get(index)
         if mapped is not None:
-            # The state comes from the index; the label is expected to mirror
-            # it. If NIWA ever pairs a richer wording with a known index the
-            # enum would silently drop it — warn so it gets reported instead.
             if (
                 label
                 and label.strip().lower().replace(" ", "_") != mapped
@@ -399,10 +333,6 @@ def _fire_danger_state(index: int | None, label: str | None) -> str | None:
     return None
 
 
-# ---------------------------------------------------------------------------
-# Moon phase
-# ---------------------------------------------------------------------------
-
 _MOON_PHASE_ENUM_MAP: dict[str, str] = {
     "NEW": "new",
     "FIRST": "first_quarter",
@@ -411,9 +341,6 @@ _MOON_PHASE_ENUM_MAP: dict[str, str] = {
 }
 _UNKNOWN_MOON_PHASE_LOGGED: set[str] = set()
 
-# HA core's moon-phase ENUM vocabulary, used by the moon_phase_current
-# sensor. Values are derived in the normalizer (coordinator_types.py); this
-# module only declares them as the ENUM sensor's options.
 _MOON_PHASE_CURRENT_OPTIONS = [
     "new_moon",
     "waxing_crescent",
@@ -427,11 +354,7 @@ _MOON_PHASE_CURRENT_OPTIONS = [
 
 
 def _moon_phase_enum_state(raw: str | None) -> str | None:
-    """Map the raw NEW/FIRST/FULL/LAST phase token to its ENUM state.
-
-    The API publishes only the next principal phase event, so these four
-    tokens are the entire vocabulary; anything else is unrecognised.
-    """
+    """Map the raw NEW/FIRST/FULL/LAST phase token to its ENUM state."""
     if not raw:
         return None
     mapped = _MOON_PHASE_ENUM_MAP.get(raw)
@@ -441,18 +364,8 @@ def _moon_phase_enum_state(raw: str | None) -> str | None:
     return mapped
 
 
-# ---------------------------------------------------------------------------
-# Long free-text states
-# ---------------------------------------------------------------------------
-
-
 def _long_text_state(text: str | None, fallback: str | None = None) -> str | None:
-    """Fit MetService prose into HA's 255-character state limit.
-
-    Longer text is cut to 252 characters plus "..." — HA would otherwise
-    reject the state and fall back to unknown. _full_text_attr carries the
-    untruncated original alongside (GH #50).
-    """
+    """Fit MetService prose into HA's 255-character state limit."""
     if isinstance(text, str) and len(text) > MAX_LENGTH_STATE_STATE:
         return f"{text[: MAX_LENGTH_STATE_STATE - 3]}..."
     return text or fallback
@@ -502,16 +415,8 @@ class WeatherSensorEntityDescription(SensorEntityDescription, WeatherRequiredKey
         default=lambda _: {}
     )
     unit_fn: Callable[[bool], str | None] = field(default=lambda _: None)
-    # Receives the WeatherUpdateCoordinator; return False to skip creating
-    # this entity for the configured location.
     exists_fn: Callable[[Any], bool] = field(default=lambda _: True)
-    # Seasonal products are server-stripped part of the year; never
-    # structurally gated via exists_fn.
     seasonal: bool = False
-    # Which device registry entry this sensor is grouped under: "location"
-    # (default) is the town/rural page device; "marine" is the separate
-    # device for tide/boating/surf sensors, which describe the selected
-    # marine region rather than the town. See entity.py's MetServiceEntity.
     device: str = "location"
 
 
@@ -636,7 +541,6 @@ current_condition_sensor_descriptions_public = [
         unit_fn=lambda _: UnitOfPrecipitationDepth.MILLIMETERS,
         value_fn=lambda data, _: _safe_float(data.rainfall),
     ),
-    # --- Rain windows (summed from the forecast hourly slice) ---
     WeatherSensorEntityDescription(
         key="rain_next_8_hours",
         translation_key="rain_next_8_hours",
@@ -670,11 +574,6 @@ current_condition_sensor_descriptions_public = [
             if isinstance(data.next_rain_at, str)
             else None
         ),
-        # precision says how exact the timestamp is ("hour" from the hourly
-        # series, "day" from the daily-forecast fallback). outlook makes the
-        # empty case explicit: an unknown state with outlook
-        # "no_rain_expected" means the whole forecast horizon is dry, not
-        # that the data is missing.
         attr_fn=lambda data: {
             **(
                 {"precision": data.next_rain_precision}
@@ -733,11 +632,6 @@ current_condition_sensor_descriptions_public = [
         device_class=SensorDeviceClass.ENUM,
         options=["none", "watch", "warning", "orange", "red"],
         value_fn=lambda data, _: _warnings_enum_state(data),
-        # severity_level is the enum state as an ordered number (GH #32):
-        # ENUM states carry no ordering, so "orange or worse" automations
-        # use a numeric_state trigger on this attribute ("above: 2"). It
-        # changes only when the state does, so it costs no extra recorder
-        # writes — the attribute row was being rewritten anyway.
         attr_fn=lambda data: {
             "headline": _warnings_state(data),
             "count": len(data.warnings_list),
@@ -748,13 +642,6 @@ current_condition_sensor_descriptions_public = [
         key="warning_details",
         translation_key="warning_details",
         name="Warning details",
-        # Carrier for the structured warning payload (full text, no
-        # truncation, for notification automations and cards). The list is
-        # excluded from the recorder via WeatherSensor._unrecorded_attributes,
-        # so keeping it enabled costs no database growth. Enabled by default
-        # since 2026.9 (GH issue #32 — migrating users couldn't find the
-        # warning text while this was opt-in); installs that registered it
-        # disabled under an earlier version keep their existing registry row.
         value_fn=lambda data, _: len(data.warnings_list),
         attr_fn=lambda data: {"active_warnings": data.warnings_list},
     ),
@@ -843,8 +730,6 @@ current_condition_sensor_descriptions_public = [
         key="tide_direction",
         translation_key="tide_direction",
         name="Tide direction",
-        # Opt-in carrier for the full-day tide table; its own state is the
-        # direction the tide is moving (next event HIGH = rising).
         entity_registry_enabled_default=False,
         exists_fn=_tides_enabled,
         device="marine",
@@ -872,7 +757,6 @@ current_condition_sensor_descriptions_public = [
         value_fn=lambda data, _: _long_text_state(data.boating_forecast),
         attr_fn=lambda data: _full_text_attr(data.boating_forecast),
     ),
-    # --- Surf (from regional surf page marker data) ---
     WeatherSensorEntityDescription(
         key="surf_conditions",
         translation_key="surf_conditions",
@@ -984,7 +868,6 @@ current_condition_sensor_descriptions_public = [
         unit_fn=lambda _: "s",
         value_fn=lambda data, _: _safe_int(data.surf_period),
     ),
-    # --- Wind and clothing (from currentConditions module) ---
     WeatherSensorEntityDescription(
         key="wind_strength_level",
         translation_key="wind_strength_level",
@@ -1022,16 +905,6 @@ current_condition_sensor_descriptions_public = [
         key="condition_today",
         translation_key="condition_today",
         name="Condition today",
-        # State is MetService's raw condition token verbatim (few-showers,
-        # fine, partly-cloudy-night, ...), NOT the HA-mapped value the
-        # weather entity reports — custom cards use it to render the icon
-        # MetService actually draws. Tokens keep their -night variants, so
-        # the state flips at dawn/dusk by design. daily_conditions carries
-        # the same pre-mapping token for each 7-day forecast day; it is
-        # date-keyed because entry 0 can lag the wall-clock date by up to
-        # one poll after midnight — consumers must match on date, never on
-        # index. The list is excluded from the recorder via
-        # WeatherSensor._unrecorded_attributes.
         value_fn=lambda data, _: cast(str, data.condition) if data.condition else None,
         attr_fn=lambda data: {
             "daily_conditions": [
@@ -1044,7 +917,6 @@ current_condition_sensor_descriptions_public = [
             ]
         },
     ),
-    # --- Tomorrow's forecast (injected from 7-day data) ---
     WeatherSensorEntityDescription(
         key="tomorrow_condition",
         translation_key="tomorrow_condition",
@@ -1084,7 +956,6 @@ current_condition_sensor_descriptions_public = [
         value_fn=lambda data, _: _long_text_state(data.tomorrow_description),
         attr_fn=lambda data: _full_text_attr(data.tomorrow_description),
     ),
-    # --- Sub-day condition breakdown (from twoDayForecast module) ---
     WeatherSensorEntityDescription(
         key="breakdown_morning",
         translation_key="breakdown_morning",
@@ -1121,7 +992,6 @@ current_condition_sensor_descriptions_public = [
             cast(str, data.breakdown_overnight) if data.breakdown_overnight else None
         ),
     ),
-    # --- Sun and moon (from sunAndMoon module) ---
     WeatherSensorEntityDescription(
         key="sunrise_at",
         translation_key="sunrise_at",
@@ -1177,9 +1047,6 @@ current_condition_sensor_descriptions_public = [
         device_class=SensorDeviceClass.ENUM,
         options=_MOON_PHASE_CURRENT_OPTIONS,
         value_fn=lambda data, _: data.moon_phase_current,
-        # The state is derived from MetService's next principal-phase event,
-        # so that event (token + timestamp) rides along as explanatory
-        # attributes; sparse when the upstream record is absent/unmapped.
         attr_fn=lambda data: {
             **(
                 {"next_phase": _moon_phase_enum_state(data.moon_phase)}

@@ -1,12 +1,4 @@
-"""Tests for the auto_hide_seasonal onboarding option (sensor.py gating).
-
-CONF_AUTO_HIDE_SEASONAL used to remove seasonal sensors' registry rows
-outright while MetService published no data for them. It now disables +
-hides those rows instead (keeping history/settings), pre-creating them
-born disabled+hidden on a fresh install, and re-enabling + live-adding them
-via a coordinator listener once data resumes — see sensor.py's
-async_setup_entry docstring for the full mechanism.
-"""
+"""Tests for the auto_hide_seasonal onboarding option (sensor.py gating)."""
 
 from __future__ import annotations
 
@@ -28,21 +20,11 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     current_condition_sensor_descriptions_public,
 )
 
-# The six descriptions the spec marks seasonal — pulled from the live
-# descriptions list so this stays in sync with weather_current_conditions_sensors.py.
-# (Prior to v2026.9.0 this also included the three now-removed deprecated
-# seasonal keys uvIndex/fire_season/fire_danger — see DEPRECATED_SENSOR_REPLACEMENTS
-# in deprecation.py for the removal history.)
 SEASONAL_KEYS = {
     d.key for d in current_condition_sensor_descriptions_public if d.seasonal
 }
 
 LOCATION = "/towns-cities/regions/hawkes-bay/locations/napier"
-
-
-# ---------------------------------------------------------------------------
-# Helper: minimal coordinator with pre-loaded data (mirrors test_sensor.py)
-# ---------------------------------------------------------------------------
 
 
 def _make_coordinator(hass) -> WeatherUpdateCoordinator:
@@ -78,33 +60,14 @@ def _make_entry(*, auto_hide_seasonal: bool) -> MockConfigEntry:
 
 
 async def _cleanup_listeners(hass, entry: MockConfigEntry) -> None:
-    """Run any entry.async_on_unload callbacks registered during setup.
-
-    async_setup_entry registers a coordinator listener (and therefore
-    schedules a DataUpdateCoordinator refresh timer) whenever a seasonal
-    sensor ends up stamped. These tests call async_setup_entry directly
-    rather than through the full config entry lifecycle, so nothing else
-    would cancel that timer — and pytest_homeassistant_custom_component
-    fails the test on any timer left on the event loop afterwards.
-    """
+    """Run any entry.async_on_unload callbacks registered during setup."""
     await entry._async_process_on_unload(hass)
 
 
 async def _async_setup_full(
     hass, entry: MockConfigEntry, data: MetServicePublicData
 ) -> WeatherUpdateCoordinator:
-    """Run the real config-entry setup (coordinator + weather + sensor platforms).
-
-    Only used by tests that need genuine entity-platform behaviour —
-    specifically, whether a disabled registry row keeps its entity out of
-    the state machine, and whether a re-enabled one goes live without a
-    restart. That requires a real AddEntitiesCallback, which the plain
-    list-capturing callback the other tests use here does not provide.
-
-    _async_update_data (not async_config_entry_first_refresh, unlike
-    test_init.py) is patched so the coordinator's `.data` ends up holding
-    exactly the MetServicePublicData passed in, with no real network I/O.
-    """
+    """Run the real config-entry setup (coordinator + weather + sensor platforms)."""
     entry.add_to_hass(hass)
     with patch.object(
         WeatherUpdateCoordinator,
@@ -117,24 +80,12 @@ async def _async_setup_full(
     return entry.runtime_data
 
 
-# ---------------------------------------------------------------------------
-# (regression) option ON, row previously DELETED by the old remove-outright
-# behaviour — HA restores the deleted snapshot's enabled/visible flags over
-# async_get_or_create's creation kwargs, so the disable must be applied
-# explicitly after creation. This is the exact upgrade path of any install
-# that ever ran the option under its old semantics.
-# ---------------------------------------------------------------------------
-
-
 async def test_option_on_row_recreated_from_deleted_snapshot_ends_disabled(hass):
     """A row restored from a deleted (enabled) snapshot still ends disabled+hidden+stamped."""
     entry = _make_entry(auto_hide_seasonal=True)
     ent_reg = er.async_get(hass)
     unique_id = f"{LOCATION}_drying_index_morning".lower()
 
-    # Simulate the old behaviour: the row existed enabled+visible, then was
-    # removed — leaving a deleted snapshot that async_get_or_create will
-    # restore (flags included) when the unique_id comes back.
     pre = ent_reg.async_get_or_create(
         "sensor", DOMAIN, unique_id, suggested_object_id="napier_drying_morning"
     )
@@ -182,11 +133,6 @@ async def test_option_on_user_disabled_deleted_snapshot_stays_user_owned(hass):
     await hass.async_block_till_done()
 
 
-# ---------------------------------------------------------------------------
-# Sanity: exactly the nine documented descriptions are marked seasonal
-# ---------------------------------------------------------------------------
-
-
 def test_exactly_six_seasonal_descriptions_marked():
     """UV/fire_season/fire_danger's replacement sensors, plus drying_*, are marked seasonal (6 total)."""
     assert {
@@ -197,11 +143,6 @@ def test_exactly_six_seasonal_descriptions_marked():
         "drying_index_afternoon",
         "drying_next_good_day",
     } == SEASONAL_KEYS
-
-
-# ---------------------------------------------------------------------------
-# (a) option OFF + no data — seasonal sensors are still created (regression)
-# ---------------------------------------------------------------------------
 
 
 async def test_option_off_creates_seasonal_sensors_without_data(hass):
@@ -222,29 +163,16 @@ async def test_option_off_creates_seasonal_sensors_without_data(hass):
     assert SEASONAL_KEYS.issubset(keys)
 
 
-# ---------------------------------------------------------------------------
-# (a2) option ON, seasonal descriptions gated independently by data —
-#      one with data stays untouched, the rest (still dataless) get
-#      disabled+hidden+stamped
-# ---------------------------------------------------------------------------
-
-
 async def test_option_on_gates_each_seasonal_description_independently(hass):
     """Only the currently-dataless seasonal descriptions are disabled; one with data is left alone."""
     entry = _make_entry(auto_hide_seasonal=True)
     entry.add_to_hass(hass)
     coord = _make_coordinator(hass)
-    # uv_risk's value_fn reads uv_alert_level (mapped through the ENUM
-    # mapping) — give it data so it's the one description NOT dataless
-    # this run; every other seasonal description stays dataless.
     coord.data = MetServicePublicData(uv_alert_level="Moderate")
     entry.runtime_data = coord
     loc = coord.location
 
     ent_reg = er.async_get(hass)
-    # Pre-create uv_risk's row (enabled) so there's something to observe
-    # staying untouched — the fake add_entities below never itself creates
-    # registry rows, unlike the real entity platform.
     uv_risk = ent_reg.async_get_or_create(
         "sensor", DOMAIN, f"{loc}_uv_risk".lower(), config_entry=entry
     )
@@ -280,21 +208,8 @@ async def test_option_on_gates_each_seasonal_description_independently(hass):
     await _cleanup_listeners(hass, entry)
 
 
-# ---------------------------------------------------------------------------
-# (b) option ON + no data, pre-existing enabled row — the row is disabled
-#     + hidden + stamped instead of removed, and the sensor stays out of
-#     the state machine
-# ---------------------------------------------------------------------------
-
-
 async def test_option_on_dataless_seasonal_disables_existing_row(hass):
-    """A dataless seasonal sensor's existing row is disabled+hidden+stamped, not removed.
-
-    Home Assistant's real entity platform never instantiates an entity
-    whose registry row is already disabled, so the entity stays out of the
-    state machine — but its row survives (unlike the old remove-outright
-    behaviour), keeping history/settings intact for when data resumes.
-    """
+    """A dataless seasonal sensor's existing row is disabled+hidden+stamped, not removed."""
     entry = _make_entry(auto_hide_seasonal=True)
     entry.add_to_hass(hass)
 
@@ -325,12 +240,6 @@ async def test_option_on_dataless_seasonal_disables_existing_row(hass):
     await hass.async_block_till_done()
 
 
-# ---------------------------------------------------------------------------
-# (c) option ON + no data, no pre-existing row — a fresh install (or one an
-#     old remove-outright install left with no row) is born disabled+hidden
-# ---------------------------------------------------------------------------
-
-
 async def test_option_on_dataless_seasonal_fresh_install_born_disabled(hass):
     """A dataless seasonal sensor with no prior registry row is created born disabled+hidden+stamped."""
     entry = _make_entry(auto_hide_seasonal=True)
@@ -357,29 +266,14 @@ async def test_option_on_dataless_seasonal_fresh_install_born_disabled(hass):
     assert reg_entry.hidden_by == er.RegistryEntryHider.INTEGRATION
     assert reg_entry.options.get(DOMAIN, {}).get("seasonal_disabled") is True
 
-    # The stale-registry cleanup must never have touched this unique_id —
-    # it's still expected (built into `sensors`) even though it's dataless.
     keys = {s.entity_description.key for s in added}
     assert "drying_index_morning" in keys
 
     await _cleanup_listeners(hass, entry)
 
 
-# ---------------------------------------------------------------------------
-# (d) data resumes — row re-enabled, unhidden, unstamped, added live; a
-#     pre-existing unrelated sweep stamp on the same row survives; firing
-#     the listener again is a no-op
-# ---------------------------------------------------------------------------
-
-
 async def test_option_on_resume_re_enables_and_adds_live(hass):
-    """Data resuming clears disabled_by/hidden_by, drops the stamp, and adds the sensor live.
-
-    A pre-existing {"swept": "hidden"} key in the same row's DOMAIN options
-    (simulating the deprecation sweep having separately touched this row)
-    must survive both the initial stamp and its later removal — proving
-    the merge helper never clobbers keys it doesn't own.
-    """
+    """Data resuming clears disabled_by/hidden_by, drops the stamp, and adds the sensor live."""
     entry = _make_entry(auto_hide_seasonal=True)
     entry.add_to_hass(hass)
 
@@ -404,7 +298,6 @@ async def test_option_on_resume_re_enables_and_adds_live(hass):
     }
     assert hass.states.get(entity_id) is None
 
-    # Data resumes.
     coordinator.data = MetServicePublicData(uv_alert_level="Moderate")
     coordinator.async_update_listeners()
     await hass.async_block_till_done()
@@ -415,19 +308,12 @@ async def test_option_on_resume_re_enables_and_adds_live(hass):
     assert reg_entry.options[DOMAIN] == {"swept": "hidden"}
     assert hass.states.get(entity_id) is not None
 
-    # Firing again with unchanged data must be a no-op (no crash, no
-    # duplicate add — the description was already popped off the watch dict).
     coordinator.async_update_listeners()
     await hass.async_block_till_done()
     assert hass.states.get(entity_id) is not None
 
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
-
-
-# ---------------------------------------------------------------------------
-# (e) a USER-disabled seasonal row is never touched by this mechanism
-# ---------------------------------------------------------------------------
 
 
 async def test_option_on_user_disabled_seasonal_row_left_untouched(hass):
@@ -461,12 +347,6 @@ async def test_option_on_user_disabled_seasonal_row_left_untouched(hass):
     assert "seasonal_disabled" not in (reg_entry.options.get(DOMAIN) or {})
 
     await _cleanup_listeners(hass, entry)
-
-
-# ---------------------------------------------------------------------------
-# (g) option OFF at setup with a previously stamped row — restored in one
-#     pass, and the sensor is created normally
-# ---------------------------------------------------------------------------
 
 
 async def test_option_off_restores_previously_stamped_row(hass):
@@ -505,12 +385,6 @@ async def test_option_off_restores_previously_stamped_row(hass):
 
     keys = {s.entity_description.key for s in added}
     assert "uv_risk" in keys
-
-
-# ---------------------------------------------------------------------------
-# value_fn raising is treated as dataless (guarded by try/except), not
-# created and not propagated as an error out of async_setup_entry
-# ---------------------------------------------------------------------------
 
 
 async def test_option_on_seasonal_value_fn_exception_treated_as_dataless(hass):

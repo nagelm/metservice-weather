@@ -1,13 +1,4 @@
-"""Coordinator contract tests using captured MetService fixtures.
-
-These tests load the captured Napier fixtures, inject them directly into a
-coordinator instance (bypassing real network calls), then assert that each
-sensor field on MetServicePublicData is of the expected type and within a
-sane range.
-
-Run from project root (WSL):
-    pytest tests/test_coordinator_data.py -v
-"""
+"""Coordinator contract tests using captured MetService fixtures."""
 
 from __future__ import annotations
 
@@ -55,11 +46,6 @@ def rural_coord(kumeu_data):
     c = object.__new__(WeatherUpdateCoordinator)
     c.data = normalize_public_data(kumeu_data["current"], kumeu_data["daily"])
     return c
-
-
-# ---------------------------------------------------------------------------
-# Current-conditions sensors
-# ---------------------------------------------------------------------------
 
 
 class TestCurrentConditions:
@@ -131,11 +117,6 @@ class TestCurrentConditions:
         assert len(val) > 0
 
 
-# ---------------------------------------------------------------------------
-# Sub-day breakdown
-# ---------------------------------------------------------------------------
-
-
 class TestBreakdown:
     """Contract tests for the sub-day breakdown fields."""
 
@@ -152,11 +133,6 @@ class TestBreakdown:
         """Each breakdown period's condition is a string or None."""
         val = getattr(coord.data, attr)
         assert isinstance(val, str) or val is None
-
-
-# ---------------------------------------------------------------------------
-# Injected / derived fields
-# ---------------------------------------------------------------------------
 
 
 class TestInjectedFields:
@@ -203,11 +179,6 @@ class TestInjectedFields:
         assert isinstance(val, str) or val is None
 
 
-# ---------------------------------------------------------------------------
-# Pollen
-# ---------------------------------------------------------------------------
-
-
 class TestPollen:
     """Contract tests for pollen fields."""
 
@@ -220,11 +191,6 @@ class TestPollen:
         """Pollen type is a string or None."""
         val = coord.data.pollen_type
         assert isinstance(val, str) or val is None
-
-
-# ---------------------------------------------------------------------------
-# Sun / Moon
-# ---------------------------------------------------------------------------
 
 
 class TestSunMoon:
@@ -256,11 +222,6 @@ class TestSunMoon:
         assert isinstance(val, str) or val is None
 
 
-# ---------------------------------------------------------------------------
-# Fire weather
-# ---------------------------------------------------------------------------
-
-
 class TestFireWeather:
     """Contract tests for fire weather fields."""
 
@@ -273,11 +234,6 @@ class TestFireWeather:
         """Fire season is a string or None."""
         val = coord.data.fire_season
         assert isinstance(val, str) or val is None
-
-
-# ---------------------------------------------------------------------------
-# Hourly data
-# ---------------------------------------------------------------------------
 
 
 class TestHourlyData:
@@ -309,11 +265,6 @@ class TestHourlyData:
         assert isinstance(entry, HourlyEntry)
         assert entry.datetime != ""
         assert entry.temperature is not None or entry.rainfall is not None
-
-
-# ---------------------------------------------------------------------------
-# Daily forecast
-# ---------------------------------------------------------------------------
 
 
 class TestDailyForecast:
@@ -363,11 +314,6 @@ class TestDailyForecast:
             i for i, d in enumerate(coord.data.daily_entries) if d.temp_high is None
         ]
         assert not missing, f"Days missing temp_high: {missing}"
-
-
-# ---------------------------------------------------------------------------
-# Rural contract — Kumeu (no weather station, no breakdown, isRural)
-# ---------------------------------------------------------------------------
 
 
 class TestRuralContract:

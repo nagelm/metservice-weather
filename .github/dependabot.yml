@@ -1,4 +1,3 @@
-# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -13,14 +12,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 10
     groups:
-      # requirements-test.txt is a matched pair: each
-      # pytest-homeassistant-custom-component release pins one exact
-      # homeassistant version, so the two must always bump together — a
-      # lone bump of either half is pip-unresolvable (see closed PR #17).
-      # This group replaces the old blanket ignore of "homeassistant",
-      # whose hacs.json rationale conflated the CI test pin with the
-      # integration's minimum supported HA version (hacs.json governs the
-      # latter; this file only decides what CI tests against).
+      # Keep this pair matched.
       test-harness:
         patterns:
           - "homeassistant"

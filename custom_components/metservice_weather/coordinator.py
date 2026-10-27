@@ -32,8 +32,6 @@ _LOGGER = logging.getLogger(__name__)
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=20)
 
-# Matches the region slug out of a tide/boating/surf URL, e.g.
-# ".../marine/regions/kapiti-wellington/tides/locations/wellington".
 _MARINE_REGION_SLUG_RE = re.compile(r"/marine/regions/([^/]+)/")
 
 
@@ -68,10 +66,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self._surf_url = config.surf_url
         self._base_url = "https://www.metservice.com"
         self.unit_system = config.unit_system
-        # Device registry id of the town/rural location device, set by
-        # entity.async_register_location_device during entry setup. The
-        # marine device needs it for via_device_id (an id, not an
-        # identifier tuple); None until that registration has run.
         self.location_device_id: str | None = None
         self._session = async_get_clientsession(hass)
         self.units_of_measurement = {
@@ -121,15 +115,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
 
     @property
     def marine_region_slug(self) -> str:
-        """Return the marine region slug (e.g. "kapiti-wellington"), or "".
-
-        Tide, boating, and surf URLs are all built from the same
-        ``.../marine/regions/<slug>/<service>/locations/...`` path (see
-        config_flow.py's ``_finish_flow``/``_resolve_url``), so the slug is
-        parsed from whichever of the three is configured — there is no
-        separate stored field for it. Used to derive the marine device's
-        display name. Returns "" when no marine service is configured.
-        """
+        """Return the marine region slug (e.g. "kapiti-wellington"), or ""."""
         for url in (self._tide_url, self._boating_url, self._surf_url):
             if not url:
                 continue
@@ -138,7 +124,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 return match.group(1)
         return ""
 
-    # Shared headers for public API and supplementary fetches
     _PUBLIC_HEADERS: dict[str, str] = {
         "Accept-Encoding": "gzip",
         "User-Agent": (
@@ -195,22 +180,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             result_current["weather_warnings"] = warnings_text
             result_current["warnings_list"] = structured
             result_current["pollen"] = await self.get_pollen_data()
-            # tomorrow_* fields are derived inside normalize_public_data
-            # from the 7-day data — no injection needed here.
-            # Inject drying index fields by text prefix, then normalise so
-            # that all three sensors always carry a useful value:
-            #
-            # MetService has three real-world patterns:
-            #   Good day:    ["Morning: X hrs",  "Afternoon: Y hrs"]
-            #   Mixed day:   ["Morning: X hrs",  "Afternoon: Wet"]
-            #   Wet all day: ["Wet all day",      "Next good day: <day>"]
-            #
-            # After parsing:
-            #   drying_morning    — hours, "Wet", or "Wet all day"
-            #   drying_afternoon  — hours, "Wet", or "Wet all day" (copied from
-            #                       morning when MetService omits the afternoon entry)
-            #   drying_next_good_day — "Today" when either period is usable,
-            #                          day name ("Thursday") on a complete washout
             try:
                 drying_states = self.get_from_dict(
                     result_current, ["dryingIndex", "dryingState"]
@@ -230,15 +199,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                                 text.split(":", 1)[-1].strip() if ":" in text else text
                             )
                         elif text:
-                            # No recognised prefix — MetService uses bare "Wet all day"
-                            # for the morning slot on a complete washout.
                             drying_morning = text
-                    # When MetService omits the afternoon (wet-all-day case),
-                    # mirror the morning value so the sensor is never empty.
                     if drying_afternoon is None and drying_morning is not None:
                         drying_afternoon = drying_morning
-                    # When there is no "next good day" entry, today itself is
-                    # a usable drying day.
                     if drying_next_good_day is None:
                         drying_next_good_day = "Today"
                     result_current["drying_morning"] = drying_morning
@@ -280,7 +243,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     return None
                 self._check_errors(url, result_tides)
             await self.expand_data_urls(result_tides)
-            # Try multiple known path variants for the tideData key
             for path in [
                 ["layout", "primary", "slots", "main", "modules"],
                 ["layout", "primary", "slots", "left-major", "modules"],
@@ -359,17 +321,8 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             return {}
 
     async def get_surf_data(self) -> dict:
-        """Get surf conditions for the configured location.
-
-        The coordinator stores the location-specific surf URL (e.g.
-        ``…/surf/locations/waihi-beach``).  To get live data we fetch the
-        regional surf page (strip ``/locations/…``) and find the matching
-        marker, which carries current conditions directly in its ``value``
-        block.  This avoids relying on location-specific pages that return
-        HTTP 400 for some stations.
-        """
+        """Get surf conditions for the configured location."""
         try:
-            # Derive regional surf URL from the stored location URL.
             regional_url = re.sub(r"/locations/[^/]+$", "", self._surf_url.rstrip("/"))
             location_path = self._surf_url.split("publicData/webdata")[-1]
 
@@ -386,7 +339,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     return {}
                 data = await response.json(content_type=None)
 
-            # Find the marker whose link URL matches our stored location path.
             all_markers = (
                 data.get("layout", {})
                 .get("primary", {})
@@ -441,24 +393,16 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
 
     @staticmethod
     def _parse_pollen_html(html: str) -> dict:
-        """Extract pollen level, plant types and status class from allergen HTML.
-
-        status_class is MetService's site-wide severity taxonomy (good/medium/
-        bad = exposure ramp; medium-good = blue informational, used for the
-        pre-season "Imminent" notice; none = no data). It is the machine-
-        orderable signal; the level text is the display label.
-        """
+        """Extract pollen level, plant types and status class from allergen HTML."""
         level = None
         plants = None
         status_class = None
-        # Match <span class="status-...">Level</span>
         level_match = re.search(
             r'<span[^>]*class="status-([a-z-]+)"[^>]*>([^<]+)</span>', html
         )
         if level_match:
             status_class = level_match.group(1).strip()
             level = level_match.group(2).strip()
-        # Plant types appear after the closing </span> tag
         plants_match = re.search(
             r"</span>(?:<br\s*/?>|</br>)(.*?)(?:<br\s*/?>|</br>|$)", html, re.IGNORECASE
         )
@@ -467,13 +411,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         return {"level": level, "type": plants, "status_class": status_class}
 
     async def get_pollen_data(self) -> dict:
-        """Fetch pollen/allergen data from MetService allergens endpoint.
-
-        The page can carry several concurrent pollen status blocks (e.g. a
-        pre-season "Imminent" for trees alongside a "Low" for currently
-        active allergens). The first block stays the headline value; all
-        blocks are returned under "groups".
-        """
+        """Fetch pollen/allergen data from MetService allergens endpoint."""
         empty = {"pollenLevels": {"level": None, "type": None}, "groups": []}
         try:
             async with asyncio.timeout(10):
@@ -487,7 +425,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     )
                     return empty
                 result = await response.json(content_type=None)
-            # Search all modules for pollen iconWithText content blocks
             modules = (
                 result.get("layout", {})
                 .get("primary", {})
@@ -543,12 +480,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         return None
 
     async def expand_data_urls(self, data, parent=None, key=None, _depth=0):
-        """Recursively expand dataUrl entries in the data, replacing the entire object.
-
-        _depth counts only dataUrl expansion hops, not structural traversal steps,
-        so the recursion guard fires on genuinely circular/runaway URL chains rather
-        than on deeply nested but normal JSON objects.
-        """
+        """Recursively expand dataUrl entries in the data, replacing the entire object."""
         if _depth > 10:
             _LOGGER.warning("expand_data_urls: max recursion depth reached, stopping")
             return
@@ -571,8 +503,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         result = await response.json(content_type=None)
                     if parent is not None and key is not None:
                         parent[key] = result
-                    # Increment depth only when following a dataUrl hop, not during
-                    # structural traversal, so the guard catches URL expansion cycles.
                     await self.expand_data_urls(
                         result, parent=parent, key=key, _depth=_depth + 1
                     )
@@ -582,11 +512,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         parent[key] = None
             else:
                 for k in list(data.keys()):
-                    # Pass _depth unchanged — traversing dict keys is not a URL hop.
                     await self.expand_data_urls(
                         data[k], parent=data, key=k, _depth=_depth
                     )
         elif isinstance(data, list):
             for idx, item in enumerate(data):
-                # Pass _depth unchanged — traversing list items is not a URL hop.
                 await self.expand_data_urls(item, parent=data, key=idx, _depth=_depth)

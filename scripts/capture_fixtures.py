@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""Capture MetService API fixtures for coordinator contract tests.
-
-Fetches real data and saves post-expansion, post-injection coordinator
-data as JSON fixtures in tests/fixtures/.
-
-Run from the project root:
-    python scripts/capture_fixtures.py            # capture every location
-    python scripts/capture_fixtures.py kumeu      # capture one location
-
-Requires: aiohttp, async_timeout (both present in the project venv).
-"""
+"""Capture MetService API fixtures for coordinator contract tests."""
 
 import asyncio
 import json
@@ -24,9 +14,6 @@ BASE_URL = "https://www.metservice.com"
 PUBLIC_URL = f"{BASE_URL}/publicData/webdata"
 WARNINGS_URL = f"{BASE_URL}/publicData/webdata/warnings-service"
 
-# name → location path. "napier" exercises the towns-cities page shape,
-# "kumeu" the rural page shape (empty observations, regional + location
-# forecasts entries, day-level temps).
 LOCATIONS = {
     "napier": "/towns-cities/regions/hawkes-bay/locations/napier",
     "kumeu": "/rural/regions/auckland/locations/kumeu",
@@ -78,16 +65,10 @@ async def expand_data_urls(session, data, parent=None, key=None, _depth=0):
 
 
 def inject_derived_fields(result_current, result_daily):
-    """Apply the same post-fetch injections the coordinator does.
-
-    tomorrow_* fields are no longer injected — normalize_public_data
-    derives them from the 7-day data directly.
-    """
-    # Drying index parsing
+    """Apply the same post-fetch injections the coordinator does."""
     try:
         drying_states = None
 
-        # Walk result_current looking for dryingState (simplified get_from_dict)
         def find_key(data, target, _d=0):
             if _d > 15:
                 return None
@@ -133,7 +114,6 @@ def inject_derived_fields(result_current, result_daily):
 
 async def capture_location(session, fixtures_dir, name, location):
     """Capture current + daily fixtures for one location."""
-    # 1. Current conditions
     url = f"{PUBLIC_URL}{location}"
     print(f"Fetching {url}")
     async with async_timeout.timeout(15):
@@ -144,7 +124,6 @@ async def capture_location(session, fixtures_dir, name, location):
     print("Expanding dataUrls in result_current ...")
     await expand_data_urls(session, result_current)
 
-    # 2. Warnings
     loc_type = result_current["location"]["type"]
     loc_key = result_current["location"]["key"]
     warn_url = f"{WARNINGS_URL}/{loc_type}/{loc_key}"
@@ -162,8 +141,6 @@ async def capture_location(session, fixtures_dir, name, location):
         "\n".join(warnings_list) if warnings_list else "No warnings"
     )
 
-    # 3. Pollen (best-effort) — mirror the coordinator: first block is the
-    # headline, every concurrent block is kept under "groups".
     pollen_url = f"{PUBLIC_URL}{location}/airborne-allergens"
     print(f"Fetching pollen {pollen_url}")
     result_current["pollen"] = {
@@ -217,7 +194,6 @@ async def capture_location(session, fixtures_dir, name, location):
     except Exception as exc:
         print(f"  [warn] pollen fetch failed: {exc}")
 
-    # 4. Daily forecast
     daily_url = f"{PUBLIC_URL}{location}/7-days"
     print(f"Fetching {daily_url}")
     async with async_timeout.timeout(15):
@@ -227,11 +203,9 @@ async def capture_location(session, fixtures_dir, name, location):
     print("Expanding dataUrls in result_daily ...")
     await expand_data_urls(session, result_daily)
 
-    # 5. Inject derived fields
     print("Injecting derived fields ...")
     inject_derived_fields(result_current, result_daily)
 
-    # Save
     current_path = fixtures_dir / f"{name}_public_current.json"
     daily_path = fixtures_dir / f"{name}_public_daily.json"
 
