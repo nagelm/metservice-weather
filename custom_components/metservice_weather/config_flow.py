@@ -53,15 +53,16 @@ async def _async_fetch_search_locations(session, url: str) -> list[dict]:
         return []
 
 
-async def _async_location_exists(session, location: str) -> bool:
-    """Return True when MetService serves a page for location."""
+async def _async_location_exists(session, location: str) -> bool | None:
+    """Return whether MetService serves a page for location, or None if unreachable."""
     try:
         async with asyncio.timeout(10):
             response = await session.get(f"{PUBLIC_URL}{location}")
-        return response.status == 200
+            async with response:
+                return response.status == 200
     except Exception:
         _LOGGER.exception("Failed to check MetService location %s", location)
-        return False
+        return None
 
 
 async def async_fetch_locations(session) -> list[dict[str, str]]:
@@ -89,6 +90,7 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if self._is_reconfiguring:
             return self.async_update_reload_and_abort(
                 self._reconfig_entry,
+                unique_id=f"{DOMAIN}-{self.user_info[CONF_LOCATION]}",
                 data=self.user_info,
             )
         return self.async_create_entry(
@@ -125,18 +127,24 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         advanced_options = user_input.get(SECTION_ADVANCED_OPTIONS, {})
         custom_location = advanced_options.get(CONF_CUSTOM_LOCATION, "").strip()
-        location = (
-            normalize_location_path(custom_location)
-            if custom_location
-            else user_input.get(CONF_LOCATION)
+        picked = user_input.get(CONF_LOCATION)
+        # A custom location left as pre-filled gives way to a different list pick.
+        use_custom = custom_location and (
+            custom_location != self._custom_prefill
+            or picked in (None, self._location_default)
         )
+        location = normalize_location_path(custom_location) if use_custom else picked
         error = None
         if not location:
             error = "invalid_location"
-        elif custom_location and not await _async_location_exists(
-            async_get_clientsession(self.hass), location
-        ):
-            error = "location_not_found"
+        elif use_custom and location not in {o["value"] for o in self.locations}:
+            exists = await _async_location_exists(
+                async_get_clientsession(self.hass), location
+            )
+            if exists is None:
+                error = "cannot_connect"
+            elif not exists:
+                error = "location_not_found"
         if error:
             return self.async_show_form(
                 step_id="setup",
@@ -153,6 +161,12 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if not self._is_reconfiguring:
             await self.async_set_unique_id(f"{DOMAIN}-{location}")
             self._abort_if_unique_id_configured()
+        elif (
+            other := self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN, f"{DOMAIN}-{location}"
+            )
+        ) and other.entry_id != self._reconfig_entry.entry_id:
+            return self.async_abort(reason="already_configured")
 
         marine_label = user_input.get(CONF_MARINE_REGION, _SKIP)
         if marine_label == _SKIP:
@@ -179,7 +193,11 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         values = submitted if submitted is not None else self.user_info
         advanced = values.get(SECTION_ADVANCED_OPTIONS, values)
         stored_location = values.get(CONF_LOCATION)
-        location = stored_location or DEFAULT_LOCATION
+        location = (
+            stored_location
+            if submitted is not None
+            else stored_location or DEFAULT_LOCATION
+        )
         listed = {option["value"] for option in self.locations}
         custom_location = advanced.get(CONF_CUSTOM_LOCATION)
         if custom_location is None:
@@ -187,9 +205,12 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 stored_location
                 if isinstance(stored_location, str)
                 and stored_location not in listed
-                and normalize_location_path(stored_location)
+                and LOCATION_PATH_RE.fullmatch(stored_location)
                 else ""
             )
+        if submitted is None:
+            self._custom_prefill = custom_location
+            self._location_default = location if location in listed else None
 
         marine_default = _SKIP
         if submitted is None:
@@ -238,7 +259,12 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             ): bool,
                         }
                     ),
-                    {"collapsed": not custom_location},
+                    {
+                        "collapsed": not (
+                            custom_location
+                            or advanced.get(CONF_AUTO_HIDE_SEASONAL, False)
+                        )
+                    },
                 ),
             }
         )

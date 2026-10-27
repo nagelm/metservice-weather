@@ -27,7 +27,9 @@ def normalize_location_path(value: str) -> str | None:
     """Return the location path in a path or metservice.com address, or None."""
     if len(value) > 512:
         return None
-    path = "/" + re.sub(r"^https?://[^/]+", "", value.strip()).lstrip("/").lower()
+    address = re.sub(r"^(?:[a-z][a-z0-9+.-]*:)?//[^/]*", "", value.strip(), flags=re.I)
+    address = re.sub(r"^(?:www\.)?metservice\.com(?=[/?#]|$)", "", address, flags=re.I)
+    path = "/" + address.lstrip("/").lower()
     match = _LOCATION_IN_ADDRESS_RE.fullmatch(path)
     return match.group(1) if match else None
 

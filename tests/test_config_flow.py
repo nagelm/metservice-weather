@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
@@ -461,7 +462,7 @@ async def test_auto_hide_seasonal_empty_section_defaults_false(
 
 
 async def test_reconfigure_prefills_auto_hide_seasonal(hass, mock_marine_session):
-    """Reconfigure of an entry with auto_hide_seasonal=True pre-fills the toggle; the section stays collapsed."""
+    """Reconfigure of an entry with auto_hide_seasonal=True pre-fills the toggle and opens the section."""
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     existing_entry = MockConfigEntry(
@@ -494,7 +495,7 @@ async def test_reconfigure_prefills_auto_hide_seasonal(hass, mock_marine_session
     section_matches = [key for key in schema if key.schema == SECTION_ADVANCED_OPTIONS]
     assert len(section_matches) == 1
     section = schema[section_matches[0]]
-    assert section.options["collapsed"] is True
+    assert section.options["collapsed"] is False
 
     inner_schema = section.schema.schema
     matches = [key for key in inner_schema if key.schema == CONF_AUTO_HIDE_SEASONAL]
@@ -594,7 +595,19 @@ async def test_custom_location_overrides_list(
             "https://evil.example/towns-cities/regions/auckland/locations/makarau",
             "/towns-cities/regions/auckland/locations/makarau",
         ),
-        ("//evil.example/towns-cities/regions/auckland/locations/makarau", None),
+        (
+            "//evil.example/towns-cities/regions/auckland/locations/makarau",
+            "/towns-cities/regions/auckland/locations/makarau",
+        ),
+        (
+            "Https://WWW.MetService.com/towns-cities/regions/auckland/locations/makarau",
+            "/towns-cities/regions/auckland/locations/makarau",
+        ),
+        (
+            "www.metservice.com/towns-cities/regions/auckland/locations/makarau",
+            "/towns-cities/regions/auckland/locations/makarau",
+        ),
+        ("metservice.com.evil.example/towns-cities/regions/x/locations/y", None),
         ("/towns-cities/regions/auckland/locations/../../../etc/passwd", None),
         ("/towns-cities/regions/auckland/locations/makarau%2F..%2Fx", None),
         ("/towns-cities/regions/auckland/locations/makarau@evil.example", None),
@@ -603,7 +616,7 @@ async def test_custom_location_overrides_list(
     ],
 )
 def test_normalize_location_path_rejects_hostile_input(typed, expected):
-    """Only a plain MetService location path survives; hosts and odd characters don't."""
+    """Only a plain MetService location path survives; hosts are dropped, odd characters rejected."""
     assert normalize_location_path(typed) == expected
 
 
@@ -626,6 +639,143 @@ async def test_custom_location_without_a_page_is_rejected(hass, mock_marine_sess
         },
     )
     assert result["errors"] == {"base": "location_not_found"}
+
+
+async def _start_setup(hass):
+    return await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+
+
+async def test_custom_location_unreachable_reports_cannot_connect(
+    hass, mock_marine_session
+):
+    """A failed page check reports cannot_connect, not a bad address."""
+    session, _ = mock_marine_session
+    result = await _start_setup(hass)
+    session.get = AsyncMock(side_effect=TimeoutError)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Makarau",
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {
+                CONF_CUSTOM_LOCATION: "/towns-cities/regions/auckland/locations/makarau"
+            },
+        },
+    )
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_listed_custom_location_skips_page_check(hass, mock_marine_session):
+    """A custom address for a town already in the list is saved without another fetch."""
+    session, _ = mock_marine_session
+    result = await _start_setup(hass)
+    calls = session.get.call_count
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Napier",
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {
+                CONF_CUSTOM_LOCATION: "https://www.metservice.com/towns-cities/regions/hawkes-bay/locations/napier"
+            },
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert session.get.call_count == calls
+
+
+async def test_no_location_errors_and_keeps_dropdown_empty(hass, mock_marine_session):
+    """With neither a list pick nor a custom location the form re-shows without a default."""
+    result = await _start_setup(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Nowhere",
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {},
+        },
+    )
+    assert result["errors"] == {"base": "invalid_location"}
+    key = next(k for k in result["data_schema"].schema if k == CONF_LOCATION)
+    assert key.default is vol.UNDEFINED
+
+
+def _custom_entry(hass, location, name="Makarau"):
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-{location}",
+        data={
+            CONF_NAME: name,
+            CONF_LOCATION: location,
+            "api": "public",
+            "marine_region": "",
+            "tide_url": "",
+            "boating_url": "",
+            "surf_url": "",
+        },
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def test_reconfigure_list_pick_replaces_prefilled_custom(
+    hass, mock_marine_session
+):
+    """Picking a town while the pre-filled custom location is untouched moves the entry to that town."""
+    custom = "/towns-cities/regions/auckland/locations/makarau"
+    napier = "/towns-cities/regions/hawkes-bay/locations/napier"
+    entry = _custom_entry(hass, custom)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Makarau",
+            CONF_LOCATION: napier,
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {CONF_CUSTOM_LOCATION: custom},
+        },
+    )
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_LOCATION] == napier
+    assert entry.unique_id == f"{DOMAIN}-{napier}"
+
+
+async def test_reconfigure_onto_another_entrys_location_aborts(
+    hass, mock_marine_session
+):
+    """Reconfigure can't move an entry onto a location another entry already uses."""
+    custom = "/towns-cities/regions/auckland/locations/makarau"
+    _custom_entry(hass, custom)
+    napier = _custom_entry(
+        hass, "/towns-cities/regions/hawkes-bay/locations/napier", "Napier"
+    )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": napier.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Napier",
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {CONF_CUSTOM_LOCATION: custom},
+        },
+    )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
 
 
 async def test_reconfigure_custom_location_opens_advanced(hass, mock_marine_session):
