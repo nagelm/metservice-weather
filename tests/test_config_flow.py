@@ -702,6 +702,30 @@ async def test_no_location_errors_and_keeps_dropdown_empty(hass, mock_marine_ses
     assert key.default is vol.UNDEFINED
 
 
+async def test_reconfigure_with_both_locations_cleared_errors(
+    hass, mock_marine_session
+):
+    """Clearing the Weather location on Reconfigure, with no custom location, is an error."""
+    entry = _custom_entry(
+        hass, "/towns-cities/regions/hawkes-bay/locations/napier", "Napier"
+    )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    key = next(k for k in result["data_schema"].schema if k == CONF_LOCATION)
+    assert key.default is vol.UNDEFINED
+    assert key.description == {"suggested_value": entry.data[CONF_LOCATION]}
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_NAME: "Napier", CONF_MARINE_REGION: "skip", SECTION_ADVANCED_OPTIONS: {}},
+    )
+    assert result["errors"] == {"base": "invalid_location"}
+
+
 def _custom_entry(hass, location, name="Makarau"):
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 

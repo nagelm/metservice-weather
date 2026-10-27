@@ -238,10 +238,11 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_NAME,
                     default=values.get(CONF_NAME, self.hass.config.location_name),
                 ): str,
-                (
-                    vol.Optional(CONF_LOCATION, default=location)
-                    if location in listed
-                    else vol.Optional(CONF_LOCATION)
+                vol.Optional(
+                    CONF_LOCATION,
+                    description={
+                        "suggested_value": location if location in listed else None
+                    },
                 ): SelectSelector(SelectSelectorConfig(options=self.locations)),
                 vol.Required(
                     CONF_MARINE_REGION, default=marine_default
