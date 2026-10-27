@@ -31,4 +31,11 @@ jobs:
         run: python3 -m pip install -r requirements.txt -r requirements-test.txt
 
       - name: "Run pytest (coverage gate from pyproject.toml)"
-        run: python3 -m pytest tests/
+        run: python3 -m pytest tests/ --junitxml=junit.xml
+
+      - name: "Upload per-test results"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: "junit"
+          path: "junit.xml"
