@@ -18,13 +18,13 @@ from homeassistant.components.homeassistant.exposed_entities import (
 )
 from homeassistant.components.homeassistant.scene import scenes_with_entity
 from homeassistant.components.script import scripts_with_device, scripts_with_entity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import slugify
 
+from . import MetServiceConfigEntry
 from .const import DOMAIN
 from .coordinator import WeatherUpdateCoordinator
 from .entity import _marine_device_name
@@ -292,7 +292,7 @@ def async_merge_entity_options(
 
 async def async_check_deprecated_entities(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MetServiceConfigEntry,
     coordinator: WeatherUpdateCoordinator,
 ) -> None:
     """Clear removed-entity issues nothing references any more, then run the follow-on detectors."""
@@ -335,7 +335,7 @@ def _removed_entity_replacement_text(key: str) -> str:
 
 async def async_check_removed_entity(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MetServiceConfigEntry,
     coordinator: WeatherUpdateCoordinator,
     reg_entry: er.RegistryEntry,
 ) -> None:
@@ -392,7 +392,7 @@ def _raw_config_json(hass: HomeAssistant, entity_id: str) -> str | None:
 
 async def async_check_removed_forecast_attributes(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MetServiceConfigEntry,
     coordinator: WeatherUpdateCoordinator,
 ) -> None:
     """Warn when an automation/script still reads forecast_hourly/forecast_daily."""
@@ -454,7 +454,7 @@ def _device_referencing_items(hass: HomeAssistant, device_id: str) -> list[str]:
 
 async def async_check_marine_device_move(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MetServiceConfigEntry,
     coordinator: WeatherUpdateCoordinator,
 ) -> None:
     """Warn when a DEVICE-based automation/script still targets the old location device for marine sensors."""
@@ -549,7 +549,7 @@ def _format_rename_lines(renames: list[dict[str, str]]) -> str:
 
 async def async_check_entity_id_reclaim(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: MetServiceConfigEntry,
     coordinator: WeatherUpdateCoordinator,
 ) -> None:
     """Offer to rename a replacement sensor onto its now-free canonical entity_id."""

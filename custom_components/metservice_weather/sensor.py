@@ -5,10 +5,9 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN, SensorEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
 from typing import Any
@@ -22,6 +21,7 @@ from .deprecation import (
     async_merge_entity_options,
 )
 
+from . import MetServiceConfigEntry
 from .const import CONF_ATTRIBUTION, CONF_AUTO_HIDE_SEASONAL, DOMAIN
 from .weather_current_conditions_sensors import (
     current_condition_sensor_descriptions_public,
@@ -52,7 +52,7 @@ def _seasonal_row_is_stamped(ent_reg: er.EntityRegistry, unique_id: str) -> bool
 
 def _async_apply_seasonal_disable(
     ent_reg: er.EntityRegistry,
-    entry: ConfigEntry,
+    entry: MetServiceConfigEntry,
     unique_id: str,
 ) -> None:
     """Disable + hide a dataless seasonal sensor's registry row, stamping it as ours."""
@@ -107,7 +107,7 @@ def _async_clear_seasonal_stamp(ent_reg: er.EntityRegistry, entity_id: str) -> N
 
 
 def _async_restore_seasonal_rows(
-    ent_reg: er.EntityRegistry, entry: ConfigEntry
+    ent_reg: er.EntityRegistry, entry: MetServiceConfigEntry
 ) -> None:
     """Undo every seasonal-disable stamp for this entry (CONF_AUTO_HIDE_SEASONAL is off)."""
     for reg_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
@@ -135,8 +135,8 @@ def _is_stale(
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry[WeatherUpdateCoordinator],
-    async_add_entities: AddEntitiesCallback,
+    entry: MetServiceConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Add MetService entities from a config_entry."""
     coordinator: WeatherUpdateCoordinator = entry.runtime_data

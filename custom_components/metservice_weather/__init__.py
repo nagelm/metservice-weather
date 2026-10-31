@@ -167,7 +167,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: MetServiceConfigEntry) 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
-def _reenable_warning_details(hass: HomeAssistant, entry: ConfigEntry) -> None:
+def _reenable_warning_details(
+    hass: HomeAssistant, entry: MetServiceConfigEntry
+) -> None:
     """Re-enable a Warning details row that releases before 2026.9.0 shipped disabled."""
     ent_reg = er.async_get(hass)
     entity_id = ent_reg.async_get_entity_id(
@@ -181,7 +183,9 @@ def _reenable_warning_details(hass: HomeAssistant, entry: ConfigEntry) -> None:
         ent_reg.async_update_entity(reg_entry.entity_id, disabled_by=None)
 
 
-async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+async def async_migrate_entry(
+    hass: HomeAssistant, config_entry: MetServiceConfigEntry
+) -> bool:
     """Migrate an older config entry to the current version, once.
 
     1.1 -> 1.2: re-key v0.9 entities, re-enable Warning details, drop legacy keys.
