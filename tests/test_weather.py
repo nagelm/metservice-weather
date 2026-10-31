@@ -370,7 +370,7 @@ async def test_public_forecast_hourly_night_icon(hass):
         assert entity.forecast_hourly[0]["condition"] == "clear-night"
 
 
-async def test_public_forecast_hourly_skip_offsets_start(hass):
+async def test_public_forecast_hourly_excludes_observed_hours(hass):
     """The observed hours at the start of the list are excluded."""
     coord = _make_coordinator(hass)
     coord.data = MetServicePublicData(
