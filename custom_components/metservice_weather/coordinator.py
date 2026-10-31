@@ -24,6 +24,7 @@ from homeassistant.const import (
 
 from .const import (
     BASE_URL,
+    LOCATION_ID_RE,
     PUBLIC_HEADERS,
     REQUEST_TIMEOUT,
     TEMPUNIT,
@@ -38,6 +39,8 @@ _LOGGER = logging.getLogger(__name__)
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=20)
 
 _MARINE_REGION_SLUG_RE = re.compile(r"/marine/regions/([^/]+)/")
+# Far above a real allergen block; keeps the parsing regexes cheap on bad input.
+_POLLEN_HTML_MAX_CHARS = 20_000
 
 
 @dataclass
@@ -159,7 +162,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             )
             await self.expand_data_urls(result_current)
             result_warnings = await self._async_fetch_required_json(
-                f"{self._warnings_url}/{result_current['location']['type']}/{result_current['location']['key']}",
+                self._warnings_location_url(result_current["location"]),
                 "warnings",
             )
             await self.expand_data_urls(result_warnings)
@@ -356,9 +359,19 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             )
             return {}
 
+    def _warnings_location_url(self, location: dict) -> str:
+        """Return the warnings URL for a location, refusing unexpected identifiers."""
+        location_type, key = str(location["type"]), str(location["key"])
+        if not (
+            LOCATION_ID_RE.fullmatch(location_type) and LOCATION_ID_RE.fullmatch(key)
+        ):
+            raise ValueError(f"Unexpected location {location_type!r}/{key!r}")
+        return f"{self._warnings_url}/{location_type}/{key}"
+
     @staticmethod
     def _parse_pollen_html(html: str) -> dict:
         """Extract pollen level, plant types and status class from allergen HTML."""
+        html = html[:_POLLEN_HTML_MAX_CHARS]
         level = None
         plants = None
         status_class = None

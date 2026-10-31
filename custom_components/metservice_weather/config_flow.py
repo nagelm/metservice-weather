@@ -18,6 +18,7 @@ from .const import (
     DEFAULT_LOCATION,
     CONF_AUTO_HIDE_SEASONAL,
     LOCATION_PATH_RE,
+    MARINE_PATH_RE,
     LOCATIONS_INDEX_URL,
     MARINE_INDEX_URL,
     PUBLIC_HEADERS,
@@ -135,7 +136,11 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 async_fetch_locations(session),
                 _async_fetch_search_locations(session, MARINE_INDEX_URL),
             )
-            self.regions = marine[0].get("items", []) if marine else []
+            self.regions = [
+                region
+                for region in (marine[0].get("items", []) if marine else [])
+                if MARINE_PATH_RE.fullmatch(region.get("heading", {}).get("url", ""))
+            ]
             if not self.locations:
                 return self.async_abort(reason="cannot_connect")
 
@@ -540,13 +545,15 @@ class WeatherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 continue
             marker = locations[int(idx)]
             url = self._marker_url(marker)
-            if url:
-                return url
             action = marker.get("action")
-            if isinstance(action, str) and action.startswith("/"):
-                return action
-            slug = label.lower().replace(" ", "-")
-            fallback = f"/{marine_region}/{service}/locations/{slug}"
-            _LOGGER.warning("Using constructed %s URL fallback: %s", service, fallback)
-            return fallback
+            if not url and isinstance(action, str) and action.startswith("/"):
+                url = action
+            if not url:
+                slug = label.lower().replace(" ", "-")
+                url = f"/{marine_region}/{service}/locations/{slug}"
+                _LOGGER.warning("Using constructed %s URL fallback: %s", service, url)
+            if MARINE_PATH_RE.fullmatch(url):
+                return url
+            _LOGGER.warning("Ignoring unexpected %s URL: %s", service, url)
+            return None
         return None

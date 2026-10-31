@@ -11,6 +11,7 @@ import aiohttp
 import pytest
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
+from custom_components.metservice_weather.coordinator import WeatherUpdateCoordinator
 from custom_components.metservice_weather.coordinator_types import (
     MetServicePublicData,
 )
@@ -1065,3 +1066,39 @@ async def test_get_public_weather_tomorrow_extraction_exception_silenced(hass):
     result = await coord.get_public_weather()
     assert isinstance(result, MetServicePublicData)
     assert result.tomorrow_condition is None
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        {"type": "urban/../../other", "key": "napier"},
+        {"type": "urban", "key": "napier?x=1"},
+        {"type": "", "key": "napier"},
+    ],
+)
+async def test_warnings_url_refuses_unexpected_location_identifiers(hass, location):
+    """Identifiers from the response can't change the warnings path."""
+    coord = make_coordinator(hass)
+    with pytest.raises(ValueError, match="Unexpected location"):
+        coord._warnings_location_url(location)
+
+
+async def test_warnings_url_uses_valid_location_identifiers(hass):
+    """A normal location builds the warnings URL."""
+    coord = make_coordinator(hass)
+    url = coord._warnings_location_url({"type": "urban", "key": "napier"})
+    assert url.endswith("/urban/napier")
+
+
+def test_pollen_html_beyond_the_size_limit_is_ignored():
+    """Oversized HTML is cut before the regexes run."""
+    padding = "<span " * 10_000
+    html = padding + '<span class="status-high">High</span>'
+    assert WeatherUpdateCoordinator._parse_pollen_html(html)["level"] is None
+
+
+def test_pollen_html_within_the_size_limit_still_parses():
+    """A normal allergen block still yields its level."""
+    html = '<span class="status-high">High</span><br/>Grass<br/>'
+    parsed = WeatherUpdateCoordinator._parse_pollen_html(html)
+    assert parsed == {"level": "High", "type": "Grass", "status_class": "high"}
