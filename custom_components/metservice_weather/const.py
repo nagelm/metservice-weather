@@ -28,7 +28,7 @@ CONDITION_MAP: Final[dict[str, str]] = {
     "few-showers-night": "rainy",
     "fine": "sunny",
     "fog": "fog",
-    "frost": "clear-night",
+    "frost": "sunny",
     "hail": "hail",
     "mostly-cloudy": "cloudy",
     "partly-cloudy": "partlycloudy",
