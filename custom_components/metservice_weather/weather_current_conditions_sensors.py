@@ -119,9 +119,9 @@ def _tide_table_attr(data: Any) -> dict[str, Any]:
 def _warning_severity(name: str) -> int:
     """Rank a MetService warning name: Red > Orange > other Warning > Watch."""
     lowered = name.lower()
-    if re.search(r"red", lowered):
+    if re.search(r"\bred\b", lowered):
         return 3
-    if re.search(r"orange", lowered):
+    if re.search(r"\borange\b", lowered):
         return 2
     if "warning" in lowered:
         return 1
