@@ -10,7 +10,6 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
-from homeassistant.util.unit_system import METRIC_SYSTEM
 
 from typing import Any
 
@@ -148,9 +147,7 @@ async def async_setup_entry(
         if coordinator.data is None:
             return True
         try:
-            return (
-                description.value_fn(coordinator.data, coordinator.unit_system) is None
-            )
+            return description.value_fn(coordinator.data) is None
         except Exception:
             return True
 
@@ -255,11 +252,7 @@ class WeatherSensor(MetServiceEntity, SensorEntity):
         self.entity_description = description
 
         self._attr_unique_id = f"{self.coordinator.location}_{description.key}".lower()
-        self._unit_system = coordinator.unit_system
         self._sensor_data = coordinator.data
-        self._attr_native_unit_of_measurement = self.entity_description.unit_fn(
-            self.coordinator.hass.config.units is METRIC_SYSTEM
-        )
 
     @property
     def native_value(self) -> StateType:
@@ -268,9 +261,7 @@ class WeatherSensor(MetServiceEntity, SensorEntity):
             _LOGGER.debug("Sensor '%s' has no data.", self.name)
             return None
         try:
-            return self.entity_description.value_fn(
-                self._sensor_data, self._unit_system
-            )
+            return self.entity_description.value_fn(self._sensor_data)
         except Exception as e:
             _LOGGER.error("Error processing state for sensor '%s': %s", self.name, e)
             return None

@@ -46,7 +46,6 @@ class WeatherUpdateCoordinatorConfig:
 
     api_url: str
     warnings_url: str
-    unit_system: str
     location: str
     location_name: str
     tide_url: str
@@ -72,7 +71,6 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self._tide_url = config.tide_url
         self._boating_url = config.boating_url
         self._surf_url = config.surf_url
-        self.unit_system = config.unit_system
         self.location_device_id: str | None = None
         self._session = async_get_clientsession(hass)
         self.units_of_measurement = {

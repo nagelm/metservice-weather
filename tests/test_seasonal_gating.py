@@ -415,7 +415,7 @@ async def test_option_on_seasonal_value_fn_exception_treated_as_dataless(hass):
         key="broken_seasonal",
         name="Broken Seasonal",
         seasonal=True,
-        value_fn=lambda data, _: 1 / 0,
+        value_fn=lambda data: 1 / 0,
     )
 
     added = []

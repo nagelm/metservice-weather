@@ -62,7 +62,7 @@ def _make_sensor(coordinator, key="temperature", value=18.5) -> WeatherSensor:
     desc = WeatherSensorEntityDescription(
         key=key,
         name="Test Sensor",
-        value_fn=lambda data, _: captured,
+        value_fn=lambda data: captured,
         attr_fn=lambda data: {"raw": captured} if captured is not None else {},
     )
     sensor = WeatherSensor(coordinator, desc)
@@ -321,7 +321,7 @@ def test_pollen_sensor_value_and_attrs_from_derived_fields():
         pollen_active={"low": ["Wattle", "Cypress"], "high": ["Ragweed"]},
         pollen_imminent=["Macrocarpa", "Pinus Radiata"],
     )
-    assert desc.value_fn(data, "metric") == "high"
+    assert desc.value_fn(data) == "high"
     assert desc.attr_fn(data) == {
         "low_allergens": "Wattle, Cypress",
         "high_allergens": "Ragweed",
@@ -350,7 +350,7 @@ def test_pollen_sensor_attrs_empty_when_state_unknown():
         d for d in current_condition_sensor_descriptions_public if d.key == "pollen"
     )
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {}
 
 
@@ -381,7 +381,7 @@ async def test_sensor_native_value_fn_error_returns_none(hass):
     desc = WeatherSensorEntityDescription(
         key="temperature",
         name="Broken Sensor",
-        value_fn=lambda data, _: 1 / 0,  # always raises
+        value_fn=lambda data: 1 / 0,  # always raises
     )
     sensor = WeatherSensor(coord, desc)
     assert sensor.native_value is None
@@ -408,7 +408,7 @@ async def test_sensor_extra_state_attributes_fn_error_returns_empty(hass):
     desc = WeatherSensorEntityDescription(
         key="temperature",
         name="Broken Attrs",
-        value_fn=lambda data, _: data,
+        value_fn=lambda data: data,
         attr_fn=lambda data: 1 / 0,  # always raises
     )
     sensor = WeatherSensor(coord, desc)
@@ -548,7 +548,6 @@ async def test_marine_enabled_setup_groups_marine_sensors_under_their_own_device
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
         location="/towns-cities/regions/hawkes-bay/locations/napier",
         location_name="Napier",
         tide_url=tide_url,
@@ -814,14 +813,14 @@ def test_rain_next_8_hours_value_passthrough():
     """rain_next_8_hours passes rain_next_8h_mm straight through."""
     desc = _desc("rain_next_8_hours")
     data = MetServicePublicData(rain_next_8h_mm=4.2)
-    assert desc.value_fn(data, "metric") == 4.2
+    assert desc.value_fn(data) == 4.2
 
 
 def test_rain_next_8_hours_none_when_insufficient_coverage():
     """rain_next_8_hours is None when the coordinator couldn't compute a window."""
     desc = _desc("rain_next_8_hours")
     data = MetServicePublicData(rain_next_8h_mm=None)
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
 
 
 def test_rain_next_8_hours_disabled_by_default():
@@ -833,14 +832,14 @@ def test_rain_next_24_hours_value_passthrough():
     """rain_next_24_hours passes rain_next_24h_mm straight through."""
     desc = _desc("rain_next_24_hours")
     data = MetServicePublicData(rain_next_24h_mm=12.5)
-    assert desc.value_fn(data, "metric") == 12.5
+    assert desc.value_fn(data) == 12.5
 
 
 def test_rain_next_24_hours_none_when_insufficient_coverage():
     """rain_next_24_hours is None when the coordinator couldn't compute a window."""
     desc = _desc("rain_next_24_hours")
     data = MetServicePublicData(rain_next_24h_mm=None)
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
 
 
 def test_rain_next_24_hours_disabled_by_default():
@@ -852,7 +851,7 @@ def test_next_rain_at_parses_iso_datetime():
     """next_rain_at converts the ISO string to a datetime."""
     desc = _desc("next_rain_at")
     data = MetServicePublicData(next_rain_at="2026-07-16T14:00:00+12:00")
-    result = desc.value_fn(data, "metric")
+    result = desc.value_fn(data)
     assert isinstance(result, dt.datetime)
 
 
@@ -860,7 +859,7 @@ def test_next_rain_at_none_when_absent():
     """next_rain_at is None-safe when there's no rain in the forecast window."""
     desc = _desc("next_rain_at")
     data = MetServicePublicData(next_rain_at=None)
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
 
 
 def test_next_rain_at_disabled_by_default():
@@ -889,7 +888,7 @@ def test_next_rain_at_attrs_no_rain_expected():
     data = MetServicePublicData(
         rain_forecast_horizon="2026-07-22T12:00:00+12:00",
     )
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {
         "outlook": "no_rain_expected",
         "forecast_horizon": "2026-07-22T12:00:00+12:00",
@@ -973,7 +972,7 @@ def test_uv_risk_description_value_and_attrs():
         uv_window_start_at="2026-07-16T09:00:00+12:00",
         uv_window_end_at="2026-07-16T17:00:00+12:00",
     )
-    assert desc.value_fn(data, "metric") == "moderate"
+    assert desc.value_fn(data) == "moderate"
     attrs = desc.attr_fn(data)
     assert attrs["alert_label"] == "Moderate"
     assert attrs["status_class"] == "moderate"
@@ -993,7 +992,7 @@ def test_uv_risk_description_dangerous_later_keeps_label_and_window():
         uv_window_start_raw="9:55am",
         uv_window_end_raw="4:10pm",
     )
-    assert desc.value_fn(data, "metric") == "dangerous_later"
+    assert desc.value_fn(data) == "dangerous_later"
     attrs = desc.attr_fn(data)
     assert attrs["alert_label"] == "Dangerous today from 9:55 AM"
     assert attrs["advice"] == "Sun protection recommended from 9:55am"
@@ -1018,7 +1017,7 @@ def test_uv_risk_description_attrs_empty_when_state_none():
     """attr_fn returns {} when the UV alert level didn't map (no data / unknown)."""
     desc = _desc("uv_risk")
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {}
 
 
@@ -1115,7 +1114,7 @@ def test_warning_level_description_value_is_enum_state():
             }
         ]
     )
-    assert desc.value_fn(data, "metric") == "red"
+    assert desc.value_fn(data) == "red"
 
 
 def test_warning_level_description_headline_attribute():
@@ -1159,7 +1158,7 @@ def test_warning_details_is_default_enabled_carrier_with_count_state():
         {"name": "Heavy Rain Warning", "text": "b", "threat_period": "Tonight"},
     ]
     data = MetServicePublicData(warnings_list=warnings)
-    assert desc.value_fn(data, "metric") == 2
+    assert desc.value_fn(data) == 2
     assert desc.attr_fn(data) == {"active_warnings": warnings}
 
 
@@ -1167,7 +1166,7 @@ def test_warning_details_zero_when_clear():
     """No active warnings: state 0 with a stable empty-list attribute."""
     desc = _desc("warning_details")
     data = MetServicePublicData(warnings_list=[])
-    assert desc.value_fn(data, "metric") == 0
+    assert desc.value_fn(data) == 0
     assert desc.attr_fn(data) == {"active_warnings": []}
 
 
@@ -1271,7 +1270,7 @@ def test_severity_level_attribute_orders_consistently_with_enum_state():
         )
     ]
     for data in datasets:
-        state = desc.value_fn(data, "metric")
+        state = desc.value_fn(data)
         assert desc.attr_fn(data)["severity_level"] == order[state]
 
 
@@ -1286,16 +1285,16 @@ def test_condition_today_state_is_raw_token_verbatim():
     """State is MetService's un-mapped token, -night variants included."""
     desc = _desc("condition_today")
     data = MetServicePublicData(condition="few-showers")
-    assert desc.value_fn(data, "metric") == "few-showers"
+    assert desc.value_fn(data) == "few-showers"
     data = MetServicePublicData(condition="partly-cloudy-night")
-    assert desc.value_fn(data, "metric") == "partly-cloudy-night"
+    assert desc.value_fn(data) == "partly-cloudy-night"
 
 
 def test_condition_today_none_without_condition():
     """No condition in the payload: state None, stable empty-list attribute."""
     desc = _desc("condition_today")
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {"daily_conditions": []}
 
 
@@ -1350,7 +1349,7 @@ def test_pressure_trend_description_is_enum():
     assert desc.device_class == SensorDeviceClass.ENUM
     assert desc.options == ["rising", "falling", "stable"]
     data = MetServicePublicData(pressure_trend="Rising")
-    assert desc.value_fn(data, "metric") == "rising"
+    assert desc.value_fn(data) == "rising"
 
 
 def test_wind_strength_known_mappings():
@@ -1396,7 +1395,7 @@ def test_wind_strength_level_description_is_enum():
         "storm",
     }
     data = MetServicePublicData(wind_strength="Light winds")
-    assert desc.value_fn(data, "metric") == "light_winds"
+    assert desc.value_fn(data) == "light_winds"
 
 
 def test_fire_season_known_mappings():
@@ -1432,7 +1431,7 @@ def test_fire_season_status_description_value_and_attrs():
         fire_season_short="Restricted",
         fire_season_text="A fire permit is required.",
     )
-    assert desc.value_fn(data, "metric") == "restricted"
+    assert desc.value_fn(data) == "restricted"
     assert desc.attr_fn(data) == {
         "scope": "Restricted",
         "detail": "A fire permit is required.",
@@ -1443,7 +1442,7 @@ def test_fire_season_status_description_attrs_empty_when_state_none():
     """attr_fn returns {} when there's no fire season data (off-season)."""
     desc = _desc("fire_season_status")
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {}
 
 
@@ -1518,7 +1517,7 @@ def test_fire_danger_level_description_value_and_attrs():
         fire_danger_text="Extreme caution.",
         fire_danger_forecast="Very High",
     )
-    assert desc.value_fn(data, "metric") == "high"
+    assert desc.value_fn(data) == "high"
     assert desc.attr_fn(data) == {
         "index": 3,
         "guidance": "Extreme caution.",
@@ -1530,7 +1529,7 @@ def test_fire_danger_level_description_attrs_empty_when_state_none():
     """attr_fn returns {} when there's no fire danger data (off-season)."""
     desc = _desc("fire_danger_level")
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {}
 
 
@@ -1621,14 +1620,14 @@ def test_moon_phase_current_description_value_reads_normalized_field():
         "waning_crescent",
     ]:
         data = MetServicePublicData(moon_phase_current=state)
-        assert desc.value_fn(data, "metric") == state
+        assert desc.value_fn(data) == state
 
 
 def test_moon_phase_current_description_none_safe():
     """A missing moon_phase_current normalizes to None (reported as unknown by HA)."""
     desc = _desc("moon_phase_current")
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
 
 
 def test_sunrise_at_description_parses_iso_datetime_and_display_attr():
@@ -1638,7 +1637,7 @@ def test_sunrise_at_description_parses_iso_datetime_and_display_attr():
     data = MetServicePublicData(
         sunrise_at="2026-07-16T07:12:00+12:00", sunrise="7:12am"
     )
-    result = desc.value_fn(data, "metric")
+    result = desc.value_fn(data)
     assert isinstance(result, dt.datetime)
     assert desc.attr_fn(data) == {"display": "7:12am"}
 
@@ -1647,7 +1646,7 @@ def test_sunrise_at_description_none_safe():
     """sunrise_at is None-safe with no attrs when there's no data."""
     desc = _desc("sunrise_at")
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {}
 
 
@@ -1656,7 +1655,7 @@ def test_sunset_at_description_parses_iso_datetime_and_display_attr():
     desc = _desc("sunset_at")
     assert desc.device_class == SensorDeviceClass.TIMESTAMP
     data = MetServicePublicData(sunset_at="2026-07-16T17:23:00+12:00", sunset="5:23pm")
-    result = desc.value_fn(data, "metric")
+    result = desc.value_fn(data)
     assert isinstance(result, dt.datetime)
     assert desc.attr_fn(data) == {"display": "5:23pm"}
 
@@ -1665,7 +1664,7 @@ def test_sunset_at_description_none_safe():
     """sunset_at is None-safe with no attrs when there's no data."""
     desc = _desc("sunset_at")
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {}
 
 
@@ -1676,7 +1675,7 @@ def test_moonrise_at_description_parses_iso_datetime_and_display_attr():
     data = MetServicePublicData(
         moonrise_at="2026-07-16T20:00:00+12:00", moonrise="8:00pm"
     )
-    result = desc.value_fn(data, "metric")
+    result = desc.value_fn(data)
     assert isinstance(result, dt.datetime)
     assert desc.attr_fn(data) == {"display": "8:00pm"}
 
@@ -1685,7 +1684,7 @@ def test_moonrise_at_description_none_safe():
     """moonrise_at is None-safe with no attrs when there's no data."""
     desc = _desc("moonrise_at")
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {}
 
 
@@ -1696,7 +1695,7 @@ def test_moonset_at_description_parses_iso_datetime_and_display_attr():
     data = MetServicePublicData(
         moonset_at="2026-07-16T09:00:00+12:00", moonset="9:00am"
     )
-    result = desc.value_fn(data, "metric")
+    result = desc.value_fn(data)
     assert isinstance(result, dt.datetime)
     assert desc.attr_fn(data) == {"display": "9:00am"}
 
@@ -1705,7 +1704,7 @@ def test_moonset_at_description_none_safe():
     """moonset_at is None-safe with no attrs when there's no data."""
     desc = _desc("moonset_at")
     data = MetServicePublicData()
-    assert desc.value_fn(data, "metric") is None
+    assert desc.value_fn(data) is None
     assert desc.attr_fn(data) == {}
 
 
@@ -1756,14 +1755,14 @@ def test_tide_direction_rising_when_next_event_is_high():
     assert desc.entity_registry_enabled_default is False
     assert desc.options == ["rising", "falling"]
     data = MetServicePublicData(tides=_future_tides("HIGH", "LOW"))
-    assert desc.value_fn(data, "metric") == "rising"
+    assert desc.value_fn(data) == "rising"
 
 
 def test_tide_direction_falling_when_next_event_is_low():
     """Next upcoming event LOW means the tide is going out (falling)."""
     desc = _desc("tide_direction")
     data = MetServicePublicData(tides=_future_tides("LOW", "HIGH"))
-    assert desc.value_fn(data, "metric") == "falling"
+    assert desc.value_fn(data) == "falling"
 
 
 def test_tide_direction_skips_past_events():
@@ -1772,7 +1771,7 @@ def test_tide_direction_skips_past_events():
     past = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=2)).isoformat()
     tides = [{"type": "HIGH", "time": past, "height": "1.8"}] + _future_tides("LOW")
     data = MetServicePublicData(tides=tides)
-    assert desc.value_fn(data, "metric") == "falling"
+    assert desc.value_fn(data) == "falling"
 
 
 def test_tide_direction_unknown_when_exhausted_or_absent():
@@ -1780,20 +1779,13 @@ def test_tide_direction_unknown_when_exhausted_or_absent():
     desc = _desc("tide_direction")
     past = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=2)).isoformat()
     assert (
-        desc.value_fn(
-            MetServicePublicData(tides=[{"type": "HIGH", "time": past}]), "metric"
-        )
+        desc.value_fn(MetServicePublicData(tides=[{"type": "HIGH", "time": past}]))
         is None
     )
-    assert desc.value_fn(MetServicePublicData(tides=None), "metric") is None
-    assert (
-        desc.value_fn(MetServicePublicData(tides=_future_tides("KING")), "metric")
-        is None
-    )
+    assert desc.value_fn(MetServicePublicData(tides=None)) is None
+    assert desc.value_fn(MetServicePublicData(tides=_future_tides("KING"))) is None
     junk_then_low = ["junk"] + _future_tides("LOW")
-    assert (
-        desc.value_fn(MetServicePublicData(tides=junk_then_low), "metric") == "falling"
-    )
+    assert desc.value_fn(MetServicePublicData(tides=junk_then_low)) == "falling"
 
 
 def test_tide_direction_attr_carries_full_table():
@@ -1819,7 +1811,7 @@ def test_long_text_state_truncates_with_full_description(key, field, missing_sta
     desc = _desc(key)
     long = "x" * 256
     data = MetServicePublicData(**{field: long})
-    state = desc.value_fn(data, "metric")
+    state = desc.value_fn(data)
     assert state == "x" * 252 + "..."
     assert len(state) == 255
     assert desc.attr_fn(data) == {"full_description": long}
@@ -1836,7 +1828,7 @@ def test_long_text_state_untruncated_has_no_full_description(key, field, missing
         (None, missing_state),
     ):
         data = MetServicePublicData(**{field: text})
-        assert desc.value_fn(data, "metric") == expected
+        assert desc.value_fn(data) == expected
         assert desc.attr_fn(data) == {}
 
 
@@ -1846,7 +1838,7 @@ def test_tides_high_description_attrs_match_value_fn_selection():
     future = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=3)).isoformat()
     tides = [{"type": "HIGH", "time": future, "height": "2.1"}]
     data = MetServicePublicData(tides=tides)
-    value = desc.value_fn(data, "metric")
+    value = desc.value_fn(data)
     attrs = desc.attr_fn(data)
     assert value is not None
     assert attrs["height_m"] == 2.1
@@ -1858,7 +1850,7 @@ def test_tides_low_description_attrs_match_value_fn_selection():
     future = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=5)).isoformat()
     tides = [{"type": "LOW", "time": future, "height": "0.3"}]
     data = MetServicePublicData(tides=tides)
-    value = desc.value_fn(data, "metric")
+    value = desc.value_fn(data)
     attrs = desc.attr_fn(data)
     assert value is not None
     assert attrs["height_m"] == 0.3
@@ -2025,3 +2017,67 @@ async def test_setup_without_data_still_prunes_unconfigured_marine_and_retired_r
 
     assert ent_reg.async_get(tide.entity_id) is None
     assert ent_reg.async_get(retired.entity_id) is None
+
+
+_NAPIER_LOCATION = "/towns-cities/regions/hawkes-bay/locations/napier"
+
+
+async def _setup_on_us_units(hass, register_row=None):
+    """Set up a Napier entry on a US-units install; return the temperature state."""
+    from unittest.mock import AsyncMock, patch
+
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.util.unit_system import US_CUSTOMARY_SYSTEM
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.metservice_weather.const import DOMAIN
+
+    hass.config.units = US_CUSTOMARY_SYSTEM
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        minor_version=2,
+        data={"name": "Napier", "location": _NAPIER_LOCATION, "api": "public"},
+    )
+    entry.add_to_hass(hass)
+    ent_reg = er.async_get(hass)
+    unique_id = f"{_NAPIER_LOCATION}_temperature"
+    if register_row is not None:
+        ent_reg.async_get_or_create(
+            "sensor",
+            DOMAIN,
+            unique_id,
+            config_entry=entry,
+            unit_of_measurement=register_row,
+        )
+    with patch(
+        "custom_components.metservice_weather.WeatherUpdateCoordinator._async_update_data",
+        new=AsyncMock(return_value=MetServicePublicData(temperature=20.0)),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
+    return hass.states.get(entity_id)
+
+
+async def test_new_sensor_on_us_units_shows_converted_value(hass):
+    """20 C from MetService reads 68 F, not 20 F."""
+    state = await _setup_on_us_units(hass)
+    assert float(state.state) == 68.0
+    assert state.attributes["unit_of_measurement"] == "\u00b0F"
+
+
+async def test_existing_fahrenheit_row_keeps_its_unit_with_a_correct_value(hass):
+    """A row registered in F by an earlier release stays in F, now correctly converted."""
+    state = await _setup_on_us_units(hass, register_row="\u00b0F")
+    assert float(state.state) == 68.0
+    assert state.attributes["unit_of_measurement"] == "\u00b0F"
+
+
+def test_catalogue_declares_only_metric_native_units():
+    """MetService reports metric, so no description declares an imperial native unit."""
+    from custom_components.metservice_weather.sensor import SENSOR_DESCRIPTIONS
+
+    imperial = {"\u00b0F", "mph", "inHg", "ft/s"}
+    assert not {
+        d.key for d in SENSOR_DESCRIPTIONS if d.native_unit_of_measurement in imperial
+    }

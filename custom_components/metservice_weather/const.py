@@ -59,7 +59,6 @@ LOCATION_PATH_RE: Final = re.compile(
     r"/(?:towns-cities|rural)/regions/[a-z0-9-]+/locations/[a-z0-9-]+"
     r"|/rural/regions/[a-z0-9-]+"
 )
-API_METRIC: Final = "metric"
 DEFAULT_LOCATION = "/towns-cities/regions/bay-of-plenty/locations/tauranga"
 
 TEMPUNIT = "temperature"
