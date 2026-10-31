@@ -33,9 +33,7 @@ def _warning_state(*names: str) -> State:
             {"name": name, "text": "t", "threat_period": "Today"} for name in names
         ]
     )
-    return State(
-        "sensor.napier_warnings", description.value_fn(data), description.attr_fn(data)
-    )
+    return State("sensor.napier_warnings", "warning", description.attr_fn(data))
 
 
 async def test_blueprint_inputs_are_unchanged(hass):
