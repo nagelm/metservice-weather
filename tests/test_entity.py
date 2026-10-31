@@ -37,7 +37,6 @@ async def test_location_device_falls_back_to_entry_name_for_unknown_path(hass):
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
         location="/towns-cities/regions/nowhere/locations/atlantis",
         location_name="My Custom Name",
         tide_url="",
