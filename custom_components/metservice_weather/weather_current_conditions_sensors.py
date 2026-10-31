@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, cast
 from collections.abc import Callable
@@ -118,9 +119,9 @@ def _tide_table_attr(data: Any) -> dict[str, Any]:
 def _warning_severity(name: str) -> int:
     """Rank a MetService warning name: Red > Orange > other Warning > Watch."""
     lowered = name.lower()
-    if "red" in lowered:
+    if re.search(r"\bred\b", lowered):
         return 3
-    if "orange" in lowered:
+    if re.search(r"\borange\b", lowered):
         return 2
     if "warning" in lowered:
         return 1
