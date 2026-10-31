@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from unittest.mock import patch, AsyncMock
+import pytest
 
 
 from custom_components.metservice_weather.const import (
@@ -968,3 +969,29 @@ async def test_public_handle_coordinator_update_schedules_listeners(hass):
     ):
         entity._handle_coordinator_update()
     mock_listeners.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize(
+    ("sun_up", "expected"), [(True, "sunny"), (False, "clear-night")]
+)
+async def test_public_entity_condition_frost_follows_the_sun(hass, sun_up, expected):
+    """Frost is fine weather: sunny by day, clear-night at night."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(condition="frost")
+    entity = MetServiceForecastPublic(coord)
+    entity.hass = hass
+    with patch(
+        "custom_components.metservice_weather.weather.sun_helper.is_up",
+        return_value=sun_up,
+    ):
+        assert entity.condition == expected
+
+
+async def test_public_forecast_daily_frost_is_sunny(hass):
+    """A frosty day in the daily forecast shows the day icon."""
+    coord = _make_coordinator(hass)
+    coord.data = MetServicePublicData(
+        daily_entries=[DailyEntry(condition="frost", datetime="2024-06-15")]
+    )
+    entity = MetServiceForecastPublic(coord)
+    assert entity.forecast_daily[0]["condition"] == "sunny"
