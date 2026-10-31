@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import logging
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -17,15 +19,7 @@ from custom_components.metservice_weather.entity import (
     async_register_location_device,
 )
 from custom_components.metservice_weather.sensor import WeatherSensor
-from custom_components.metservice_weather.weather_current_conditions_sensors import (
-    WeatherSensorEntityDescription,
-    _safe_float,
-    _safe_int,
-    _next_tide_time,
-    _tide_attrs,
-    _warning_severity,
-    _warnings_state,
-    _warnings_enum_state,
+from custom_components.metservice_weather.sensor_states import (
     _uv_alert_level_state,
     _pressure_trend_state,
     _wind_strength_state,
@@ -39,6 +33,16 @@ from custom_components.metservice_weather.weather_current_conditions_sensors imp
     _UNKNOWN_FIRE_DANGER_LOGGED,
     _FIRE_DANGER_LABEL_DRIFT_LOGGED,
     _UNKNOWN_MOON_PHASE_LOGGED,
+)
+from custom_components.metservice_weather.weather_current_conditions_sensors import (
+    WeatherSensorEntityDescription,
+    _safe_float,
+    _safe_int,
+    _next_tide_time,
+    _tide_attrs,
+    _warning_severity,
+    _warnings_state,
+    _warnings_enum_state,
     current_condition_sensor_descriptions_public,
 )
 from custom_components.metservice_weather.coordinator_types import (
@@ -2081,3 +2085,33 @@ def test_catalogue_declares_only_metric_native_units():
     assert not {
         d.key for d in SENSOR_DESCRIPTIONS if d.native_unit_of_measurement in imperial
     }
+
+
+def test_catalogue_matches_snapshot():
+    """Every key, translation_key and declared property stays as released.
+
+    A key feeds a permanent unique_id. Change the snapshot only for a deliberate,
+    migrated change.
+    """
+    snapshot = json.loads(
+        (Path(__file__).parent / "catalogue_snapshot.json").read_text(encoding="utf-8")
+    )
+    current = {
+        d.key: {
+            "translation_key": d.translation_key,
+            "name": d.name,
+            "device_class": d.device_class.name if d.device_class else None,
+            "state_class": d.state_class.name if d.state_class else None,
+            "unit": (
+                str(d.native_unit_of_measurement)
+                if d.native_unit_of_measurement
+                else None
+            ),
+            "precision": d.suggested_display_precision,
+            "device": d.device,
+            "seasonal": d.seasonal,
+            "enabled_default": d.entity_registry_enabled_default,
+        }
+        for d in current_condition_sensor_descriptions_public
+    }
+    assert current == snapshot

@@ -11,6 +11,20 @@ import datetime as dt
 from homeassistant.util import dt as dt_util
 
 from .helpers import safe_float as _safe_float, safe_int as _safe_int
+from .sensor_states import (
+    _FIRE_DANGER_OPTIONS,
+    _FIRE_SEASON_OPTIONS,
+    _MOON_PHASE_CURRENT_OPTIONS,
+    _PRESSURE_TREND_OPTIONS,
+    _UV_RISK_OPTIONS,
+    _WIND_STRENGTH_OPTIONS,
+    _fire_danger_state,
+    _fire_season_state,
+    _moon_phase_enum_state,
+    _pressure_trend_state,
+    _uv_alert_level_state,
+    _wind_strength_state,
+)
 from .const import (
     FIELD_DESCRIPTION,
     FIELD_HUMIDITY,
@@ -36,19 +50,6 @@ from homeassistant.const import (
 from homeassistant.helpers.typing import StateType
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _warn_once(logged: set[str], category: str, raw: str) -> None:
-    """Log one warning per runtime per unmapped raw value in a category."""
-    if raw in logged:
-        return
-    logged.add(raw)
-    _LOGGER.warning(
-        "Unknown MetService %s %r — please report at "
-        "https://github.com/nagelm/metservice-weather/issues",
-        category,
-        raw,
-    )
 
 
 def _next_tide_entry(data: list | None, tide_type: str) -> dict | None:
@@ -166,53 +167,6 @@ def _warnings_enum_state(data: Any) -> str:
     return _WARNING_ENUM_BY_RANK[top_rank]
 
 
-_UV_ALERT_LEVEL_MAP: dict[str, str] = {
-    "low": "low",
-    "moderate": "moderate",
-    "high": "high",
-    "very high": "very_high",
-    "extreme": "extreme",
-}
-_UV_ALERT_LEVEL_PREFIXES: tuple[tuple[str, str], ...] = (
-    ("not dangerous", "not_dangerous"),
-    ("dangerous today from", "dangerous_later"),
-    ("dangerous from", "dangerous_later"),
-    ("dangerous", "dangerous"),
-)
-_UV_RISK_OPTIONS = [
-    "low",
-    "moderate",
-    "high",
-    "very_high",
-    "extreme",
-    "not_dangerous",
-    "dangerous_later",
-    "dangerous",
-]
-_UNKNOWN_UV_ALERT_LEVELS_LOGGED: set[str] = set()
-
-
-def _uv_alert_level_state(raw: str | None) -> str | None:
-    """Map MetService's uvAlertLevel label to the uv_risk ENUM sensor's state."""
-    if not raw:
-        return None
-    key = raw.strip().lower()
-    mapped = _UV_ALERT_LEVEL_MAP.get(key)
-    if mapped is None:
-        mapped = next(
-            (
-                state
-                for prefix, state in _UV_ALERT_LEVEL_PREFIXES
-                if key.startswith(prefix)
-            ),
-            None,
-        )
-    if mapped is None:
-        _warn_once(_UNKNOWN_UV_ALERT_LEVELS_LOGGED, "UV alert level", raw)
-        return None
-    return mapped
-
-
 def _uv_attrs(data: Any) -> dict[str, StateType]:
     """Return UV detail attributes, populated only when the state itself mapped."""
     if _uv_alert_level_state(data.uv_alert_level) is None:
@@ -225,144 +179,6 @@ def _uv_attrs(data: Any) -> dict[str, StateType]:
         "protection_window_end": data.uv_window_end_at or data.uv_window_end_raw,
         "has_alert": data.uv_has_alert,
     }
-
-
-_PRESSURE_TREND_OPTIONS = ["rising", "falling", "stable"]
-_UNKNOWN_PRESSURE_TREND_LOGGED: set[str] = set()
-
-
-def _pressure_trend_state(raw: str | None) -> str | None:
-    """Map the raw observations pressure trend to its ENUM state."""
-    if not raw:
-        return None
-    key = raw.strip().lower()
-    if key in _PRESSURE_TREND_OPTIONS:
-        return key
-    _warn_once(_UNKNOWN_PRESSURE_TREND_LOGGED, "pressure trend", raw)
-    return None
-
-
-_WIND_STRENGTH_MAP: dict[str, str] = {
-    "calm": "calm",
-    "light winds": "light_winds",
-    "moderate": "moderate",
-    "fresh": "fresh",
-    "strong": "strong",
-    "gale": "gale",
-    "severe gale": "severe_gale",
-    "storm": "storm",
-}
-_WIND_STRENGTH_OPTIONS = [
-    "calm",
-    "light_winds",
-    "moderate",
-    "fresh",
-    "strong",
-    "gale",
-    "severe_gale",
-    "storm",
-]
-_UNKNOWN_WIND_STRENGTH_LOGGED: set[str] = set()
-
-
-def _wind_strength_state(raw: str | None) -> str | None:
-    """Map the raw observations wind strength label to its ENUM state."""
-    if not raw:
-        return None
-    mapped = _WIND_STRENGTH_MAP.get(raw.strip().lower())
-    if mapped is None:
-        _warn_once(_UNKNOWN_WIND_STRENGTH_LOGGED, "wind strength", raw)
-        return None
-    return mapped
-
-
-_FIRE_SEASON_OPTIONS = ["open", "restricted", "prohibited"]
-_UNKNOWN_FIRE_SEASON_LOGGED: set[str] = set()
-
-
-def _fire_season_state(raw: str | None) -> str | None:
-    """Map the raw fire season status to its ENUM state."""
-    if not raw:
-        return None
-    key = raw.strip().lower()
-    if key in _FIRE_SEASON_OPTIONS:
-        return key
-    _warn_once(_UNKNOWN_FIRE_SEASON_LOGGED, "fire season status", raw)
-    return None
-
-
-_FIRE_DANGER_INDEX_MAP: dict[int, str] = {
-    1: "low",
-    2: "moderate",
-    3: "high",
-    4: "very_high",
-    5: "extreme",
-}
-_FIRE_DANGER_OPTIONS = ["low", "moderate", "high", "very_high", "extreme"]
-_UNKNOWN_FIRE_DANGER_LOGGED: set[str] = set()
-_FIRE_DANGER_LABEL_DRIFT_LOGGED: set[str] = set()
-
-
-def _fire_danger_state(index: int | None, label: str | None) -> str | None:
-    """Map fire danger to its ENUM state: index is primary, label a fallback."""
-    if index is not None:
-        mapped = _FIRE_DANGER_INDEX_MAP.get(index)
-        if mapped is not None:
-            if (
-                label
-                and label.strip().lower().replace(" ", "_") != mapped
-                and label not in _FIRE_DANGER_LABEL_DRIFT_LOGGED
-            ):
-                _FIRE_DANGER_LABEL_DRIFT_LOGGED.add(label)
-                _LOGGER.warning(
-                    "MetService fire danger label %r doesn't match its index "
-                    "%s (%s) — please report at "
-                    "https://github.com/nagelm/metservice-weather/issues",
-                    label,
-                    index,
-                    mapped,
-                )
-            return mapped
-        _warn_once(_UNKNOWN_FIRE_DANGER_LOGGED, "fire danger index", str(index))
-        return None
-    if label:
-        candidate = label.strip().lower().replace(" ", "_")
-        if candidate in _FIRE_DANGER_OPTIONS:
-            return candidate
-        _warn_once(_UNKNOWN_FIRE_DANGER_LOGGED, "fire danger label", label)
-        return None
-    return None
-
-
-_MOON_PHASE_ENUM_MAP: dict[str, str] = {
-    "NEW": "new",
-    "FIRST": "first_quarter",
-    "FULL": "full",
-    "LAST": "last_quarter",
-}
-_UNKNOWN_MOON_PHASE_LOGGED: set[str] = set()
-
-_MOON_PHASE_CURRENT_OPTIONS = [
-    "new_moon",
-    "waxing_crescent",
-    "first_quarter",
-    "waxing_gibbous",
-    "full_moon",
-    "waning_gibbous",
-    "last_quarter",
-    "waning_crescent",
-]
-
-
-def _moon_phase_enum_state(raw: str | None) -> str | None:
-    """Map the raw NEW/FIRST/FULL/LAST phase token to its ENUM state."""
-    if not raw:
-        return None
-    mapped = _MOON_PHASE_ENUM_MAP.get(raw)
-    if mapped is None:
-        _warn_once(_UNKNOWN_MOON_PHASE_LOGGED, "moon phase", raw)
-        return None
-    return mapped
 
 
 def _long_text_state(text: str | None, fallback: str | None = None) -> str | None:
@@ -427,6 +243,39 @@ class WeatherSensorEntityDescription(SensorEntityDescription, WeatherRequiredKey
     device: str = "location"
 
 
+def _temperature(**kwargs: Any) -> WeatherSensorEntityDescription:
+    """Describe a temperature measurement in metric units."""
+    return WeatherSensorEntityDescription(
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        suggested_display_precision=1,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        **kwargs,
+    )
+
+
+def _wind_speed(**kwargs: Any) -> WeatherSensorEntityDescription:
+    """Describe a wind speed measurement in metric units."""
+    return WeatherSensorEntityDescription(
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.WIND_SPEED,
+        suggested_display_precision=1,
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        **kwargs,
+    )
+
+
+def _rainfall(**kwargs: Any) -> WeatherSensorEntityDescription:
+    """Describe a rainfall measurement in metric units."""
+    return WeatherSensorEntityDescription(
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.PRECIPITATION,
+        suggested_display_precision=1,
+        native_unit_of_measurement=UnitOfPrecipitationDepth.MILLIMETERS,
+        **kwargs,
+    )
+
+
 current_condition_sensor_descriptions_public = [
     WeatherSensorEntityDescription(
         key="validTimeLocal",
@@ -474,26 +323,18 @@ current_condition_sensor_descriptions_public = [
         exists_fn=_has_observations,
         value_fn=lambda data: cast(str, data.wind_direction),
     ),
-    WeatherSensorEntityDescription(
+    _temperature(
         key="temperatureFeelsLike",
         translation_key="temperature_feels_like",
         name="Temperature feel",
         exists_fn=_has_observations,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         value_fn=lambda data: _safe_float(data.feels_like),
     ),
-    WeatherSensorEntityDescription(
+    _temperature(
         key=FIELD_TEMP,
         translation_key="temperature",
         name="Temperature",
         exists_fn=_has_observations,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         value_fn=lambda data: _safe_float(data.temperature),
     ),
     WeatherSensorEntityDescription(
@@ -507,59 +348,39 @@ current_condition_sensor_descriptions_public = [
         native_unit_of_measurement=UnitOfPressure.MBAR,
         value_fn=lambda data: _safe_float(data.pressure),
     ),
-    WeatherSensorEntityDescription(
+    _wind_speed(
         key=FIELD_WINDGUST,
         translation_key="wind_gust",
         name="Wind gust",
         exists_fn=_has_observations,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.WIND_SPEED,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
         value_fn=lambda data: _safe_float(data.wind_gust),
     ),
-    WeatherSensorEntityDescription(
+    _wind_speed(
         key=FIELD_WINDSPEED,
         translation_key="wind_speed",
         name="Wind speed",
         exists_fn=_has_observations,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.WIND_SPEED,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
         value_fn=lambda data: _safe_float(data.wind_speed),
     ),
-    WeatherSensorEntityDescription(
+    _rainfall(
         key="rainfall",
         translation_key="rainfall",
         name="Rain last hour",
         exists_fn=_has_observations,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.PRECIPITATION,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfPrecipitationDepth.MILLIMETERS,
         value_fn=lambda data: _safe_float(data.rainfall),
     ),
-    WeatherSensorEntityDescription(
+    _rainfall(
         key="rain_next_8_hours",
         translation_key="rain_next_8_hours",
         name="Rain next 8 hours",
         entity_registry_enabled_default=False,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.PRECIPITATION,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfPrecipitationDepth.MILLIMETERS,
         value_fn=lambda data: data.rain_next_8h_mm,
     ),
-    WeatherSensorEntityDescription(
+    _rainfall(
         key="rain_next_24_hours",
         translation_key="rain_next_24_hours",
         name="Rain next 24 hours",
         entity_registry_enabled_default=False,
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.PRECIPITATION,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfPrecipitationDepth.MILLIMETERS,
         value_fn=lambda data: data.rain_next_24h_mm,
     ),
     WeatherSensorEntityDescription(
@@ -876,24 +697,16 @@ current_condition_sensor_descriptions_public = [
         options=_WIND_STRENGTH_OPTIONS,
         value_fn=lambda data: _wind_strength_state(data.wind_strength),
     ),
-    WeatherSensorEntityDescription(
+    _temperature(
         key="temperature_today_high",
         translation_key="temperature_today_high",
         name="High temperature today",
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         value_fn=lambda data: _safe_float(data.temp_today_high),
     ),
-    WeatherSensorEntityDescription(
+    _temperature(
         key="temperature_today_low",
         translation_key="temperature_today_low",
         name="Low temperature today",
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         value_fn=lambda data: _safe_float(data.temp_today_low),
     ),
     WeatherSensorEntityDescription(
@@ -920,24 +733,16 @@ current_condition_sensor_descriptions_public = [
             cast(str, data.tomorrow_condition) if data.tomorrow_condition else None
         ),
     ),
-    WeatherSensorEntityDescription(
+    _temperature(
         key="tomorrow_temp_high",
         translation_key="tomorrow_temp_high",
         name="High temperature tomorrow",
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         value_fn=lambda data: _safe_float(data.tomorrow_temp_high),
     ),
-    WeatherSensorEntityDescription(
+    _temperature(
         key="tomorrow_temp_low",
         translation_key="tomorrow_temp_low",
         name="Low temperature tomorrow",
-        state_class=SensorStateClass.MEASUREMENT,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        suggested_display_precision=1,
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         value_fn=lambda data: _safe_float(data.tomorrow_temp_low),
     ),
     WeatherSensorEntityDescription(
