@@ -983,7 +983,7 @@ async def test_public_handle_coordinator_update_schedules_listeners(hass):
         pytest.param("2026-01-15T20:00:00+13:00", "partlycloudy", id="summer-evening"),
         pytest.param("2026-01-15T07:30:00+13:00", "partlycloudy", id="summer-morning"),
         pytest.param("2026-07-15T18:30:00+12:00", "clear-night", id="winter-evening"),
-        pytest.param("2026-07-15T07:30:00+12:00", "clear-night", id="winter-morning"),
+        pytest.param("2026-07-15T06:30:00+12:00", "clear-night", id="winter-morning"),
     ],
 )
 async def test_public_forecast_hourly_day_and_night_follow_the_sun(
