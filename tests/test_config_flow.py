@@ -1065,3 +1065,38 @@ async def test_reconfigure_keeps_station_when_its_list_fails(
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data["tide_url"] == _NORTHLAND_TIDE_URL
+
+
+async def test_duplicate_location_aborts_after_migrating_an_old_entry(
+    hass, mock_marine_session
+):
+    """A location held by an entry migrated from 1.1 still can't be added twice."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.metservice_weather import async_migrate_entry
+
+    location = "/towns-cities/regions/hawkes-bay/locations/napier"
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        minor_version=1,
+        unique_id=f"{DOMAIN}-{location}",
+        data={"name": "Napier", "location": location, "api": "public", "api_key": "a"},
+    )
+    entry.add_to_hass(hass)
+    assert await async_migrate_entry(hass, entry)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_NAME: "Napier Duplicate",
+            CONF_LOCATION: location,
+            CONF_MARINE_REGION: "skip",
+            SECTION_ADVANCED_OPTIONS: {},
+        },
+    )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "already_configured"

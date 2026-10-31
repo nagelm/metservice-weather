@@ -553,3 +553,90 @@ async def test_setup_keeps_a_device_whose_entities_are_disabled(hass):
         await hass.async_block_till_done()
 
     assert dev_reg.async_get(device.id) is not None
+
+
+_LOCATION_PREFIX = f"{_PUBLIC_ENTRY_DATA['location']}_"
+
+
+@pytest.mark.parametrize(
+    ("extra_data", "old_unique_id", "new_unique_id", "object_id"),
+    [
+        pytest.param(
+            {"api_key": "a", "enable_tides": False, "boating_region": "y"},
+            "Napier,temperature",
+            f"{_LOCATION_PREFIX}temperature",
+            "napier_temperature",
+            id="v0.9-public",
+        ),
+        pytest.param(
+            {"tide_region_url": "x"},
+            f"{_LOCATION_PREFIX}uv_risk",
+            f"{_LOCATION_PREFIX}uv_risk",
+            "napier_uv_index_2",
+            id="2026.7-fork-window",
+        ),
+        pytest.param(
+            {},
+            f"{_LOCATION_PREFIX}temperature",
+            f"{_LOCATION_PREFIX}temperature",
+            "napier_temperature",
+            id="current",
+        ),
+    ],
+)
+async def test_migration_of_each_historical_shape_keeps_entity_ids_and_runs_once(
+    hass, extra_data, old_unique_id, new_unique_id, object_id
+):
+    """Every released entry shape reaches 1.2 with its entity_id kept; repeating changes nothing."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        minor_version=1,
+        data={**_PUBLIC_ENTRY_DATA, **extra_data},
+    )
+    entry.add_to_hass(hass)
+    ent_reg = er.async_get(hass)
+    row = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        old_unique_id,
+        config_entry=entry,
+        suggested_object_id=object_id,
+    )
+
+    assert await async_migrate_entry(hass, entry)
+
+    migrated = ent_reg.async_get(row.entity_id)
+    assert migrated.entity_id == f"sensor.{object_id}"
+    assert migrated.unique_id == new_unique_id
+    assert dict(entry.data) == _PUBLIC_ENTRY_DATA
+    assert entry.minor_version == 2
+
+    assert await async_migrate_entry(hass, entry)
+
+    assert ent_reg.async_get(row.entity_id) == migrated
+    assert dict(entry.data) == _PUBLIC_ENTRY_DATA
+    assert entry.minor_version == 2
+
+
+async def test_entry_from_a_newer_minor_version_loads_untouched(hass):
+    """After a downgrade, an entry written by a newer minor version still loads, and is not migrated."""
+    data = {**_PUBLIC_ENTRY_DATA, "api_key": "kept"}
+    entry = MockConfigEntry(domain=DOMAIN, version=1, minor_version=3, data=data)
+    entry.add_to_hass(hass)
+    ent_reg = er.async_get(hass)
+    row = ent_reg.async_get_or_create(
+        "sensor", DOMAIN, "Napier,temperature", config_entry=entry
+    )
+
+    with patch(
+        "custom_components.metservice_weather.WeatherUpdateCoordinator.async_config_entry_first_refresh",
+        new_callable=AsyncMock,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.minor_version == 3
+    assert dict(entry.data) == data
+    assert ent_reg.async_get(row.entity_id).unique_id == "Napier,temperature"
