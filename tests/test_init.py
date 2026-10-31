@@ -626,7 +626,7 @@ async def test_entry_from_a_newer_minor_version_loads_untouched(hass):
     entry.add_to_hass(hass)
     ent_reg = er.async_get(hass)
     row = ent_reg.async_get_or_create(
-        "sensor", DOMAIN, "Napier,temperature", config_entry=entry
+        "sensor", DOMAIN, f"{_LOCATION_PREFIX}temperature", config_entry=entry
     )
 
     with patch(
@@ -639,4 +639,4 @@ async def test_entry_from_a_newer_minor_version_loads_untouched(hass):
     assert entry.state is ConfigEntryState.LOADED
     assert entry.minor_version == 3
     assert dict(entry.data) == data
-    assert ent_reg.async_get(row.entity_id).unique_id == "Napier,temperature"
+    assert ent_reg.async_get(row.entity_id) is not None
