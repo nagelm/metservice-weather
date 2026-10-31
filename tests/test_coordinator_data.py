@@ -225,13 +225,13 @@ class TestHourlyData:
         assert isinstance(val, list)
         assert len(val) > 0
 
-    def test_hourly_obs_is_positive_int(self, coord):
+    def test_hourly_forecast_count_is_positive_int(self, coord):
         """Hourly forecast count is a positive int."""
         val = coord.data.hourly_forecast_count
         assert isinstance(val, int)
         assert val > 0
 
-    def test_hourly_skip_is_non_negative_int(self, coord):
+    def test_hourly_observed_count_is_non_negative_int(self, coord):
         """Hourly observed count is a non-negative int."""
         val = coord.data.hourly_observed_count
         assert isinstance(val, int)
@@ -240,8 +240,7 @@ class TestHourlyData:
     def test_hourly_entry_has_required_keys(self, coord):
         """Current hourly entry has a datetime and a temperature or rainfall value."""
         entries = coord.data.hourly_entries
-        skip = coord.data.hourly_observed_count
-        entry = entries[skip]
+        entry = entries[coord.data.hourly_observed_count]
         assert isinstance(entry, HourlyEntry)
         assert entry.datetime != ""
         assert entry.temperature is not None or entry.rainfall is not None

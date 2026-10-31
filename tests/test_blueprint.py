@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 from homeassistant.core import State
 from homeassistant.helpers.template import Template
-from homeassistant.util.yaml import load_yaml
+from homeassistant.setup import async_setup_component
+from homeassistant.util.yaml import load_yaml, substitute
+from pytest_homeassistant_custom_component.common import async_mock_service
 
 from custom_components.metservice_weather.coordinator_types import MetServicePublicData
 from custom_components.metservice_weather.weather_current_conditions_sensors import (
@@ -102,3 +104,56 @@ def test_severity_level_attribute_has_a_translated_name(name):
     strings = json.loads(path.read_text(encoding="utf-8"))
     attributes = strings["entity"]["sensor"]["warning_level"]["state_attributes"]
     assert attributes["severity_level"]["name"] == "Severity level"
+
+
+async def test_blueprint_automation_notifies_when_a_warning_arrives(hass):
+    """As a running automation, the blueprint fires on a new warning and not when it eases."""
+    blueprint = await hass.async_add_executor_job(load_yaml, str(_BLUEPRINT))
+    config = substitute(
+        blueprint,
+        {
+            "warning_sensor": "sensor.napier_warnings",
+            "details_sensor": "sensor.napier_warning_details",
+            "min_severity": 1,
+            "notify_actions": [
+                {
+                    "action": "test.notify",
+                    "data": {"title": "{{ title }}", "message": "{{ message }}"},
+                }
+            ],
+        },
+    )
+    config.pop("blueprint")
+    calls = async_mock_service(hass, "test", "notify")
+    assert await async_setup_component(hass, "automation", {"automation": [config]})
+    await hass.async_block_till_done()
+
+    def _publish(*names: str) -> None:
+        state = _warning_state(*names)
+        hass.states.async_set(state.entity_id, state.state, state.attributes)
+
+    hass.states.async_set(
+        "sensor.napier_warning_details",
+        "1",
+        {
+            "active_warnings": [
+                {
+                    "name": "Heavy Rain Warning - Orange",
+                    "threat_period": "Today",
+                    "text": "t",
+                }
+            ]
+        },
+    )
+    _publish()
+    await hass.async_block_till_done()
+    assert calls == []
+
+    _publish("Heavy Rain Warning - Orange")
+    await hass.async_block_till_done()
+    assert len(calls) == 1
+    assert "Heavy Rain Warning - Orange" in calls[0].data["message"]
+
+    _publish("Road Snowfall Warning")
+    await hass.async_block_till_done()
+    assert len(calls) == 1

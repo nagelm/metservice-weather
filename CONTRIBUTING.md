@@ -15,7 +15,7 @@ Pull requests are the best way to propose changes to the codebase.
 
 1. Fork the repo and create your branch from `main`.
 2. If you've changed something, update the documentation.
-3. Make sure your code lints (using `scripts/lint.sh`).
+3. Make sure your code lints (`ruff check . && ruff format .`).
 4. Test your contribution.
 5. Open the pull request.
 
@@ -46,7 +46,7 @@ Thorough bug reports make issues much faster to resolve.
 
 Linting and formatting are enforced by [ruff](https://github.com/astral-sh/ruff)
 (config in `.ruff.toml`, rules aligned with Home Assistant core). Run
-`scripts/lint.sh` (or `ruff check . && ruff format .`) before submitting.
+`ruff check . && ruff format .` before submitting.
 
 ## Test your code modification
 
@@ -58,9 +58,7 @@ pip install -r requirements-test.txt
 pytest tests/
 ```
 
-Alternatively, `scripts/test.sh tests/` activates a venv at
-`$METSERVICE_VENV_DIR` (defaulting to `~/.venv/metservice-weather`) before
-running pytest. Note that pytest requires Linux/macOS —
+Note that pytest requires Linux/macOS —
 `pytest-homeassistant-custom-component` needs `fcntl`, which isn't available
 on Windows.
 

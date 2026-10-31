@@ -270,9 +270,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             today = days[0]
             return {
                 "boating_status": today.get("view", {}).get("text", ""),
-                "boating_status_raw": today.get("view", {}).get("status", ""),
                 "boating_forecast": today.get("forecast", {}).get("text", ""),
-                "boating_issued_at": today.get("forecast", {}).get("issuedAt", ""),
             }
         except (TimeoutError, aiohttp.ClientError) as err:
             _LOGGER.warning(
