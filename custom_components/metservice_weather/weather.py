@@ -8,7 +8,7 @@ from .deprecation import (
     async_check_removed_entity,
     async_check_removed_forecast_attributes,
 )
-from homeassistant.config_entries import ConfigEntry
+from . import MetServiceConfigEntry
 from .const import (
     LENGTHUNIT,
     PRESSUREUNIT,
@@ -37,7 +37,7 @@ from homeassistant.components.weather import (
 
 
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers import entity_registry as er, sun as sun_helper
 from homeassistant.util import dt as dt_util
 
@@ -93,8 +93,8 @@ def _nearest_hourly_entry(data: MetServicePublicData) -> HourlyEntry | None:
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry[WeatherUpdateCoordinator],
-    async_add_entities: AddEntitiesCallback,
+    entry: MetServiceConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Add weather entity."""
     coordinator: WeatherUpdateCoordinator = entry.runtime_data
@@ -219,13 +219,15 @@ class MetServiceForecastPublic(MetServicePublic):
         self._forecast_daily_cache = None
         super()._handle_coordinator_update()
 
-    async def async_forecast_hourly(self) -> list[Forecast] | None:
+    @callback
+    def _async_forecast_hourly(self) -> list[Forecast] | None:
         """Return hourly forecast."""
         if self._forecast_hourly_cache is None:
             self._forecast_hourly_cache = self.forecast_hourly
         return self._forecast_hourly_cache
 
-    async def async_forecast_daily(self) -> list[Forecast] | None:
+    @callback
+    def _async_forecast_daily(self) -> list[Forecast] | None:
         """Return daily forecast."""
         if self._forecast_daily_cache is None:
             self._forecast_daily_cache = self.forecast_daily
