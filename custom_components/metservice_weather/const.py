@@ -55,6 +55,8 @@ PUBLIC_HEADERS: Final = {
         "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
     ),
 }
+MARINE_PATH_RE: Final = re.compile(r"/?marine/regions/[\w-]+(?:/[\w-]+)*")
+LOCATION_ID_RE: Final = re.compile(r"[\w-]+")
 LOCATION_PATH_RE: Final = re.compile(
     r"/(?:towns-cities|rural)/regions/[a-z0-9-]+/locations/[a-z0-9-]+"
     r"|/rural/regions/[a-z0-9-]+"

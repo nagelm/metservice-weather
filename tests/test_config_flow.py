@@ -1100,3 +1100,25 @@ async def test_duplicate_location_aborts_after_migrating_an_old_entry(
 
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        (
+            "/marine/regions/northland/tides/locations/whangarei",
+            "/marine/regions/northland/tides/locations/whangarei",
+        ),
+        ("/../../towns-cities/secret", None),
+        ("/marine/regions/northland/../../other", None),
+        ("/marine/regions/northland?x=1", None),
+    ],
+)
+def test_resolve_url_accepts_only_marine_paths(url, expected):
+    """A station URL from the response is kept only if it is a marine path."""
+    flow = WeatherFlowHandler()
+    markers = [{"action": {"modules": [{"link": {"url": url}}]}}]
+    resolved = flow._resolve_url(
+        "Whangarei", {"0": "Whangarei"}, markers, "marine/regions/northland", "tides"
+    )
+    assert resolved == expected
