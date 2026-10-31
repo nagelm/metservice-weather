@@ -226,21 +226,21 @@ class TestHourlyData:
         assert len(val) > 0
 
     def test_hourly_obs_is_positive_int(self, coord):
-        """Hourly observation count is a positive int."""
-        val = coord.data.hourly_obs
+        """Hourly forecast count is a positive int."""
+        val = coord.data.hourly_forecast_count
         assert isinstance(val, int)
         assert val > 0
 
     def test_hourly_skip_is_non_negative_int(self, coord):
-        """Hourly skip offset is a non-negative int."""
-        val = coord.data.hourly_skip
+        """Hourly observed count is a non-negative int."""
+        val = coord.data.hourly_observed_count
         assert isinstance(val, int)
         assert val >= 0
 
     def test_hourly_entry_has_required_keys(self, coord):
         """Current hourly entry has a datetime and a temperature or rainfall value."""
         entries = coord.data.hourly_entries
-        skip = coord.data.hourly_skip
+        skip = coord.data.hourly_observed_count
         entry = entries[skip]
         assert isinstance(entry, HourlyEntry)
         assert entry.datetime != ""
@@ -328,3 +328,19 @@ class TestRuralContract:
     def test_has_observations_false(self, rural_coord):
         """Rural location's has_observations flag is False."""
         assert rural_coord.data.has_observations is False
+
+
+@pytest.mark.parametrize("name", ["kumeu", "napier"])
+def test_hourly_graph_lists_observed_hours_before_forecast_hours(name):
+    """MetService's hourly graph is the observed segment, then the forecast segment."""
+    payload = json.loads(
+        (Path(__file__).parent / "fixtures" / f"{name}_public_current.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    modules = payload["layout"]["primary"]["slots"]["main"]["modules"]
+    graph = next(m["graph"] for m in modules if "series" in m.get("graph", {}))
+    observed, forecast = graph["series"][:2]
+    assert observed["label"] == "Observed"
+    assert forecast["label"] == "Forecast"
+    assert forecast["start"] == observed["start"] + observed["count"]

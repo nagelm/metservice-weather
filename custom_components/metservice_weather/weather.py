@@ -242,17 +242,22 @@ class MetServiceForecastPublic(MetServicePublic):
         if data is None:
             return forecast
         hourly_entries = data.hourly_entries
-        hourly_obs = data.hourly_obs
-        hourly_skip = data.hourly_skip
+        hourly_forecast_count = data.hourly_forecast_count
+        hourly_observed_count = data.hourly_observed_count
 
-        if not hourly_entries or hourly_obs is None or hourly_skip is None:
+        if (
+            not hourly_entries
+            or hourly_forecast_count is None
+            or hourly_observed_count is None
+        ):
             return forecast
 
-        for entry in hourly_entries[hourly_skip : hourly_obs + hourly_skip]:
+        for entry in hourly_entries[
+            hourly_observed_count : hourly_forecast_count + hourly_observed_count
+        ]:
             rainfall = entry.rainfall
             wind_speed = entry.wind_speed
             wind_dir = entry.wind_direction
-            is_daytime = 7 < datetime.fromisoformat(entry.datetime).hour < 19
 
             if rainfall is not None and rainfall > 0:
                 if rainfall > 6:
@@ -261,7 +266,10 @@ class MetServiceForecastPublic(MetServicePublic):
                     icon = "rainy"
             elif wind_speed is not None and wind_speed > 40:
                 icon = "windy"
-            elif is_daytime:
+            elif sun_helper.is_up(
+                self.coordinator.hass,
+                dt_util.as_utc(datetime.fromisoformat(entry.datetime)),
+            ):
                 icon = "partlycloudy"
             else:
                 icon = "clear-night"

@@ -268,7 +268,9 @@ async def test_public_entity_precipitation_units(hass):
 def _hourly_data(**kwargs) -> MetServicePublicData:
     """Build a MetServicePublicData with one HourlyEntry for icon tests."""
     entry = HourlyEntry(**kwargs)
-    return MetServicePublicData(hourly_entries=[entry], hourly_obs=1, hourly_skip=0)
+    return MetServicePublicData(
+        hourly_entries=[entry], hourly_forecast_count=1, hourly_observed_count=0
+    )
 
 
 async def test_public_forecast_hourly_empty_when_no_data(hass):
@@ -299,8 +301,8 @@ async def test_public_forecast_hourly_with_data(hass):
                 wind_direction="SW",
             ),
         ],
-        hourly_obs=2,
-        hourly_skip=0,
+        hourly_forecast_count=2,
+        hourly_observed_count=0,
     )
     entity = MetServiceForecastPublic(coord)
     result = entity.forecast_hourly
@@ -361,11 +363,15 @@ async def test_public_forecast_hourly_night_icon(hass):
         wind_direction="N",
     )
     entity = MetServiceForecastPublic(coord)
-    assert entity.forecast_hourly[0]["condition"] == "clear-night"
+    with patch(
+        "custom_components.metservice_weather.weather.sun_helper.is_up",
+        return_value=False,
+    ):
+        assert entity.forecast_hourly[0]["condition"] == "clear-night"
 
 
 async def test_public_forecast_hourly_skip_offsets_start(hass):
-    """hourly_skip causes the first N entries to be excluded."""
+    """The observed hours at the start of the list are excluded."""
     coord = _make_coordinator(hass)
     coord.data = MetServicePublicData(
         hourly_entries=[
@@ -382,8 +388,8 @@ async def test_public_forecast_hourly_skip_offsets_start(hass):
                 wind_speed=5.0,
             ),
         ],
-        hourly_obs=1,
-        hourly_skip=1,
+        hourly_forecast_count=1,
+        hourly_observed_count=1,
     )
     entity = MetServiceForecastPublic(coord)
     result = entity.forecast_hourly
@@ -898,8 +904,8 @@ async def test_public_async_forecast_hourly_populates_cache(hass):
                 wind_speed=10.0,
             )
         ],
-        hourly_obs=1,
-        hourly_skip=0,
+        hourly_forecast_count=1,
+        hourly_observed_count=0,
     )
     entity = MetServiceForecastPublic(coord)
     assert entity._forecast_hourly_cache is None
@@ -969,6 +975,27 @@ async def test_public_handle_coordinator_update_schedules_listeners(hass):
     ):
         entity._handle_coordinator_update()
     mock_listeners.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize(
+    ("when", "expected"),
+    [
+        pytest.param("2026-01-15T20:00:00+13:00", "partlycloudy", id="summer-evening"),
+        pytest.param("2026-01-15T07:30:00+13:00", "partlycloudy", id="summer-morning"),
+        pytest.param("2026-07-15T18:30:00+12:00", "clear-night", id="winter-evening"),
+        pytest.param("2026-07-15T06:30:00+12:00", "clear-night", id="winter-morning"),
+    ],
+)
+async def test_public_forecast_hourly_day_and_night_follow_the_sun(
+    hass, when, expected
+):
+    """A dry, calm hour is day or night by the sun at Home Assistant's location."""
+    hass.config.latitude = -39.49
+    hass.config.longitude = 176.91
+    coord = _make_coordinator(hass)
+    coord.data = _hourly_data(datetime=when, rainfall=0.0, wind_speed=5.0)
+    entity = MetServiceForecastPublic(coord)
+    assert entity.forecast_hourly[0]["condition"] == expected
 
 
 @pytest.mark.parametrize(

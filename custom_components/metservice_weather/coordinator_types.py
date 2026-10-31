@@ -383,8 +383,8 @@ class MetServicePublicData:
     is_rural: bool = False
 
     hourly_entries: list[HourlyEntry] = field(default_factory=list)
-    hourly_obs: int | None = None
-    hourly_skip: int | None = None
+    hourly_forecast_count: int | None = None
+    hourly_observed_count: int | None = None
 
     rain_next_8h_mm: float | None = None
     rain_next_24h_mm: float | None = None
@@ -428,8 +428,10 @@ def normalize_public_data(
     graph_module = _find_module(main_mods, "graph")
     graph = graph_module.get("graph", {})
     graph_series = graph.get("series") or []
-    hourly_skip = graph_series[0].get("count", 0) if graph_series else 0
-    hourly_obs_count = graph_series[1].get("count", 0) if len(graph_series) > 1 else 0
+    hourly_observed_count = graph_series[0].get("count", 0) if graph_series else 0
+    hourly_forecast_count = (
+        graph_series[1].get("count", 0) if len(graph_series) > 1 else 0
+    )
 
     left_minor = (
         _get(current, "layout", "primary", "slots", "left-minor", "modules") or []
@@ -536,8 +538,10 @@ def normalize_public_data(
         if isinstance(d, dict)
     ]
 
-    observed_hourly = hourly_entries[:hourly_skip]
-    forecast_hourly = hourly_entries[hourly_skip : hourly_skip + hourly_obs_count]
+    observed_hourly = hourly_entries[:hourly_observed_count]
+    forecast_hourly = hourly_entries[
+        hourly_observed_count : hourly_observed_count + hourly_forecast_count
+    ]
     hour_mm: dict[Any, float | None] = {}
     for slice_entries in (forecast_hourly, observed_hourly):
         for h in slice_entries:
@@ -718,8 +722,8 @@ def normalize_public_data(
         has_breakdown=bool(breakdown0),
         is_rural=is_rural,
         hourly_entries=hourly_entries,
-        hourly_obs=hourly_obs_count,
-        hourly_skip=hourly_skip,
+        hourly_forecast_count=hourly_forecast_count,
+        hourly_observed_count=hourly_observed_count,
         rain_next_8h_mm=rain_next_8h_mm,
         rain_next_24h_mm=rain_next_24h_mm,
         next_rain_at=next_rain_at,
