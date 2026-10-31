@@ -197,7 +197,7 @@ async def async_setup_entry(
 
     async_add_entities(sensors)
 
-    await async_check_deprecated_entities(hass, entry, coordinator)
+    await async_check_deprecated_entities(hass, entry)
 
     if (
         coordinator.enable_tides

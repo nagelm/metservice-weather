@@ -1,7 +1,7 @@
 {
   "domain": "metservice_weather",
   "name": "MetService New Zealand Weather",
-  "after_dependencies": ["automation", "lovelace", "script"],
+  "after_dependencies": ["automation", "script"],
   "codeowners": ["@nagelm"],
   "config_flow": true,
   "documentation": "https://github.com/nagelm/metservice-weather",

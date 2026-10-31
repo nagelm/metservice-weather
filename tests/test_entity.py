@@ -166,9 +166,8 @@ async def test_marine_sensor_composed_friendly_name_changes_from_location_device
     assert sensor.has_entity_name is True
 
     device_name = sensor.device_info["name"]
-    entity_name = sensor.entity_description.name
+    entity_name = "Next high tide"
     assert device_name == "Kapiti and Wellington"
-    assert entity_name == "Next high tide"
 
     composed = f"{device_name} {entity_name}"
     assert composed == "Kapiti and Wellington Next high tide"

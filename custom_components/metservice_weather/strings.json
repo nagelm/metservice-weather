@@ -429,21 +429,6 @@
     "marine_device_move": {
       "title": "Marine sensors moved to a new device",
       "description": "Tide, boating, and surf entities now live on the {marine_device} device instead of the main location device — entity IDs are unchanged, so entity-based automations keep working. But device-based triggers, conditions, or actions in the following automations/scripts still target the old device and may no longer fire as expected: {references}. Open each one and re-select the entity, or point it at the {marine_device} device."
-    },
-    "entity_id_reclaim": {
-      "title": "{count} MetService sensor(s) can reclaim their entity IDs",
-      "fix_flow": {
-        "step": {
-          "confirm": {
-            "title": "Rename {count} entity ID(s)?",
-            "description": "A deprecated sensor held the canonical ID, so these landed on suffixed ones. The deprecated sensors are gone and nothing references the current IDs:\n\n{renames}\n\nHistory and settings move with the rename.\n\nSelect **Submit** to rename, or **Ignore** this repair to leave things as they are."
-          }
-        }
-      }
-    },
-    "entity_id_reclaim_referenced": {
-      "title": "{count} MetService sensor(s) could reclaim their entity IDs, but they're in use",
-      "description": "These sensors could take their now-free canonical IDs, but something still references them:\n\n{details}\n\nAn automatic rename would break those references — rename each sensor yourself from Settings > Devices & services > Entities once you've updated them. This notice clears itself when nothing is left to reclaim."
     }
   }
 }

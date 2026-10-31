@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections.abc import Iterable
 from typing import Any
 
@@ -12,11 +11,6 @@ from homeassistant.components.automation import (
     automations_with_device,
     automations_with_entity,
 )
-from homeassistant.components.group import groups_with_entity
-from homeassistant.components.homeassistant.exposed_entities import (
-    async_get_entity_settings,
-)
-from homeassistant.components.homeassistant.scene import scenes_with_entity
 from homeassistant.components.script import scripts_with_device, scripts_with_entity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -29,7 +23,6 @@ from .const import DOMAIN
 from .coordinator import WeatherUpdateCoordinator
 from .entity import _marine_device_name
 from .weather_current_conditions_sensors import (
-    WeatherSensorEntityDescription,
     current_condition_sensor_descriptions_public,
 )
 
@@ -56,24 +49,20 @@ DEPRECATED_SENSOR_REPLACEMENTS: dict[str, str] = {
 
 _MAX_LISTED_REFERENCES = 10
 
-_REPLACEMENT_DESCRIPTIONS_BY_KEY: dict[str, WeatherSensorEntityDescription] = {
-    description.key: description
-    for description in current_condition_sensor_descriptions_public
+_REPLACEMENT_DISPLAY_NAMES: dict[str, str] = {
+    "uv_risk": "UV index",
+    "warning_level": "Warnings",
+    "pressure_trend": "Pressure tendency",
+    "wind_strength_level": "Wind strength",
+    "fire_season_status": "Fire season",
+    "fire_danger_level": "Fire danger",
+    "moon_phase_current": "Moon phase",
+    "sunrise_at": "Sunrise",
+    "sunset_at": "Sunset",
+    "moonrise_at": "Moonrise",
+    "moonset_at": "Moonset",
+    "pollen": "Pollen",
 }
-
-
-def _friendly_key(key: str) -> str:
-    """Return a human-readable form of a snake_case replacement sensor key."""
-    return " ".join(
-        word.upper() if word == "uv" else word.capitalize() for word in key.split("_")
-    )
-
-
-def _replacement_display_name(key: str) -> str:
-    """Return the replacement sensor's display name for repair-issue text."""
-    description = _REPLACEMENT_DESCRIPTIONS_BY_KEY.get(key)
-    name = description.name if description else None
-    return name if isinstance(name, str) else _friendly_key(key)
 
 
 _REPLACEMENT_DETAIL_HINTS: dict[str, str] = {
@@ -104,173 +93,6 @@ def _referencing_items(hass: HomeAssistant, entity_id: str) -> list[str]:
     return references
 
 
-def _dump_json(value: Any) -> str | None:
-    """Best-effort JSON dump for substring matching; None on failure."""
-    try:
-        return json.dumps(value, default=str)
-    except TypeError, ValueError:
-        return None
-
-
-def _config_entries_referencing(hass: HomeAssistant, entity_id: str) -> list[str]:
-    """Return "{domain}: {title}" for other integrations' entries that mention entity_id."""
-    evidence: list[str] = []
-    for config_entry in hass.config_entries.async_entries():
-        if config_entry.domain in (DOMAIN, "homekit"):
-            continue
-        try:
-            data_json = _dump_json(config_entry.data)
-            options_json = _dump_json(config_entry.options)
-            if (data_json and entity_id in data_json) or (
-                options_json and entity_id in options_json
-            ):
-                evidence.append(f"{config_entry.domain}: {config_entry.title}")
-        except Exception:
-            continue
-    return evidence
-
-
-def _homekit_includes(hass: HomeAssistant, entity_id: str) -> bool:
-    """Return True when a HomeKit config entry's options mention entity_id."""
-    for config_entry in hass.config_entries.async_entries("homekit"):
-        try:
-            options_json = _dump_json(config_entry.options)
-            if options_json and entity_id in options_json:
-                return True
-        except Exception:
-            continue
-    return False
-
-
-def _voice_assistant_exposure(hass: HomeAssistant, entity_id: str) -> list[str]:
-    """Return assistant keys (e.g. "conversation", "cloud.alexa") exposing entity_id."""
-    settings = async_get_entity_settings(hass, entity_id)
-    return [
-        assistant
-        for assistant, options in settings.items()
-        if options.get("should_expose")
-    ]
-
-
-async def _dashboards_referencing(hass: HomeAssistant, entity_id: str) -> list[str]:
-    """Return a title/url_path for every Lovelace dashboard whose config mentions entity_id."""
-    if "lovelace" not in hass.config.components:
-        return []
-
-    from homeassistant.components.lovelace import LOVELACE_DATA
-
-    lovelace_data = hass.data.get(LOVELACE_DATA)
-    dashboards = getattr(lovelace_data, "dashboards", None)
-    if not dashboards:
-        return []
-
-    evidence: list[str] = []
-    for url_path, dash in dashboards.items():
-        try:
-            config = await dash.async_load(False)
-            if not config:
-                continue
-            config_json = _dump_json(config)
-            if not config_json or entity_id not in config_json:
-                continue
-            dash_config = getattr(dash, "config", None)
-            title = dash_config.get("title") if isinstance(dash_config, dict) else None
-            evidence.append(title or url_path or "default")
-        except Exception:
-            continue
-    return evidence
-
-
-async def _usage_signals(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:
-    """Return a dict of usage evidence for entity_id; an empty dict means UNUSED."""
-    signals: dict[str, Any] = {}
-
-    try:
-        if "automation" in hass.config.components:
-            automations = automations_with_entity(hass, entity_id)
-            if automations:
-                signals["automations"] = automations
-    except Exception:
-        pass
-
-    try:
-        if "script" in hass.config.components:
-            scripts = scripts_with_entity(hass, entity_id)
-            if scripts:
-                signals["scripts"] = scripts
-    except Exception:
-        pass
-
-    try:
-        if "scene" in hass.config.components:
-            scenes = scenes_with_entity(hass, entity_id)
-            if scenes:
-                signals["scenes"] = scenes
-    except Exception:
-        pass
-
-    try:
-        if "group" in hass.config.components:
-            groups = groups_with_entity(hass, entity_id)
-            if groups:
-                signals["groups"] = groups
-    except Exception:
-        pass
-
-    try:
-        dashboards = await _dashboards_referencing(hass, entity_id)
-        if dashboards:
-            signals["dashboards"] = dashboards
-    except Exception:
-        pass
-
-    try:
-        helpers = _config_entries_referencing(hass, entity_id)
-        if helpers:
-            signals["helpers"] = helpers
-    except Exception:
-        pass
-
-    try:
-        voice = _voice_assistant_exposure(hass, entity_id)
-        if voice:
-            signals["voice"] = voice
-    except Exception:
-        pass
-
-    try:
-        if _homekit_includes(hass, entity_id):
-            signals["homekit"] = True
-    except Exception:
-        pass
-
-    return signals
-
-
-_EVIDENCE_LABELS: tuple[tuple[str, str], ...] = (
-    ("automations", "automation"),
-    ("scripts", "script"),
-    ("scenes", "scene"),
-    ("groups", "group"),
-    ("dashboards", "dashboard"),
-    ("helpers", "helper"),
-    ("voice", "voice assistant"),
-)
-
-
-def _format_evidence(signals: dict[str, Any]) -> str:
-    """Render a usage-signals dict as a concise, semicolon-joined evidence summary."""
-    parts: list[str] = []
-    for signal_key, singular in _EVIDENCE_LABELS:
-        items = signals.get(signal_key)
-        if items:
-            label = singular if len(items) == 1 else f"{singular}s"
-            parts.append(f"{label}: {_format_references(items)}")
-    if signals.get("homekit"):
-        parts.append("HomeKit")
-    return "; ".join(parts) if parts else "no specific usage detected"
-
-
 def async_merge_entity_options(
     ent_reg: er.EntityRegistry,
     entity_id: str,
@@ -293,9 +115,8 @@ def async_merge_entity_options(
 async def async_check_deprecated_entities(
     hass: HomeAssistant,
     entry: MetServiceConfigEntry,
-    coordinator: WeatherUpdateCoordinator,
 ) -> None:
-    """Clear removed-entity issues nothing references any more, then run the follow-on detectors."""
+    """Clear removed-entity issues nothing references any more."""
     try:
         removed_entity_prefix = f"removed_entity_{entry.entry_id}_"
         issue_reg = ir.async_get(hass)
@@ -310,8 +131,6 @@ async def async_check_deprecated_entities(
             "Deprecated-entity repair check failed; continuing without it",
             exc_info=True,
         )
-
-    await async_check_entity_id_reclaim(hass, entry, coordinator)
 
 
 _GENERIC_REMOVED_REPLACEMENT_FALLBACK = (
@@ -328,7 +147,7 @@ def _removed_entity_replacement_text(key: str) -> str:
     new_key = _DEPRECATED_SENSOR_REPLACEMENTS_LOWER.get(key.lower())
     if new_key is None:
         return _GENERIC_REMOVED_REPLACEMENT_FALLBACK
-    return _replacement_display_name(new_key) + _REPLACEMENT_DETAIL_HINTS.get(
+    return _REPLACEMENT_DISPLAY_NAMES[new_key] + _REPLACEMENT_DETAIL_HINTS.get(
         new_key, ""
     )
 
@@ -525,128 +344,5 @@ async def async_check_marine_device_move(
     except Exception:
         _LOGGER.debug(
             "Marine-device-move repair check failed; continuing without it",
-            exc_info=True,
-        )
-
-
-def _reclaim_issue_id(entry_id: str) -> str:
-    """Return the per-entry consolidated fixable entity_id_reclaim issue_id."""
-    return f"entity_id_reclaim_{entry_id}"
-
-
-def _reclaim_referenced_issue_id(entry_id: str) -> str:
-    """Return the per-entry consolidated non-fixable reclaim issue_id."""
-    return f"entity_id_reclaim_referenced_{entry_id}"
-
-
-def _format_rename_lines(renames: list[dict[str, str]]) -> str:
-    """Render a markdown bullet list of `current` → `new` rename candidates."""
-    return "\n".join(
-        f"- **{r['sensor_name']}**: `{r['current_entity_id']}` → `{r['new_entity_id']}`"
-        for r in renames
-    )
-
-
-async def async_check_entity_id_reclaim(
-    hass: HomeAssistant,
-    entry: MetServiceConfigEntry,
-    coordinator: WeatherUpdateCoordinator,
-) -> None:
-    """Offer to rename a replacement sensor onto its now-free canonical entity_id."""
-    try:
-        ent_reg = er.async_get(hass)
-        dev_reg = dr.async_get(hass)
-
-        renames: list[dict[str, str]] = []
-        referenced: list[dict[str, str]] = []
-
-        for key in sorted(set(DEPRECATED_SENSOR_REPLACEMENTS.values())):
-            description = _REPLACEMENT_DESCRIPTIONS_BY_KEY.get(key)
-            if description is None:
-                continue
-
-            unique_id = f"{coordinator.location}_{key}".lower()
-            entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
-            if entity_id is None:
-                continue
-
-            reg_entry = ent_reg.async_get(entity_id)
-            if reg_entry is None:
-                continue
-
-            device = (
-                dev_reg.async_get(reg_entry.device_id) if reg_entry.device_id else None
-            )
-            device_name = (device.name_by_user or device.name) if device else None
-            if not device_name:
-                continue
-
-            canonical_object_id = slugify(f"{device_name} {description.name}")
-            current_object_id = entity_id.split(".", 1)[1]
-            if not re.fullmatch(
-                re.escape(canonical_object_id) + r"_\d+", current_object_id
-            ):
-                continue
-
-            canonical_entity_id = f"sensor.{canonical_object_id}"
-            if ent_reg.async_get(canonical_entity_id) is not None:
-                continue
-
-            candidate = {
-                "current_entity_id": entity_id,
-                "new_entity_id": canonical_entity_id,
-                "sensor_name": description.name,
-            }
-            signals = await _usage_signals(hass, entity_id)
-            if not signals:
-                renames.append(candidate)
-            else:
-                referenced.append(
-                    {**candidate, "references": _format_evidence(signals)}
-                )
-
-        if renames:
-            ir.async_create_issue(
-                hass,
-                DOMAIN,
-                _reclaim_issue_id(entry.entry_id),
-                is_fixable=True,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key="entity_id_reclaim",
-                learn_more_url=_LEARN_MORE_URL,
-                translation_placeholders={
-                    "count": str(len(renames)),
-                    "renames": _format_rename_lines(renames),
-                },
-                data={"renames": renames},
-            )
-        else:
-            ir.async_delete_issue(hass, DOMAIN, _reclaim_issue_id(entry.entry_id))
-
-        if referenced:
-            ir.async_create_issue(
-                hass,
-                DOMAIN,
-                _reclaim_referenced_issue_id(entry.entry_id),
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key="entity_id_reclaim_referenced",
-                learn_more_url=_LEARN_MORE_URL,
-                translation_placeholders={
-                    "count": str(len(referenced)),
-                    "details": "\n".join(
-                        f"- **{r['sensor_name']}**: `{r['current_entity_id']}` → "
-                        f"`{r['new_entity_id']}` — referenced by: {r['references']}"
-                        for r in referenced
-                    ),
-                },
-            )
-        else:
-            ir.async_delete_issue(
-                hass, DOMAIN, _reclaim_referenced_issue_id(entry.entry_id)
-            )
-    except Exception:
-        _LOGGER.debug(
-            "Entity-ID reclaim repair check failed; continuing without it",
             exc_info=True,
         )

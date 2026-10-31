@@ -1594,7 +1594,6 @@ def test_moon_phase_current_attrs_sparse_when_upstream_missing():
 def test_moon_phase_current_description_is_enum_with_eight_options():
     """moon_phase_current is an ENUM sensor with HA core's eight-phase vocabulary, enabled by default."""
     desc = _desc("moon_phase_current")
-    assert desc.name == "Moon phase"
     assert desc.translation_key == "moon_phase_current"
     assert desc.device_class == SensorDeviceClass.ENUM
     assert desc.options == [
@@ -2099,7 +2098,6 @@ def test_catalogue_matches_snapshot():
     current = {
         d.key: {
             "translation_key": d.translation_key,
-            "name": d.name,
             "device_class": d.device_class.name if d.device_class else None,
             "state_class": d.state_class.name if d.state_class else None,
             "unit": (

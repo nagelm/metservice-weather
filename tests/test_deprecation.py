@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
@@ -22,19 +21,15 @@ from custom_components.metservice_weather.coordinator_types import MetServicePub
 from custom_components.metservice_weather.deprecation import (
     DEPRECATED_SENSOR_REPLACEMENTS,
     _GENERIC_REMOVED_REPLACEMENT_FALLBACK,
-    _REPLACEMENT_DESCRIPTIONS_BY_KEY,
-    _config_entries_referencing,
-    _dump_json,
-    _format_evidence,
+    _REPLACEMENT_DISPLAY_NAMES,
     _format_references,
-    _friendly_key,
-    _homekit_includes,
-    _replacement_display_name,
-    _usage_signals,
     async_check_deprecated_entities,
     async_check_marine_device_move,
     async_check_removed_entity,
     async_check_removed_forecast_attributes,
+)
+from custom_components.metservice_weather.weather_current_conditions_sensors import (
+    current_condition_sensor_descriptions_public,
 )
 from tests.conftest import make_coordinator
 
@@ -44,38 +39,12 @@ _AUTOMATIONS_PATCH = (
     "custom_components.metservice_weather.deprecation.automations_with_entity"
 )
 _SCRIPTS_PATCH = "custom_components.metservice_weather.deprecation.scripts_with_entity"
-_SCENES_PATCH = "custom_components.metservice_weather.deprecation.scenes_with_entity"
-_GROUPS_PATCH = "custom_components.metservice_weather.deprecation.groups_with_entity"
-_VOICE_PATCH = (
-    "custom_components.metservice_weather.deprecation.async_get_entity_settings"
-)
 _AUTOMATIONS_DEVICE_PATCH = (
     "custom_components.metservice_weather.deprecation.automations_with_device"
 )
 _SCRIPTS_DEVICE_PATCH = (
     "custom_components.metservice_weather.deprecation.scripts_with_device"
 )
-
-
-class _FakeDashboard:
-    """Minimal stand-in for a Lovelace LovelaceConfig object."""
-
-    def __init__(self, config, view_config=None, load_error=None):
-        self.config = config
-        self._view_config = view_config
-        self._load_error = load_error
-
-    async def async_load(self, force):
-        if self._load_error is not None:
-            raise self._load_error
-        return self._view_config
-
-
-class _FakeLovelaceData:
-    """Minimal stand-in for homeassistant.components.lovelace.LovelaceData."""
-
-    def __init__(self, dashboards: dict):
-        self.dashboards = dashboards
 
 
 class _FakeAutomationEntity:
@@ -136,48 +105,17 @@ def test_deprecated_sensor_replacements_covers_all_fourteen_old_keys():
     assert DEPRECATED_SENSOR_REPLACEMENTS["uvIndex"] == "uv_risk"
 
 
-def test_friendly_key_formats_snake_case_with_uv_uppercased():
-    """Snake_case keys become title-cased words, with 'uv' specially uppercased."""
-    assert _friendly_key("uv_risk") == "UV Risk"
-    assert _friendly_key("warning_level") == "Warning Level"
-    assert _friendly_key("pollen") == "Pollen"
-
-
 def test_replacement_display_names_match_en_json():
     """Every replacement's repair name matches the name Home Assistant shows."""
     en = Path(__file__).parents[1] / (
         "custom_components/metservice_weather/translations/en.json"
     )
     names = json.loads(en.read_text(encoding="utf-8"))["entity"]["sensor"]
+    translation_keys = {
+        d.key: d.translation_key for d in current_condition_sensor_descriptions_public
+    }
     for key in set(DEPRECATED_SENSOR_REPLACEMENTS.values()):
-        translation_key = _REPLACEMENT_DESCRIPTIONS_BY_KEY[key].translation_key
-        assert _replacement_display_name(key) == names[translation_key]["name"]
-
-
-def test_replacement_display_name_diverges_from_friendly_key_for_uv_risk():
-    """_replacement_display_name uses the real sensor name, not _friendly_key's mechanical guess."""
-    assert _friendly_key("uv_risk") == "UV Risk"
-    assert _replacement_display_name("uv_risk") == "UV index"
-
-
-def test_replacement_display_name_diverges_from_friendly_key_for_warning_level():
-    """warning_level's real sensor name is "Warnings", not "Warning Level"."""
-    assert _friendly_key("warning_level") == "Warning Level"
-    assert _replacement_display_name("warning_level") == "Warnings"
-
-
-def test_replacement_display_name_moon_sensors_map_to_moon_phase_current():
-    """Both deprecated moon sensors replace to moon_phase_current ("Moon phase")."""
-    assert DEPRECATED_SENSOR_REPLACEMENTS["moon_phase"] == "moon_phase_current"
-    assert DEPRECATED_SENSOR_REPLACEMENTS["moon_phase_date"] == "moon_phase_current"
-    assert _replacement_display_name("moon_phase_current") == "Moon phase"
-
-
-def test_replacement_display_name_falls_back_to_friendly_key_for_unmapped_key():
-    """A key with no live description falls back to _friendly_key."""
-    assert _replacement_display_name("some_unmapped_key") == _friendly_key(
-        "some_unmapped_key"
-    )
+        assert _REPLACEMENT_DISPLAY_NAMES[key] == names[translation_keys[key]]["name"]
 
 
 def test_format_references_short_list_joins_with_commas():
@@ -201,28 +139,12 @@ async def test_exception_inside_cleanup_does_not_propagate(hass):
     """A failure anywhere inside the cleanup step is swallowed, never raised out of setup."""
     entry = _make_entry()
     entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
 
     with patch(
         "custom_components.metservice_weather.deprecation.ir.async_get",
         side_effect=RuntimeError("boom"),
     ):
-        await async_check_deprecated_entities(hass, entry, coord)
-
-
-async def test_deprecated_entities_check_invokes_entity_id_reclaim_detector(hass):
-    """async_check_deprecated_entities hands off to the entity-ID reclaim detector."""
-    entry = _make_entry()
-    entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
-
-    with patch(
-        "custom_components.metservice_weather.deprecation.async_check_entity_id_reclaim",
-        new=AsyncMock(),
-    ) as mock_reclaim:
-        await async_check_deprecated_entities(hass, entry, coord)
-
-    mock_reclaim.assert_called_once_with(hass, entry, coord)
+        await async_check_deprecated_entities(hass, entry)
 
 
 async def _async_setup_full(
@@ -300,303 +222,6 @@ async def test_2026_9_upgrade_removes_unreferenced_deprecated_row_silently(hass)
 
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
-
-
-_UV_ENTITY_ID = "sensor.napier_uvindex"
-
-
-async def test_usage_signals_empty_when_nothing_matches(hass):
-    """No source contributing anything means UNUSED (empty dict)."""
-    assert await _usage_signals(hass, _UV_ENTITY_ID) == {}
-
-
-async def test_usage_signals_combines_automations_and_scripts(hass):
-    """Automation and script references are collected under their own separate keys."""
-    hass.config.components.add("automation")
-    hass.config.components.add("script")
-    with (
-        patch(_AUTOMATIONS_PATCH, return_value=["automation.a"]),
-        patch(_SCRIPTS_PATCH, return_value=["script.b"]),
-    ):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["automations"] == ["automation.a"]
-    assert signals["scripts"] == ["script.b"]
-
-
-async def test_usage_signals_detects_scene_reference(hass):
-    """A scene that references the entity shows up under the "scenes" signal."""
-    hass.config.components.add("scene")
-    with patch(_SCENES_PATCH, return_value=["scene.evening"]):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["scenes"] == ["scene.evening"]
-
-
-async def test_usage_signals_scene_not_loaded_contributes_no_signal(hass):
-    """Without the "scene" component loaded, scenes_with_entity is never even called."""
-    with patch(_SCENES_PATCH) as mock_scenes:
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-        mock_scenes.assert_not_called()
-    assert "scenes" not in signals
-
-
-async def test_usage_signals_detects_group_reference(hass):
-    """A group that references the entity shows up under the "groups" signal."""
-    hass.config.components.add("group")
-    with patch(_GROUPS_PATCH, return_value=["group.weather"]):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["groups"] == ["group.weather"]
-
-
-async def test_usage_signals_detects_dashboard_reference(hass):
-    """A Lovelace dashboard whose loaded config mentions the entity is detected, named by its title."""
-    hass.config.components.add("lovelace")
-    dash = _FakeDashboard(
-        config={"title": "Home"},
-        view_config={
-            "views": [{"cards": [{"type": "entity", "entity": _UV_ENTITY_ID}]}]
-        },
-    )
-    hass.data["lovelace"] = _FakeLovelaceData({"home": dash})
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["dashboards"] == ["Home"]
-
-
-async def test_usage_signals_dashboard_default_title_falls_back_to_url_path(hass):
-    """A dashboard with no registered title (e.g. the default dashboard) falls back to url_path/'default'."""
-    hass.config.components.add("lovelace")
-    dash = _FakeDashboard(
-        config=None,
-        view_config={"views": [{"cards": [{"entity": _UV_ENTITY_ID}]}]},
-    )
-    hass.data["lovelace"] = _FakeLovelaceData({None: dash})
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["dashboards"] == ["default"]
-
-
-async def test_usage_signals_dashboard_load_failure_contributes_no_signal(hass):
-    """A dashboard whose async_load() raises (e.g. a strategy dashboard) is silently skipped."""
-    hass.config.components.add("lovelace")
-    hass.data["lovelace"] = _FakeLovelaceData(
-        {None: _FakeDashboard(config=None, load_error=RuntimeError("boom"))}
-    )
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "dashboards" not in signals
-
-
-async def test_usage_signals_dashboard_not_loaded_contributes_no_signal(hass):
-    """When "lovelace" hasn't loaded at all, this source is skipped without touching hass.data."""
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "dashboards" not in signals
-
-
-async def test_usage_signals_detects_helper_config_entry_reference(hass):
-    """A derivative/utility_meter/etc-style helper config entry counts as usage evidence."""
-    helper_entry = MockConfigEntry(
-        domain="derivative", title="Rainfall rate", data={"source": _UV_ENTITY_ID}
-    )
-    helper_entry.add_to_hass(hass)
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["helpers"] == ["derivative: Rainfall rate"]
-
-
-async def test_usage_signals_helper_scan_excludes_own_domain_and_homekit(hass):
-    """Our own config entries and HomeKit entries never show up under 'helpers'."""
-    own_entry = MockConfigEntry(
-        domain=DOMAIN, title="Napier", data={"entity": _UV_ENTITY_ID}
-    )
-    own_entry.add_to_hass(hass)
-    homekit_entry = MockConfigEntry(
-        domain="homekit",
-        title="Bridge",
-        options={"filter": {"include_entities": [_UV_ENTITY_ID]}},
-    )
-    homekit_entry.add_to_hass(hass)
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "helpers" not in signals
-    assert signals["homekit"] is True
-
-
-async def test_usage_signals_helper_scan_skips_malformed_entry_but_keeps_others(hass):
-    """A config entry whose data can't be JSON-dumped (e.g. circular) is skipped, not fatal."""
-    circular: dict = {}
-    circular["self"] = circular
-    bad_entry = MockConfigEntry(domain="derivative", title="Bad", data=circular)
-    bad_entry.add_to_hass(hass)
-    good_entry = MockConfigEntry(
-        domain="derivative", title="Good", data={"source": _UV_ENTITY_ID}
-    )
-    good_entry.add_to_hass(hass)
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["helpers"] == ["derivative: Good"]
-
-
-async def test_usage_signals_detects_homekit_include(hass):
-    """A HomeKit entry whose options mention the entity sets the "homekit" signal."""
-    homekit_entry = MockConfigEntry(
-        domain="homekit",
-        title="Bridge",
-        options={"filter": {"include_entities": [_UV_ENTITY_ID]}},
-    )
-    homekit_entry.add_to_hass(hass)
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["homekit"] is True
-
-
-async def test_usage_signals_detects_voice_exposure(hass):
-    """An assistant with should_expose=True lists that assistant under the "voice" signal."""
-    with patch(
-        _VOICE_PATCH,
-        return_value={
-            "conversation": {"should_expose": True},
-            "cloud.alexa": {"should_expose": False},
-        },
-    ):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert signals["voice"] == ["conversation"]
-
-
-async def test_usage_signals_voice_exposure_not_ready_contributes_no_signal(hass):
-    """exposed_entities raises HomeAssistantError before it's finished loading — that's not a bug."""
-    with patch(_VOICE_PATCH, side_effect=HomeAssistantError("not ready")):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "voice" not in signals
-
-
-async def test_usage_signals_automations_lookup_failure_contributes_no_signal(hass):
-    """automations_with_entity raising degrades to no signal, not a crash."""
-    hass.config.components.add("automation")
-    with patch(_AUTOMATIONS_PATCH, side_effect=RuntimeError("boom")):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "automations" not in signals
-
-
-async def test_usage_signals_scripts_lookup_failure_contributes_no_signal(hass):
-    """scripts_with_entity raising degrades to no signal, not a crash."""
-    hass.config.components.add("script")
-    with patch(_SCRIPTS_PATCH, side_effect=RuntimeError("boom")):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "scripts" not in signals
-
-
-async def test_usage_signals_scenes_lookup_failure_contributes_no_signal(hass):
-    """scenes_with_entity raising degrades to no signal, not a crash."""
-    hass.config.components.add("scene")
-    with patch(_SCENES_PATCH, side_effect=RuntimeError("boom")):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "scenes" not in signals
-
-
-async def test_usage_signals_groups_lookup_failure_contributes_no_signal(hass):
-    """groups_with_entity raising degrades to no signal, not a crash."""
-    hass.config.components.add("group")
-    with patch(_GROUPS_PATCH, side_effect=RuntimeError("boom")):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "groups" not in signals
-
-
-async def test_usage_signals_dashboards_lookup_failure_contributes_no_signal(hass):
-    """A failure inside _dashboards_referencing itself degrades to no signal, not a crash."""
-    with patch(
-        "custom_components.metservice_weather.deprecation._dashboards_referencing",
-        side_effect=RuntimeError("boom"),
-    ):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "dashboards" not in signals
-
-
-async def test_usage_signals_helpers_lookup_failure_contributes_no_signal(hass):
-    """A failure inside _config_entries_referencing itself degrades to no signal, not a crash."""
-    with patch(
-        "custom_components.metservice_weather.deprecation._config_entries_referencing",
-        side_effect=RuntimeError("boom"),
-    ):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "helpers" not in signals
-
-
-async def test_usage_signals_homekit_lookup_failure_contributes_no_signal(hass):
-    """A failure inside _homekit_includes itself degrades to no signal, not a crash."""
-    with patch(
-        "custom_components.metservice_weather.deprecation._homekit_includes",
-        side_effect=RuntimeError("boom"),
-    ):
-        signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "homekit" not in signals
-
-
-async def test_usage_signals_dashboard_empty_config_contributes_no_signal(hass):
-    """A dashboard whose async_load() returns falsy (not raising) is silently skipped."""
-    hass.config.components.add("lovelace")
-    hass.data["lovelace"] = _FakeLovelaceData(
-        {None: _FakeDashboard(config=None, view_config=None)}
-    )
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "dashboards" not in signals
-
-
-async def test_usage_signals_dashboard_without_entity_contributes_no_signal(hass):
-    """A dashboard that loads fine but never mentions entity_id contributes nothing."""
-    hass.config.components.add("lovelace")
-    dash = _FakeDashboard(
-        config={"title": "Home"},
-        view_config={"views": [{"cards": [{"entity": "sensor.other"}]}]},
-    )
-    hass.data["lovelace"] = _FakeLovelaceData({"home": dash})
-
-    signals = await _usage_signals(hass, _UV_ENTITY_ID)
-    assert "dashboards" not in signals
-
-
-def test_dump_json_returns_none_for_circular_reference():
-    """json.dumps can't serialise a self-referencing structure even with default=str."""
-    circular: dict = {}
-    circular["self"] = circular
-    assert _dump_json(circular) is None
-
-
-def test_config_entries_referencing_swallows_per_entry_exception(hass):
-    """A per-entry failure (e.g. _dump_json itself blowing up) is skipped, not fatal to the scan."""
-    entry_x = MockConfigEntry(
-        domain="derivative", title="X", data={"source": _UV_ENTITY_ID}
-    )
-    entry_x.add_to_hass(hass)
-
-    with patch(
-        "custom_components.metservice_weather.deprecation._dump_json",
-        side_effect=RuntimeError("boom"),
-    ):
-        assert _config_entries_referencing(hass, _UV_ENTITY_ID) == []
-
-
-def test_homekit_includes_swallows_per_entry_exception(hass):
-    """A per-entry failure while scanning HomeKit entries is skipped, not fatal."""
-    homekit_entry = MockConfigEntry(domain="homekit", title="Bridge", options={})
-    homekit_entry.add_to_hass(hass)
-
-    with patch(
-        "custom_components.metservice_weather.deprecation._dump_json",
-        side_effect=RuntimeError("boom"),
-    ):
-        assert _homekit_includes(hass, _UV_ENTITY_ID) is False
-
-
-def test_format_evidence_includes_homekit():
-    """The boolean-only HomeKit source renders as a fixed phrase, not a joined list."""
-    text = _format_evidence({"homekit": True})
-    assert "HomeKit" in text
-
-
-def test_format_evidence_empty_signals_says_no_specific_usage():
-    """An empty signals dict renders as an explicit "no specific usage detected" fallback."""
-    assert _format_evidence({}) == "no specific usage detected"
 
 
 def _removed_issue_id(entry: MockConfigEntry, entity_id: str) -> str:
@@ -720,7 +345,6 @@ async def test_self_corrected_user_removed_entity_issue_clears_once_dereferenced
     """A pre-existing removed_entity issue is swept away by async_check_deprecated_entities once nothing references it."""
     entry = _make_entry()
     entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
 
     entity_id = "sensor.napier_uvindex"
     issue_id = _removed_issue_id(entry, entity_id)
@@ -741,7 +365,7 @@ async def test_self_corrected_user_removed_entity_issue_clears_once_dereferenced
         patch(_AUTOMATIONS_PATCH, return_value=[]),
         patch(_SCRIPTS_PATCH, return_value=[]),
     ):
-        await async_check_deprecated_entities(hass, entry, coord)
+        await async_check_deprecated_entities(hass, entry)
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
 
@@ -750,7 +374,6 @@ async def test_removed_entity_issue_left_untouched_while_still_referenced(hass):
     """The sweep in async_check_deprecated_entities leaves a removed_entity issue alone while still referenced."""
     entry = _make_entry()
     entry.add_to_hass(hass)
-    coord = _make_coordinator(hass)
 
     entity_id = "sensor.napier_uvindex"
     issue_id = _removed_issue_id(entry, entity_id)
@@ -770,7 +393,7 @@ async def test_removed_entity_issue_left_untouched_while_still_referenced(hass):
         patch(_AUTOMATIONS_PATCH, return_value=["automation.still_using_it"]),
         patch(_SCRIPTS_PATCH, return_value=[]),
     ):
-        await async_check_deprecated_entities(hass, entry, coord)
+        await async_check_deprecated_entities(hass, entry)
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
 
