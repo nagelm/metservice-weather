@@ -153,6 +153,21 @@ def test_warning_severity_warning_beats_watch():
     )
 
 
+@pytest.mark.parametrize(
+    ("name", "rank"),
+    [
+        ("Restricted Visibility Watch", 0),
+        ("Ordered Evacuation Warning", 1),
+        ("Strong Wind Warning - Orangeville", 1),
+        ("Heavy Rain Warning (Red)", 3),
+        ("Orange-level Rain Warning", 2),
+    ],
+)
+def test_warning_severity_matches_colours_as_whole_words(name, rank):
+    """A colour only counts as its own word, not inside another word."""
+    assert _warning_severity(name) == rank
+
+
 def test_warning_severity_case_insensitive():
     """Severity ranking is case-insensitive."""
     assert _warning_severity("severe weather warning - red") == _warning_severity(
