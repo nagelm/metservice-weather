@@ -28,7 +28,7 @@ CONDITION_MAP: Final[dict[str, str]] = {
     "few-showers-night": "rainy",
     "fine": "sunny",
     "fog": "fog",
-    "frost": "clear-night",
+    "frost": "sunny",
     "hail": "hail",
     "mostly-cloudy": "cloudy",
     "partly-cloudy": "partlycloudy",
@@ -59,7 +59,6 @@ LOCATION_PATH_RE: Final = re.compile(
     r"/(?:towns-cities|rural)/regions/[a-z0-9-]+/locations/[a-z0-9-]+"
     r"|/rural/regions/[a-z0-9-]+"
 )
-API_METRIC: Final = "metric"
 DEFAULT_LOCATION = "/towns-cities/regions/bay-of-plenty/locations/tauranga"
 
 TEMPUNIT = "temperature"

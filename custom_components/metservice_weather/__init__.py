@@ -21,7 +21,6 @@ from .const import (
     LOCATION_PATH_RE,
     PUBLIC_URL,
     PUBLIC_WARNINGS_URL,
-    API_METRIC,
 )
 
 PLATFORMS: Final = [Platform.WEATHER, Platform.SENSOR]
@@ -127,7 +126,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: MetServiceConfigEntry):
         tide_url=entry.data.get("tide_url", ""),
         boating_url=entry.data.get("boating_url", ""),
         surf_url=entry.data.get("surf_url", ""),
-        unit_system=API_METRIC,
         api_url=PUBLIC_URL,
         warnings_url=PUBLIC_WARNINGS_URL,
     )

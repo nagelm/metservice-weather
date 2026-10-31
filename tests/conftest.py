@@ -96,7 +96,6 @@ def make_coordinator(
     config = WeatherUpdateCoordinatorConfig(
         api_url="https://www.metservice.com/publicData/webdata",
         warnings_url="https://www.metservice.com/publicData/webdata/warnings-service",
-        unit_system="metric",
         location=NAPIER_LOCATION,
         location_name="Napier",
         tide_url=tide_url,
