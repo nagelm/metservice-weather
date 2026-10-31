@@ -188,6 +188,9 @@
           },
           "count": {
             "name": "Active warning count"
+          },
+          "severity_level": {
+            "name": "Severity level"
           }
         }
       },
