@@ -1,6 +1,6 @@
 ![MetService New Zealand Weather for Home Assistant](docs/images/hero.svg)
 
-[![HACS custom repository](https://img.shields.io/badge/HACS-custom-41BDF5?logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories/)
+[![HACS default](https://img.shields.io/badge/HACS-default-41BDF5?logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz)
 [![Latest release](https://img.shields.io/github/v/release/nagelm/metservice-weather)](https://github.com/nagelm/metservice-weather/releases/latest)
 [![Tests](https://github.com/nagelm/metservice-weather/actions/workflows/test.yml/badge.svg)](https://github.com/nagelm/metservice-weather/actions/workflows/test.yml)
 [![Validate](https://github.com/nagelm/metservice-weather/actions/workflows/validate.yml/badge.svg)](https://github.com/nagelm/metservice-weather/actions/workflows/validate.yml)
@@ -27,7 +27,7 @@ It reads the same public data the MetService website uses, so there's **no API k
 > [!NOTE]
 > You'll need **Home Assistant 2026.8 or newer** and [HACS](https://hacs.xyz). MetService only covers New Zealand, so this one's for Kiwi locations only.
 
-1. **Install it with HACS.** Hit the button above, or add it by hand: **HACS → ⋮ → Custom repositories**, paste `https://github.com/nagelm/metservice-weather`, choose **Integration**, then search for **MetService New Zealand Weather** and download it.
+1. **Install it with HACS.** Open HACS, search for **MetService New Zealand Weather** and download it. The button above takes you straight there.
 2. **Restart Home Assistant.**
 3. **Add the integration.** This button jumps straight there, or go to **Settings → Devices & services → Add integration** and search for **MetService**.
 
@@ -327,7 +327,7 @@ Go to **Settings → Devices & services → MetService New Zealand Weather → �
 This repository carries on [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather), with ciejer's blessing. Both install the same integration, so you can switch without setting anything up again. You'll need **Home Assistant 2026.8 or newer** and **v2026.10.0 or newer** of this integration, the first release that keeps your old entities.
 
 1. **Remove the old download in HACS:** open **MetService New Zealand Weather** by ciejer in HACS (both versions use that name), then **⋮ → Remove**. Leave the integration itself alone in **Settings → Devices & services**, because deleting it there deletes your entities.
-2. **Download this one:** hit the HACS button at the top of this page, or add it as a custom repository as described in [Get started](#-get-started).
+2. **Download this one:** search HACS for **MetService New Zealand Weather** again (this one is by nagelm), or hit the HACS button at the top of this page.
 3. **Restart Home Assistant.**
 
 Already downloaded this one without removing the old one first? Both live in the same folder, so removing the old one in HACS deletes this one's files too. Remove the old one, then open this one in HACS, choose **⋮ → Redownload**, and restart.
