@@ -1,3 +1,23 @@
+## v2026.11.0
+
+**Needs Home Assistant 2026.8 or newer.**
+
+### MetService is now in the HACS default store
+
+Search HACS for **MetService New Zealand Weather** and download it, no custom repository needed. If you added this repository as a custom repository, there's nothing to do: HACS now treats it as a default repository and drops it from your custom repositories list on its own.
+
+### Fixed
+
+- **Seasonal sensors come back when their data does.** With "Automatically hide seasonal sensors" on, a sensor hidden on an earlier start (UV, for example, while its summer labels weren't understood) stayed hidden even after its data returned. It's now restored at startup. Sensors you disabled yourself stay as they are (#78).
+- **Reconfigure no longer quietly keeps a cleared location.** Clearing Weather location with no custom location now shows an error instead of putting the old location back (#82).
+
+### Changed
+
+- **The location list comes straight from MetService.** Greymouth can be picked again (MetService moved it), Great Barrier Island is added, and Ōpōtiki gets its macrons. If the list can't be loaded, setup says it can't connect instead of showing an empty list (#71, #77).
+- **Towns missing from the list can be added by hand.** Advanced now has a Custom location field: paste the town's metservice.com page address (#79, #80, #81).
+
+---
+
 ## v2026.10.1
 
 **Needs Home Assistant 2026.8 or newer.**
