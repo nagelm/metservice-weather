@@ -185,22 +185,6 @@ These sit on a separate device named after your marine region, and only show up 
 
 The **Warnings** sensor shows the most severe warning in force for your area. MetService's official scale goes watch → orange → red. `warning` is an extra bucket this integration adds for warnings with no colour in their name (road snowfall, frost and marine warnings), so they still rank above a watch.
 
-Want notifications without writing any YAML? There's a [ready-made blueprint](#warning-notifications-blueprint) for that.
-
-<details>
-<summary>Catching every new warning, not just a change in level</summary>
-
-The state only changes when the *most severe* level changes. A second, lower warning turning up while a worse one is active only bumps the `count` attribute, so trigger on that instead:
-
-```yaml
-triggers:
-  - trigger: state
-    entity_id: sensor.napier_warnings
-    attribute: count
-```
-
-</details>
-
 ## 🤔 Good to know
 
 <details>
@@ -244,6 +228,21 @@ For towns, the day after tomorrow sits in between: it only gets an mm total when
 Import the ready-made blueprint. It sends you every active warning's full text when a warning is issued or upgraded (including an extra warning arriving while a worse one is already active), filtered to the lowest level you care about:
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fnagelm%2Fmetservice-weather%2Fmain%2Fblueprints%2Fautomation%2Fmetservice_weather%2Fwarning_notifications.yaml)
+
+</details>
+
+<a id="catching-every-new-warning"></a>
+<details>
+<summary><b>Catching every new warning, not just a change in level</b></summary>
+
+The state only changes when the *most severe* level changes. A second, lower warning turning up while a worse one is active only bumps the `count` attribute, so trigger on that instead:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: sensor.napier_warnings
+    attribute: count
+```
 
 </details>
 
