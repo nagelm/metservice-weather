@@ -1,6 +1,6 @@
 ![MetService New Zealand Weather for Home Assistant](docs/images/hero.svg)
 
-[![HACS default](https://img.shields.io/badge/HACS-default-41BDF5?logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz)
+[![In the Marketplace](https://img.shields.io/badge/Marketplace-default-41BDF5?logo=homeassistantcommunitystore&logoColor=white)](https://hacs.xyz)
 [![Latest release](https://img.shields.io/github/v/release/nagelm/metservice-weather)](https://github.com/nagelm/metservice-weather/releases/latest)
 [![Tests](https://github.com/nagelm/metservice-weather/actions/workflows/test.yml/badge.svg)](https://github.com/nagelm/metservice-weather/actions/workflows/test.yml)
 [![Validate](https://github.com/nagelm/metservice-weather/actions/workflows/validate.yml/badge.svg)](https://github.com/nagelm/metservice-weather/actions/workflows/validate.yml)
@@ -10,7 +10,7 @@ Kia ora! 👋 This integration brings [MetService](https://www.metservice.com) w
 
 It reads the same public data the MetService website uses, so there's **no API key and no account**. Just pick your town.
 
-[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=nagelm&repository=metservice-weather&category=integration)
+[![Open your Home Assistant instance and open this repository in the Marketplace (HACS before 2026.11).](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=nagelm&repository=metservice-weather&category=integration)
 
 ## ✨ What you get
 
@@ -20,14 +20,14 @@ It reads the same public data the MetService website uses, so there's **no API k
 - 📊 **40 sensors for your town**, from temperature and wind to warnings, UV, pollen, fire danger, sunrise and the moon phase.
 - ⚓ **Up to 15 marine sensors** for tides, boating and surf, if you pick a marine region.
 - 🔁 **Fresh data every 20 minutes**, straight from MetService.
-- 🧭 **163 places to choose from**: towns, cities and rural spots all over Aotearoa.
+- 🧭 **160+ places to choose from**: towns, cities and rural spots all over Aotearoa.
 
 ## 🚀 Get started
 
 > [!NOTE]
-> You'll need **Home Assistant 2026.8 or newer** and [HACS](https://hacs.xyz). MetService only covers New Zealand, so this one's for Kiwi locations only.
+> You'll need **Home Assistant 2026.8 or newer**. On 2026.11 and newer it installs from the built-in **Marketplace**; on 2026.8 to 2026.10 you'll need [HACS](https://hacs.xyz). MetService only covers New Zealand, so this one's for Kiwi locations only.
 
-1. **Install it with HACS.** Open HACS, search for **MetService New Zealand Weather** and download it. The button above takes you straight there.
+1. **Install it from the Marketplace.** Open **Settings → Marketplace** (or HACS on 2026.10 and older), search for **MetService New Zealand Weather** and download it. The button above takes you straight there.
 2. **Restart Home Assistant.**
 3. **Add the integration.** This button jumps straight there, or go to **Settings → Devices & services → Add integration** and search for **MetService**.
 
@@ -35,16 +35,18 @@ It reads the same public data the MetService website uses, so there's **no API k
 
 Setup is one screen, or two if you want marine data:
 
-![Screen one asks for a device name, the weather location and an optional marine region, with an Advanced section. Screen two, shown only if you picked a marine region, asks for a tide station, a boating location and a surf spot.](docs/images/setup.svg)
+![Screen one asks for a device name, the weather location and an optional marine region, with an Advanced section for auto-hiding seasonal sensors or entering a custom location. Screen two, shown only if you picked a marine region, asks for a tide station, a boating location and a surf spot.](docs/images/setup.svg)
 
 - **Device name** is just the label in your integrations list. The device and its sensors are named after the place you pick, so Napier gets you `sensor.napier_temperature` and `weather.napier_forecast`.
 - **Marine Region** is optional. Pick one and the second screen lets you choose a tide station, a boating spot and a surf spot. Skip any you don't need.
-- **Advanced** holds one switch. Turn it on and the seasonal sensors (UV, fire danger, clothes drying) disable and hide themselves while MetService pauses them, then come back on their own when the data returns, history and all. Leave it off and they just read `unknown` off-season.
+- **Advanced** holds two extras:
+  - **Auto-hide seasonal sensors.** Turn it on and the seasonal sensors (UV, fire danger, clothes drying) disable and hide themselves while MetService pauses them, then come back on their own when the data returns, history and all. Leave it off and they just read `unknown` off-season.
+  - **Custom location.** If your town isn't in the list, paste its metservice.com page address here instead.
 
 Want more than one town? Add the integration again. Every location gets its own device (you can't add the same one twice).
 
 <details>
-<summary>Installing without HACS</summary>
+<summary>Installing by hand</summary>
 
 Copy the `custom_components/metservice_weather` folder into your Home Assistant `config/custom_components/` folder, then restart Home Assistant.
 
@@ -175,7 +177,7 @@ These sit on a separate device named after your marine region, and only show up 
 </details>
 
 > [!TIP]
-> A sensor's state can only hold 255 characters, so a long forecast gets cut off with `...`. When that happens, the whole text is in the `full_description` attribute. The [recipe below](#show-the-whole-forecast-text) shows it on a dashboard.
+> A sensor's state can only hold 255 characters, so a long forecast gets cut off with `...`. When that happens, the whole text is in the `full_description` attribute. The [forecast text recipe](#show-the-whole-forecast-text) shows it on a dashboard.
 
 ## 🚨 Warnings
 
@@ -193,9 +195,7 @@ triggers:
     above: 2 # orange or red
 ```
 
-**Want notifications without writing any YAML?** Import the ready-made blueprint. It sends you every active warning's full text when a warning is issued or upgraded (including an extra warning arriving while a worse one is already active), filtered to the lowest level you care about:
-
-[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fnagelm%2Fmetservice-weather%2Fmain%2Fblueprints%2Fautomation%2Fmetservice_weather%2Fwarning_notifications.yaml)
+Want notifications without writing any YAML? There's a [ready-made blueprint](#warning-notifications-blueprint) for that.
 
 <details>
 <summary>Catching every new warning, not just a change in level</summary>
@@ -211,72 +211,6 @@ triggers:
 
 </details>
 
-## 🍳 Recipes
-
-These use Napier's entity IDs. Swap in your own from **Settings → Devices & services → Entities**.
-
-### Warning headline on a tile
-
-Tiles can show an attribute right next to the state:
-
-```yaml
-type: tile
-entity: sensor.napier_warnings
-state_content:
-  - state
-  - headline
-```
-
-The same trick works for Pollen (`low_allergens`) and the tide sensors (`height_m`).
-
-### Every warning, in full
-
-A markdown card lists each active warning and tidies itself away when things are quiet:
-
-```yaml
-type: markdown
-content: |
-  {% for w in state_attr('sensor.napier_warning_details', 'active_warnings') or [] %}
-  **{{ w.name }}** ({{ w.threat_period }})
-  {{ w.text }}
-  {% if not loop.last %}---{% endif %}
-  {% endfor %}
-  {% if not state_attr('sensor.napier_warning_details', 'active_warnings') %}No active warnings 🎉{% endif %}
-```
-
-### Show the whole forecast text
-
-**Weather description**, **Weather description tomorrow** and **Boating forecast** keep their full text in `full_description` whenever the state gets cut off. This shows the full text either way:
-
-```yaml
-type: markdown
-content: >
-  {{ state_attr('sensor.napier_weather_description_tomorrow', 'full_description')
-     or states('sensor.napier_weather_description_tomorrow') }}
-```
-
-### Chance of rain as a sensor
-
-Home Assistant keeps forecasts out of entity attributes, so the chance of rain lives in the forecast itself. Forecast cards can show it (HA's built-in weather card doesn't, but custom cards like clock-weather-card do), and a template sensor can pull it out with `weather.get_forecasts`:
-
-```yaml
-template:
-  - triggers:
-      - trigger: time_pattern
-        minutes: /30
-    actions:
-      - action: weather.get_forecasts
-        target:
-          entity_id: weather.napier_forecast
-        data:
-          type: daily
-        response_variable: forecast
-    sensor:
-      - name: Chance of rain in 3 days
-        unit_of_measurement: "%"
-        state: "{{ forecast['weather.napier_forecast'].forecast[3].precipitation_probability }}"
-```
-
 ## 🤔 Good to know
 
 <details>
@@ -291,7 +225,7 @@ Usually it's the season, not a bug. Some MetService products take a break for pa
 
 Two more change with the seasons but never go `unknown`: **Pollen** runs all year, and **Clothes drying** runs all year for towns and cities (rural spots may not have it).
 
-Rather not see the quiet ones? Turn on the **Advanced** switch during setup (or Reconfigure) and they'll hide themselves until the data returns.
+Rather not see the quiet ones? Turn on the auto-hide switch under **Advanced** during setup (or Reconfigure) and they'll hide themselves until the data returns.
 
 Sensors a location can *never* have, like observations for a rural spot without a weather station, aren't created at all, so you won't have sensors sitting on `unknown` forever.
 
@@ -313,6 +247,102 @@ For towns, the day after tomorrow sits in between: it only gets an mm total when
 
 </details>
 
+<a id="warning-notifications-blueprint"></a>
+<details>
+<summary><b>Getting warning notifications (blueprint)</b></summary>
+
+Import the ready-made blueprint. It sends you every active warning's full text when a warning is issued or upgraded (including an extra warning arriving while a worse one is already active), filtered to the lowest level you care about:
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fnagelm%2Fmetservice-weather%2Fmain%2Fblueprints%2Fautomation%2Fmetservice_weather%2Fwarning_notifications.yaml)
+
+</details>
+
+<a id="warning-headline-on-a-tile"></a>
+<details>
+<summary><b>Recipe: warning headline on a tile</b></summary>
+
+Tiles can show an attribute right next to the state:
+
+```yaml
+type: tile
+entity: sensor.napier_warnings
+state_content:
+  - state
+  - headline
+```
+
+The same trick works for Pollen (`low_allergens`) and the tide sensors (`height_m`).
+
+This uses Napier's entity IDs. Swap in your own from **Settings → Devices & services → Entities**.
+
+</details>
+
+<a id="every-warning-in-full"></a>
+<details>
+<summary><b>Recipe: every warning, in full</b></summary>
+
+A markdown card lists each active warning and tidies itself away when things are quiet:
+
+```yaml
+type: markdown
+content: |
+  {% for w in state_attr('sensor.napier_warning_details', 'active_warnings') or [] %}
+  **{{ w.name }}** ({{ w.threat_period }})
+  {{ w.text }}
+  {% if not loop.last %}---{% endif %}
+  {% endfor %}
+  {% if not state_attr('sensor.napier_warning_details', 'active_warnings') %}No active warnings 🎉{% endif %}
+```
+
+This uses Napier's entity IDs. Swap in your own from **Settings → Devices & services → Entities**.
+
+</details>
+
+<a id="show-the-whole-forecast-text"></a>
+<details>
+<summary><b>Recipe: show the whole forecast text</b></summary>
+
+**Weather description**, **Weather description tomorrow** and **Boating forecast** keep their full text in `full_description` whenever the state gets cut off. This shows the full text either way:
+
+```yaml
+type: markdown
+content: >
+  {{ state_attr('sensor.napier_weather_description_tomorrow', 'full_description')
+     or states('sensor.napier_weather_description_tomorrow') }}
+```
+
+This uses Napier's entity IDs. Swap in your own from **Settings → Devices & services → Entities**.
+
+</details>
+
+<a id="chance-of-rain-as-a-sensor"></a>
+<details>
+<summary><b>Recipe: chance of rain as a sensor</b></summary>
+
+Home Assistant keeps forecasts out of entity attributes, so the chance of rain lives in the forecast itself. Forecast cards can show it (HA's built-in weather card doesn't, but custom cards like clock-weather-card do), and a template sensor can pull it out with `weather.get_forecasts`:
+
+```yaml
+template:
+  - triggers:
+      - trigger: time_pattern
+        minutes: /30
+    actions:
+      - action: weather.get_forecasts
+        target:
+          entity_id: weather.napier_forecast
+        data:
+          type: daily
+        response_variable: forecast
+    sensor:
+      - name: Chance of rain in 3 days
+        unit_of_measurement: "%"
+        state: "{{ forecast['weather.napier_forecast'].forecast[3].precipitation_probability }}"
+```
+
+This uses Napier's entity IDs. Swap in your own from **Settings → Devices & services → Entities**.
+
+</details>
+
 <details>
 <summary><b>Changing your town or marine spots</b></summary>
 
@@ -326,17 +356,17 @@ Go to **Settings → Devices & services → MetService New Zealand Weather → �
 
 This repository carries on [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather), with ciejer's blessing. Both install the same integration, so you can switch without setting anything up again. You'll need **Home Assistant 2026.8 or newer** and **v2026.10.0 or newer** of this integration, the first release that keeps your old entities.
 
-1. **Remove the old download in HACS:** open **MetService New Zealand Weather** by ciejer in HACS (both versions use that name), then **⋮ → Remove**. Leave the integration itself alone in **Settings → Devices & services**, because deleting it there deletes your entities.
-2. **Download this one:** search HACS for **MetService New Zealand Weather** again (this one is by nagelm), or hit the HACS button at the top of this page.
+1. **Remove the old download in the Marketplace (or HACS):** open **MetService New Zealand Weather** by ciejer there (both versions use that name), then **⋮ → Remove**. Leave the integration itself alone in **Settings → Devices & services**, because deleting it there deletes your entities.
+2. **Download this one:** search the Marketplace for **MetService New Zealand Weather** again (this one is by nagelm), or hit the button at the top of this page.
 3. **Restart Home Assistant.**
 
-Already downloaded this one without removing the old one first? Both live in the same folder, so removing the old one in HACS deletes this one's files too. Remove the old one, then open this one in HACS, choose **⋮ → Redownload**, and restart.
+Already downloaded this one without removing the old one first? Both live in the same folder, so removing the old one deletes this one's files too. Remove the old one, then open this one in the Marketplace, choose **⋮ → Redownload**, and restart.
 
 Your locations carry over, and so does every sensor that still exists, with its entity ID, history and any name or icon you gave it. A few things look different afterwards:
 
 - **Names:** sensors use Home Assistant's naming style ("Wind speed" rather than "Wind Speed"), and the device is named after the place you picked. Entity IDs don't change.
 - **Marine sensors** sit on their own device. If you used a device trigger or condition for tides, point it at the new marine device.
-- **Forecast attributes:** the weather entity's `forecast_hourly` and `forecast_daily` attributes are gone. Use the `weather.get_forecasts` action instead, or see [Recipes](#-recipes).
+- **Forecast attributes:** the weather entity's `forecast_hourly` and `forecast_daily` attributes are gone. Use the `weather.get_forecasts` action instead, or see [Chance of rain as a sensor](#chance-of-rain-as-a-sensor).
 - **Retired sensors:** a few old sensors (such as the old UV index, warnings, pollen and fire sensors) have been replaced by better ones. If an automation or script still uses one, a repair in **Settings → Repairs** tells you where and what to switch to. Dashboards aren't checked, so look over your cards for any that say the entity isn't available.
 - **Rural spots without a weather station** don't get the station readings (temperature, humidity, wind and pressure), so those old sensors go away.
 - **GPS locations** (the mobile API) are gone. A location set up that way shows a repair asking you to **Reconfigure** it and pick a town.
@@ -347,14 +377,14 @@ Your locations carry over, and so does every sensor that still exists, with its 
 <summary><b>Removing it</b></summary>
 
 1. **Settings → Devices & services → MetService New Zealand Weather → ⋮ → Delete** removes the entities and settings.
-2. To remove the files too, go to **HACS → MetService New Zealand Weather → ⋮ → Remove**, then restart Home Assistant.
+2. To remove the files too, go to **Settings → Marketplace → MetService New Zealand Weather → ⋮ → Remove** (or the same in HACS on older versions), then restart Home Assistant.
 
 </details>
 
 <details>
 <summary><b>What happened to GPS locations (the mobile API)?</b></summary>
 
-Versions up to v0.9.19 could use the MetService mobile app's API, which added GPS-based locations. That relied on a private key taken from the MetService app that isn't meant for third-party use, so it was removed in v1.0.0. [v0.9.19](https://github.com/nagelm/metservice-weather/releases/tag/v0.9.19) is still available if you really need it.
+Versions up to v0.9.19 could use the MetService mobile app's API, which added GPS-based locations. That relied on a private key taken from the MetService app that isn't meant for third-party use, so it was removed in [v1.0.1](https://github.com/nagelm/metservice-weather/releases/tag/v1.0.1). [v0.9.19](https://github.com/nagelm/metservice-weather/releases/tag/v0.9.19) is still available if you really need it.
 
 </details>
 
