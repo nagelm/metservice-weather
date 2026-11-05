@@ -185,16 +185,6 @@ These sit on a separate device named after your marine region, and only show up 
 
 The **Warnings** sensor shows the most severe warning in force for your area. MetService's official scale goes watch → orange → red. `warning` is an extra bucket this integration adds for warnings with no colour in their name (road snowfall, frost and marine warnings), so they still rank above a watch.
 
-Enum states can't be compared like numbers, so the `severity_level` attribute carries the same thing as a number from 0 to 4. That makes "orange or worse" easy:
-
-```yaml
-triggers:
-  - trigger: numeric_state
-    entity_id: sensor.napier_warnings
-    attribute: severity_level
-    above: 2 # orange or red
-```
-
 Want notifications without writing any YAML? There's a [ready-made blueprint](#warning-notifications-blueprint) for that.
 
 <details>
