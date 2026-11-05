@@ -223,26 +223,11 @@ For towns, the day after tomorrow sits in between: it only gets an mm total when
 
 <a id="warning-notifications-blueprint"></a>
 <details>
-<summary><b>Getting warning notifications (blueprint)</b></summary>
+<summary><b>Want notifications without writing any YAML?</b></summary>
 
-Import the ready-made blueprint. It sends you every active warning's full text when a warning is issued or upgraded (including an extra warning arriving while a worse one is already active), filtered to the lowest level you care about:
+There's a ready-made blueprint for that. It sends you every active warning's full text when a warning is issued or upgraded (including an extra warning arriving while a worse one is already active), filtered to the lowest level you care about:
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fnagelm%2Fmetservice-weather%2Fmain%2Fblueprints%2Fautomation%2Fmetservice_weather%2Fwarning_notifications.yaml)
-
-</details>
-
-<a id="catching-every-new-warning"></a>
-<details>
-<summary><b>Catching every new warning, not just a change in level</b></summary>
-
-The state only changes when the *most severe* level changes. A second, lower warning turning up while a worse one is active only bumps the `count` attribute, so trigger on that instead:
-
-```yaml
-triggers:
-  - trigger: state
-    entity_id: sensor.napier_warnings
-    attribute: count
-```
 
 </details>
 
