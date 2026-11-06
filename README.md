@@ -6,6 +6,9 @@
 [![Validate](https://github.com/nagelm/metservice-weather/actions/workflows/validate.yml/badge.svg)](https://github.com/nagelm/metservice-weather/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/github/license/nagelm/metservice-weather)](LICENSE)
 
+> [!IMPORTANT]
+> **Switched over from ciejer/metservice-weather?** Since Home Assistant 2026.11, the Marketplace can still think the old version owns the integration's folder, and then updates fail with *"The metservice_weather directory belongs to ciejer/metservice-weather"*. Don't uninstall the old one in the Marketplace, because that also deletes your MetService setup. [Moving over from ciejer](#moving-over-from-ciejer) has the safe fix, which takes a couple of minutes and two restarts.
+
 Kia ora! 👋 This integration brings [MetService](https://www.metservice.com) weather into Home Assistant: live observations, hourly and 7-day forecasts, severe weather warnings, UV, pollen and fire danger, plus tides, boating and surf if you're near the coast.
 
 It reads the same public data the MetService website uses, so there's **no API key and no account**. Just pick your town.
@@ -330,11 +333,24 @@ Go to **Settings → Devices & services → MetService New Zealand Weather → �
 
 This repository carries on [ciejer/metservice-weather](https://github.com/ciejer/metservice-weather), with ciejer's blessing. Both install the same integration, so you can switch without setting anything up again. You'll need **Home Assistant 2026.8 or newer** and **v2026.10.0 or newer** of this integration, the first release that keeps your old entities.
 
-1. **Remove the old download in the Marketplace (or HACS):** open **MetService New Zealand Weather** by ciejer there (both versions use that name), then **⋮ → Remove**. Leave the integration itself alone in **Settings → Devices & services**, because deleting it there deletes your entities.
-2. **Download this one:** search the Marketplace for **MetService New Zealand Weather** again (this one is by nagelm), or hit the button at the top of this page.
+**On Home Assistant 2026.11 or newer (the Marketplace)**
+
+Both versions live in the same folder, `custom_components/metservice_weather`. If you ever had the old one, the Marketplace can still think it owns that folder, even after you downloaded this one over the top (HACS never recorded that the old one was gone). It then won't install or update this one, and says *"The metservice_weather directory belongs to ciejer/metservice-weather"*.
+
+Don't use **Uninstall** on the old one in the Marketplace to fix this. While MetService is set up, the Marketplace only offers to delete the files together with your MetService setup, which takes your entities with it. Do this instead:
+
+1. **Delete the folder by hand:** remove `custom_components/metservice_weather` from your config folder, using the File editor or Studio Code Server add-on, a Samba share, or a terminal (`rm -r /config/custom_components/metservice_weather`). Leave the integration alone in **Settings → Devices & services**.
+2. **Restart Home Assistant.** The Marketplace sees the folder is gone and stops counting either version as installed. MetService shows as not loaded until you finish, and your setup and entities are kept.
+3. **Download this one:** search the Marketplace for **MetService New Zealand Weather** (this one is by nagelm), or hit the button at the top of this page.
+4. **Restart Home Assistant** again.
+
+**On Home Assistant before 2026.11 (HACS)**
+
+1. **Remove the old download in HACS:** open **MetService New Zealand Weather** by ciejer there (both versions use that name), then **⋮ → Remove**. Leave the integration itself alone in **Settings → Devices & services**, because deleting it there deletes your entities.
+2. **Download this one:** search HACS for **MetService New Zealand Weather** again (this one is by nagelm), or hit the button at the top of this page.
 3. **Restart Home Assistant.**
 
-Already downloaded this one without removing the old one first? Both live in the same folder, so removing the old one deletes this one's files too. Remove the old one, then open this one in the Marketplace, choose **⋮ → Redownload**, and restart.
+Already downloaded this one without removing the old one first? Both live in the same folder, so removing the old one deletes this one's files too. Remove the old one, then open this one in HACS, choose **⋮ → Redownload**, and restart. Doing this before you upgrade to Home Assistant 2026.11 also saves you the Marketplace steps above.
 
 Your locations carry over, and so does every sensor that still exists, with its entity ID, history and any name or icon you gave it. A few things look different afterwards:
 
