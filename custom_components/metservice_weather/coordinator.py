@@ -7,6 +7,7 @@ from datetime import timedelta
 import logging
 import re
 import asyncio
+import time
 
 import aiohttp
 
@@ -32,6 +33,22 @@ from .coordinator_types import MetServicePublicData, normalize_public_data
 _LOGGER = logging.getLogger(__name__)
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=20)
+
+# Home Assistant's shared DNS resolver (c-ares) sometimes reports "Timeout while
+# contacting DNS servers" for a working server, and after an EDNS cookie
+# mismatch it can keep failing for about 2 minutes (home-assistant/core#145708).
+# On a transient network failure the coordinator keeps its last good data for
+# up to STALE_DATA_LIMIT and polls again after RETRY_INTERVAL, which is past
+# that window, instead of going unavailable until the next 20-minute update.
+RETRY_INTERVAL = timedelta(minutes=3)
+STALE_DATA_LIMIT = timedelta(hours=1)
+_TRANSIENT_ERRORS = (
+    TimeoutError,
+    aiohttp.ClientConnectionError,
+    aiohttp.ClientPayloadError,
+)
+# Certificate and TLS failures do not clear up by waiting.
+_PERMANENT_ERRORS = (aiohttp.ClientSSLError,)
 
 _MARINE_REGION_SLUG_RE = re.compile(r"/marine/regions/([^/]+)/")
 
@@ -68,6 +85,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self.unit_system = config.unit_system
         self.location_device_id: str | None = None
         self._session = async_get_clientsession(hass)
+        self._normal_update_interval = config.update_interval
+        self._last_success: float | None = None
+        self._outage_logged = False
         self.units_of_measurement = {
             TEMPUNIT: UnitOfTemperature.CELSIUS,
             LENGTHUNIT: UnitOfLength.MILLIMETERS,
@@ -133,8 +153,52 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     }
 
     async def _async_update_data(self) -> MetServicePublicData:
-        """Fetch data from API."""
-        return await self.get_public_weather()
+        """Fetch data from API, riding out a transient network failure."""
+        try:
+            data = await self.get_public_weather()
+        except UpdateFailed as err:
+            if self._can_keep_last_data(err):
+                return self._keep_last_data(err)
+            self._outage_logged = False
+            self.update_interval = self._normal_update_interval
+            raise
+        if self._outage_logged:
+            _LOGGER.info("MetService data for %s recovered", self._location_name)
+        self._outage_logged = False
+        self._last_success = time.monotonic()
+        self.update_interval = self._normal_update_interval
+        return data
+
+    def _can_keep_last_data(self, err: UpdateFailed) -> bool:
+        """Return whether a failed update can fall back to the last good data."""
+        cause = err.__cause__
+        if not isinstance(cause, _TRANSIENT_ERRORS) or isinstance(
+            cause, _PERMANENT_ERRORS
+        ):
+            return False
+        # Only while the entities are still available: once a failure has been
+        # raised, old data must not come back as if an update had succeeded.
+        if self._last_success is None or not self.last_update_success:
+            return False
+        age = time.monotonic() - self._last_success
+        return age < STALE_DATA_LIMIT.total_seconds()
+
+    def _keep_last_data(self, err: UpdateFailed) -> MetServicePublicData:
+        """Keep the last good data and poll again sooner than usual."""
+        retry_minutes = int(RETRY_INTERVAL.total_seconds() // 60)
+        if not self._outage_logged:
+            _LOGGER.warning(
+                "%s; keeping the last MetService data for %s and trying again "
+                "every %s minutes",
+                err,
+                self._location_name,
+                retry_minutes,
+            )
+            self._outage_logged = True
+        else:
+            _LOGGER.debug("%s; still keeping the last MetService data", err)
+        self.update_interval = RETRY_INTERVAL
+        return self.data
 
     async def get_public_weather(self):
         """Get weather data from public API."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,6 +12,9 @@ import pytest
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.metservice_weather.coordinator import (
+    MIN_TIME_BETWEEN_UPDATES,
+    RETRY_INTERVAL,
+    STALE_DATA_LIMIT,
     WeatherUpdateCoordinator,
     WeatherUpdateCoordinatorConfig,
 )
@@ -359,6 +363,184 @@ async def test_async_update_data_public(hass):
     ) as mock:
         await coord._async_update_data()
         mock.assert_called_once()
+
+
+def _transient_failure(cause=None) -> UpdateFailed:
+    err = UpdateFailed("Error fetching MetService data: DNS timeout")
+    err.__cause__ = cause if cause is not None else TimeoutError()
+    return err
+
+
+def _with_last_good_data(coord, age_seconds: float = 60):
+    """Give the coordinator data from a successful update age_seconds ago."""
+    coord.data = MagicMock(spec=MetServicePublicData)
+    coord._last_success = time.monotonic() - age_seconds
+    return coord.data
+
+
+async def test_async_update_data_success_records_time_and_normal_interval(hass):
+    """A successful update records its time and keeps the normal interval."""
+    coord = _make_coordinator(hass)
+    data = MagicMock(spec=MetServicePublicData)
+    with patch.object(
+        coord, "get_public_weather", new_callable=AsyncMock, return_value=data
+    ):
+        assert await coord._async_update_data() is data
+    assert coord._last_success is not None
+    assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+
+
+@pytest.mark.parametrize(
+    "cause",
+    [
+        TimeoutError(),
+        aiohttp.ClientConnectionError("Timeout while contacting DNS servers"),
+        aiohttp.ServerDisconnectedError(),
+        aiohttp.ClientPayloadError("Response payload is not completed"),
+    ],
+)
+async def test_async_update_data_keeps_last_data_on_transient_error(
+    hass, caplog, cause
+):
+    """A transient network failure keeps the last data and polls again sooner."""
+    coord = _make_coordinator(hass)
+    previous = _with_last_good_data(coord)
+    with patch.object(
+        coord,
+        "get_public_weather",
+        new_callable=AsyncMock,
+        side_effect=_transient_failure(cause),
+    ):
+        assert await coord._async_update_data() is previous
+    assert coord.update_interval == RETRY_INTERVAL
+    assert "keeping the last MetService data" in caplog.text
+
+
+async def test_async_update_data_warns_once_per_outage_then_recovers(hass, caplog):
+    """One warning per outage; recovery logs it and restores the normal interval."""
+    coord = _make_coordinator(hass)
+    _with_last_good_data(coord)
+    fresh = MagicMock(spec=MetServicePublicData)
+    with patch.object(
+        coord,
+        "get_public_weather",
+        new_callable=AsyncMock,
+        side_effect=[_transient_failure(), _transient_failure(), fresh],
+    ):
+        await coord._async_update_data()
+        await coord._async_update_data()
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warnings) == 1
+        assert await coord._async_update_data() is fresh
+    assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+    assert "recovered" in caplog.text
+
+
+async def test_async_update_data_raises_without_previous_data(hass):
+    """On the first refresh there is nothing to keep, so the failure is raised."""
+    coord = _make_coordinator(hass)
+    with (
+        patch.object(
+            coord,
+            "get_public_weather",
+            new_callable=AsyncMock,
+            side_effect=_transient_failure(),
+        ),
+        pytest.raises(UpdateFailed),
+    ):
+        await coord._async_update_data()
+    assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+
+
+async def test_async_update_data_raises_once_data_is_too_old(hass):
+    """After STALE_DATA_LIMIT the failure is raised and the normal interval resumes."""
+    coord = _make_coordinator(hass)
+    _with_last_good_data(coord, age_seconds=STALE_DATA_LIMIT.total_seconds() + 1)
+    coord.update_interval = RETRY_INTERVAL
+    with (
+        patch.object(
+            coord,
+            "get_public_weather",
+            new_callable=AsyncMock,
+            side_effect=_transient_failure(),
+        ),
+        pytest.raises(UpdateFailed),
+    ):
+        await coord._async_update_data()
+    assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+
+
+@pytest.mark.parametrize(
+    "cause",
+    [
+        ValueError("No current weather data received."),
+        aiohttp.ClientConnectorCertificateError(MagicMock(), Exception("expired")),
+        KeyError("location"),
+        None,
+    ],
+)
+async def test_async_update_data_raises_other_failures(hass, cause):
+    """Bad data, TLS and unexpected errors are raised straight away."""
+    coord = _make_coordinator(hass)
+    _with_last_good_data(coord)
+    failure = UpdateFailed("failed")
+    failure.__cause__ = cause
+    with (
+        patch.object(
+            coord,
+            "get_public_weather",
+            new_callable=AsyncMock,
+            side_effect=failure,
+        ),
+        pytest.raises(UpdateFailed),
+    ):
+        await coord._async_update_data()
+    assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+
+
+async def test_async_update_data_raises_after_an_earlier_failure(hass):
+    """Once a failure has made the entities unavailable, old data is not reused."""
+    coord = _make_coordinator(hass)
+    _with_last_good_data(coord)
+    coord.last_update_success = False
+    with (
+        patch.object(
+            coord,
+            "get_public_weather",
+            new_callable=AsyncMock,
+            side_effect=_transient_failure(),
+        ),
+        pytest.raises(UpdateFailed),
+    ):
+        await coord._async_update_data()
+    assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+
+
+async def test_refresh_stays_available_through_dns_timeout(hass):
+    """Through the real refresh path, a DNS timeout keeps entities available."""
+    coord = _make_coordinator(hass)
+    pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response({"warnings": []}),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_data),
+            aiohttp.ClientConnectionError("Timeout while contacting DNS servers"),
+        ]
+    )
+    coord._session = mock_session
+
+    await coord.async_refresh()
+    assert coord.last_update_success is True
+    first = coord.data
+    assert isinstance(first, MetServicePublicData)
+
+    await coord.async_refresh()
+    assert coord.last_update_success is True
+    assert coord.data is first
+    assert coord.update_interval == RETRY_INTERVAL
 
 
 async def test_get_pollen_data_success(hass):
