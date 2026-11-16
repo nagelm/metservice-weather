@@ -1,3 +1,15 @@
+## v2026.11.1
+
+### Fixed
+
+- **A network blip no longer makes the forecast unavailable.** When an update failed with a timeout or connection error, such as Home Assistant's "Timeout while contacting DNS servers", every MetService entity went unavailable until the next update 20 minutes later. The integration now keeps the last data for up to an hour and tries again every 3 minutes until it gets through. The error comes from Home Assistant's DNS resolver (home-assistant/core#145708), so this works around it until it's fixed there (#126, #127).
+
+### Changed
+
+- The README's [Moving over from ciejer/metservice-weather](https://github.com/nagelm/metservice-weather#moving-over-from-ciejer) section covers the Home Assistant 2026.11 Marketplace. If updating fails with "The metservice_weather directory belongs to ciejer/metservice-weather", follow the steps there (#118, #121).
+
+---
+
 ## v2026.11.0
 
 **Needs Home Assistant 2026.8 or newer.**
