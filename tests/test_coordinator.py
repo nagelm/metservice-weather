@@ -11,6 +11,7 @@ import pytest
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.metservice_weather.coordinator import (
+    RETRY_DELAY_SECONDS,
     WeatherUpdateCoordinator,
     WeatherUpdateCoordinatorConfig,
 )
@@ -359,6 +360,117 @@ async def test_async_update_data_public(hass):
     ) as mock:
         await coord._async_update_data()
         mock.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "cause",
+    [
+        TimeoutError(),
+        aiohttp.ClientConnectionError("DNS lookup timed out"),
+        aiohttp.ServerDisconnectedError(),
+    ],
+)
+async def test_async_update_data_retries_once_after_transient_error(hass, cause):
+    """A transient network failure is retried once after a short pause."""
+    coord = _make_coordinator(hass)
+    failure = UpdateFailed("Error fetching MetService data")
+    failure.__cause__ = cause
+    data = MagicMock(spec=MetServicePublicData)
+    with (
+        patch.object(
+            coord,
+            "get_public_weather",
+            new_callable=AsyncMock,
+            side_effect=[failure, data],
+        ) as mock_fetch,
+        patch(
+            "custom_components.metservice_weather.coordinator.asyncio.sleep",
+            new_callable=AsyncMock,
+        ) as mock_sleep,
+    ):
+        assert await coord._async_update_data() is data
+    assert mock_fetch.call_count == 2
+    mock_sleep.assert_awaited_once_with(RETRY_DELAY_SECONDS)
+
+
+async def test_async_update_data_raises_when_retry_also_fails(hass):
+    """When the retry fails too, the second UpdateFailed is raised."""
+    coord = _make_coordinator(hass)
+    first = UpdateFailed("first")
+    first.__cause__ = TimeoutError()
+    second = UpdateFailed("second")
+    second.__cause__ = TimeoutError()
+    with (
+        patch.object(
+            coord,
+            "get_public_weather",
+            new_callable=AsyncMock,
+            side_effect=[first, second],
+        ) as mock_fetch,
+        patch(
+            "custom_components.metservice_weather.coordinator.asyncio.sleep",
+            new_callable=AsyncMock,
+        ),
+        pytest.raises(UpdateFailed, match="second"),
+    ):
+        await coord._async_update_data()
+    assert mock_fetch.call_count == 2
+
+
+@pytest.mark.parametrize(
+    "cause",
+    [
+        ValueError("No current weather data received."),
+        aiohttp.ClientResponseError(MagicMock(), (), status=500),
+        KeyError("location"),
+        None,
+    ],
+)
+async def test_async_update_data_does_not_retry_other_failures(hass, cause):
+    """Bad data and non-network errors fail straight away, without a retry."""
+    coord = _make_coordinator(hass)
+    failure = UpdateFailed("failed")
+    failure.__cause__ = cause
+    with (
+        patch.object(
+            coord,
+            "get_public_weather",
+            new_callable=AsyncMock,
+            side_effect=failure,
+        ) as mock_fetch,
+        patch(
+            "custom_components.metservice_weather.coordinator.asyncio.sleep",
+            new_callable=AsyncMock,
+        ) as mock_sleep,
+        pytest.raises(UpdateFailed),
+    ):
+        await coord._async_update_data()
+    mock_fetch.assert_called_once()
+    mock_sleep.assert_not_awaited()
+
+
+async def test_async_update_data_retries_real_dns_timeout(hass):
+    """A DNS timeout from the session is retried, and the update then succeeds."""
+    coord = _make_coordinator(hass)
+    pollen_data = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            aiohttp.ClientConnectionError("Timeout while contacting DNS servers"),
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response({"warnings": []}),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_data),
+        ]
+    )
+    coord._session = mock_session
+    with patch(
+        "custom_components.metservice_weather.coordinator.asyncio.sleep",
+        new_callable=AsyncMock,
+    ) as mock_sleep:
+        result = await coord._async_update_data()
+    assert isinstance(result, MetServicePublicData)
+    mock_sleep.assert_awaited_once_with(RETRY_DELAY_SECONDS)
 
 
 async def test_get_pollen_data_success(hass):

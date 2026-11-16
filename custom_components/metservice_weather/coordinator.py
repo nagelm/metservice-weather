@@ -33,6 +33,12 @@ _LOGGER = logging.getLogger(__name__)
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=20)
 
+# A transient network failure (a DNS lookup or connection timing out) gets one
+# more try after a short pause, so a single blip does not leave the entities
+# unavailable until the next scheduled update.
+RETRY_DELAY_SECONDS = 10
+_TRANSIENT_ERRORS = (TimeoutError, aiohttp.ClientConnectionError)
+
 _MARINE_REGION_SLUG_RE = re.compile(r"/marine/regions/([^/]+)/")
 
 
@@ -133,7 +139,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     }
 
     async def _async_update_data(self) -> MetServicePublicData:
-        """Fetch data from API."""
+        """Fetch data from API, retrying once after a transient network failure."""
+        try:
+            return await self.get_public_weather()
+        except UpdateFailed as err:
+            if not isinstance(err.__cause__, _TRANSIENT_ERRORS):
+                raise
+            _LOGGER.debug("%s; retrying in %s seconds", err, RETRY_DELAY_SECONDS)
+        await asyncio.sleep(RETRY_DELAY_SECONDS)
         return await self.get_public_weather()
 
     async def get_public_weather(self):
