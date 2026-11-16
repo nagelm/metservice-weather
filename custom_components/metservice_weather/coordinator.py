@@ -159,6 +159,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         except UpdateFailed as err:
             if self._can_keep_last_data(err):
                 return self._keep_last_data(err)
+            self._outage_logged = False
             self.update_interval = self._normal_update_interval
             raise
         if self._outage_logged:
@@ -175,7 +176,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             cause, _PERMANENT_ERRORS
         ):
             return False
-        if self.data is None or self._last_success is None:
+        # Only while the entities are still available: once a failure has been
+        # raised, old data must not come back as if an update had succeeded.
+        if self._last_success is None or not self.last_update_success:
             return False
         age = time.monotonic() - self._last_success
         return age < STALE_DATA_LIMIT.total_seconds()

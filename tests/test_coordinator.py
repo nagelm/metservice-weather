@@ -474,14 +474,13 @@ async def test_async_update_data_raises_once_data_is_too_old(hass):
     "cause",
     [
         ValueError("No current weather data received."),
-        aiohttp.ClientResponseError(MagicMock(), (), status=500),
         aiohttp.ClientConnectorCertificateError(MagicMock(), Exception("expired")),
         KeyError("location"),
         None,
     ],
 )
 async def test_async_update_data_raises_other_failures(hass, cause):
-    """Bad data, HTTP, TLS and unexpected errors are raised straight away."""
+    """Bad data, TLS and unexpected errors are raised straight away."""
     coord = _make_coordinator(hass)
     _with_last_good_data(coord)
     failure = UpdateFailed("failed")
@@ -492,6 +491,24 @@ async def test_async_update_data_raises_other_failures(hass, cause):
             "get_public_weather",
             new_callable=AsyncMock,
             side_effect=failure,
+        ),
+        pytest.raises(UpdateFailed),
+    ):
+        await coord._async_update_data()
+    assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+
+
+async def test_async_update_data_raises_after_an_earlier_failure(hass):
+    """Once a failure has made the entities unavailable, old data is not reused."""
+    coord = _make_coordinator(hass)
+    _with_last_good_data(coord)
+    coord.last_update_success = False
+    with (
+        patch.object(
+            coord,
+            "get_public_weather",
+            new_callable=AsyncMock,
+            side_effect=_transient_failure(),
         ),
         pytest.raises(UpdateFailed),
     ):
