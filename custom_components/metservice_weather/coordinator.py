@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from email.utils import parsedate_to_datetime
 import logging
 import re
@@ -125,6 +127,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self._normal_update_interval = config.update_interval
         self._last_success: float | None = None
         self._outage_logged = False
+        # Last good result of each section fetch (pollen, tides, boating, surf,
+        # dataUrl modules), keyed by URL, with the monotonic time it was fetched.
+        self._section_cache: dict[str, tuple[float, Any]] = {}
         self.units_of_measurement = {
             TEMPUNIT: UnitOfTemperature.CELSIUS,
             LENGTHUNIT: UnitOfLength.MILLIMETERS,
@@ -240,8 +245,36 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self.update_interval = interval
         return self.data
 
+    def _keep_section(self, key: str, value: Any) -> Any:
+        """Remember a section's freshly fetched value and return it."""
+        self._section_cache[key] = (time.monotonic(), copy.deepcopy(value))
+        return value
+
+    def _last_section(
+        self, key: str, default: Any, label: str, reason: str, level: int
+    ) -> Any:
+        """Return a section's last good value after a transient failure.
+
+        Falls back to default when there is none from within STALE_DATA_LIMIT.
+        """
+        entry = self._section_cache.get(key)
+        if entry is not None and (
+            time.monotonic() - entry[0] < STALE_DATA_LIMIT.total_seconds()
+        ):
+            _LOGGER.log(level, "%s: %s; keeping the last data", label, reason)
+            return copy.deepcopy(entry[1])
+        _LOGGER.log(level, "%s: %s; no recent data to keep", label, reason)
+        return default
+
+    def _prune_sections(self) -> None:
+        """Drop remembered section values too old to be reused."""
+        cutoff = time.monotonic() - STALE_DATA_LIMIT.total_seconds()
+        for key in [k for k, (at, _) in self._section_cache.items() if at < cutoff]:
+            del self._section_cache[key]
+
     async def get_public_weather(self):
         """Get weather data from public API."""
+        self._prune_sections()
         headers = self._PUBLIC_HEADERS
         try:
             async with asyncio.timeout(10):
@@ -339,6 +372,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 _LOGGER.info("Fetching tides data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
+                    if response.status in _TRANSIENT_HTTP_STATUSES:
+                        return self._last_section(
+                            url,
+                            None,
+                            "Tides endpoint error",
+                            f"HTTP {response.status}",
+                            logging.WARNING,
+                        )
                     _LOGGER.warning(
                         "Tides endpoint returned HTTP %s — tides data will be unavailable",
                         response.status,
@@ -360,15 +401,23 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         modules = modules[key]
                     for module in modules:
                         if "tideData" in module:
-                            return module["tideData"]
+                            return self._keep_section(url, module["tideData"])
                 except KeyError, TypeError:
                     continue
             _LOGGER.warning(
                 "Could not locate tideData in response — tides data will be unavailable"
             )
-            return None
+            return self._keep_section(url, None)
 
         except (TimeoutError, aiohttp.ClientError) as err:
+            if _is_transient(err):
+                return self._last_section(
+                    self._tide_url,
+                    None,
+                    "Error fetching tides data",
+                    repr(err),
+                    logging.WARNING,
+                )
             _LOGGER.warning(
                 "Error fetching tides data: %s — tides will be unavailable", repr(err)
             )
@@ -388,6 +437,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 _LOGGER.info("Fetching boating data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
+                    if response.status in _TRANSIENT_HTTP_STATUSES:
+                        return self._last_section(
+                            url,
+                            {},
+                            "Boating endpoint error",
+                            f"HTTP {response.status}",
+                            logging.WARNING,
+                        )
                     _LOGGER.warning(
                         "Boating endpoint returned HTTP %s — boating data unavailable",
                         response.status,
@@ -402,19 +459,28 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 .get("modules", [])
             )
             if not modules:
-                return {}
+                return self._keep_section(url, {})
             days = modules[0].get("days", [])
             if not days:
-                return {}
+                return self._keep_section(url, {})
             today = days[0]
-            return {
+            boating = {
                 "boating_status": today.get("view", {}).get("text", ""),
                 "boating_status_raw": today.get("view", {}).get("status", ""),
                 "boating_forecast": today.get("forecast", {}).get("text", ""),
                 "boating_issued_at": today.get("forecast", {}).get("issuedAt", ""),
                 "boating_table": today.get("table", {}).get("columns", []),
             }
+            return self._keep_section(url, boating)
         except (TimeoutError, aiohttp.ClientError) as err:
+            if _is_transient(err):
+                return self._last_section(
+                    self._boating_url,
+                    {},
+                    "Error fetching boating data",
+                    repr(err),
+                    logging.WARNING,
+                )
             _LOGGER.warning(
                 "Error fetching boating data: %s — boating will be unavailable",
                 repr(err),
@@ -439,6 +505,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     regional_url, headers=self._PUBLIC_HEADERS
                 )
                 if response.status != 200:
+                    if response.status in _TRANSIENT_HTTP_STATUSES:
+                        return self._last_section(
+                            self._surf_url,
+                            {},
+                            "Surf endpoint error",
+                            f"HTTP {response.status}",
+                            logging.WARNING,
+                        )
                     _LOGGER.warning(
                         "Surf endpoint returned HTTP %s — surf data unavailable",
                         response.status,
@@ -466,14 +540,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     "Could not find surf marker for %s — surf data unavailable",
                     location_path,
                 )
-                return {}
+                return self._keep_section(self._surf_url, {})
 
             value = marker.get("action", {}).get("modules", [{}])[0].get("value", {})
             swell = value.get("swell", {})
             wind = value.get("wind", {})
             view = marker.get("view", {})
 
-            return {
+            surf = {
                 "surf_conditions": view.get("text", ""),
                 "surf_rating": value.get("rating"),
                 "surf_wave_height": value.get("waveHeight"),
@@ -485,8 +559,17 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 "surf_wind_gust": wind.get("gustSpeed"),
                 "surf_period": value.get("period"),
             }
+            return self._keep_section(self._surf_url, surf)
 
         except (TimeoutError, aiohttp.ClientError) as err:
+            if _is_transient(err):
+                return self._last_section(
+                    self._surf_url,
+                    {},
+                    "Error fetching surf data",
+                    repr(err),
+                    logging.WARNING,
+                )
             _LOGGER.warning(
                 "Error fetching surf data: %s — surf will be unavailable", repr(err)
             )
@@ -520,12 +603,20 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     async def get_pollen_data(self) -> dict:
         """Fetch pollen/allergen data from MetService allergens endpoint."""
         empty = {"pollenLevels": {"level": None, "type": None}, "groups": []}
+        url = f"{self._api_url}{self._location}/airborne-allergens"
         try:
             async with asyncio.timeout(10):
-                url = f"{self._api_url}{self._location}/airborne-allergens"
                 _LOGGER.debug("Fetching pollen data from %s", url)
                 response = await self._session.get(url, headers=self._PUBLIC_HEADERS)
                 if response.status != 200:
+                    if response.status in _TRANSIENT_HTTP_STATUSES:
+                        return self._last_section(
+                            url,
+                            empty,
+                            "Pollen endpoint error",
+                            f"HTTP {response.status}",
+                            logging.DEBUG,
+                        )
                     _LOGGER.debug(
                         "Pollen endpoint returned HTTP %s — pollen data unavailable",
                         response.status,
@@ -547,10 +638,21 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             ]
             if groups:
                 _LOGGER.debug("Pollen groups this cycle: %s", groups)
-                return {"pollenLevels": groups[0], "groups": groups}
+                return self._keep_section(
+                    url, {"pollenLevels": groups[0], "groups": groups}
+                )
         except Exception as err:
+            if _is_transient(err):
+                return self._last_section(
+                    url,
+                    empty,
+                    "Could not fetch pollen data",
+                    repr(err),
+                    logging.DEBUG,
+                )
             _LOGGER.debug("Could not fetch pollen data: %s", repr(err))
-        return empty
+            return empty
+        return self._keep_section(url, empty)
 
     def _check_errors(self, url: str, response: dict):
         """Check for errors in the API response."""
@@ -601,11 +703,23 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                             full_url, headers=self._PUBLIC_HEADERS
                         )
                         if response.status != 200:
-                            _LOGGER.warning(
-                                "Error fetching %s: HTTP %s", full_url, response.status
-                            )
+                            if response.status in _TRANSIENT_HTTP_STATUSES:
+                                fallback = self._last_section(
+                                    full_url,
+                                    None,
+                                    f"Error fetching {full_url}",
+                                    f"HTTP {response.status}",
+                                    logging.WARNING,
+                                )
+                            else:
+                                _LOGGER.warning(
+                                    "Error fetching %s: HTTP %s",
+                                    full_url,
+                                    response.status,
+                                )
+                                fallback = None
                             if parent is not None and key is not None:
-                                parent[key] = None
+                                parent[key] = fallback
                             return
                         result = await response.json(content_type=None)
                     if parent is not None and key is not None:
@@ -613,10 +727,22 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     await self.expand_data_urls(
                         result, parent=parent, key=key, _depth=_depth + 1
                     )
-                except Exception as e:
-                    _LOGGER.warning("Error fetching dataUrl %s: %s", full_url, e)
                     if parent is not None and key is not None:
-                        parent[key] = None
+                        self._keep_section(full_url, parent[key])
+                except Exception as e:
+                    if _is_transient(e):
+                        fallback = self._last_section(
+                            full_url,
+                            None,
+                            f"Error fetching dataUrl {full_url}",
+                            str(e),
+                            logging.WARNING,
+                        )
+                    else:
+                        _LOGGER.warning("Error fetching dataUrl %s: %s", full_url, e)
+                        fallback = None
+                    if parent is not None and key is not None:
+                        parent[key] = fallback
             else:
                 for k in list(data.keys()):
                     await self.expand_data_urls(
