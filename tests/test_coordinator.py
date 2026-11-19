@@ -1692,3 +1692,77 @@ async def test_get_public_weather_prunes_old_section_values(hass):
         await coord.get_public_weather()
     assert "https://example.com/old" not in coord._section_cache
     assert "https://example.com/new" in coord._section_cache
+
+
+async def test_section_failure_after_permanent_error_returns_default(hass):
+    """After a non-transient failure, a transient one doesn't bring back older data."""
+    kwargs, getter, payload, default = _section_case("tides")
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(payload),
+            _mock_response(None, status=404),
+            TimeoutError(),
+        ]
+    )
+    coord._session = mock_session
+
+    assert await getattr(coord, getter)()
+    assert await getattr(coord, getter)() == default
+    assert await getattr(coord, getter)() == default
+
+
+async def test_expand_data_urls_does_not_cache_parent_with_reused_child(hass):
+    """A parent whose nested dataUrl was reused isn't cached with that old child."""
+    coord = _make_coordinator(hass)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response({"inner": {"dataUrl": "/inner"}}),
+            _mock_response({"value": 7}),
+            _mock_response({"inner": {"dataUrl": "/inner"}}),
+            TimeoutError(),
+        ]
+    )
+    coord._session = mock_session
+
+    await coord.expand_data_urls({"node": {"dataUrl": "/outer"}})
+    outer_key = next(k for k in coord._section_cache if k.endswith("/outer"))
+    first_stamp = coord._section_cache[outer_key][0]
+
+    second = {"node": {"dataUrl": "/outer"}}
+    await coord.expand_data_urls(second)
+    assert second["node"] == {"inner": {"value": 7}}
+    assert coord._section_cache[outer_key][0] == first_stamp
+
+
+async def test_expand_data_urls_top_level_failure_keeps_nothing(hass):
+    """A top-level dataUrl has nowhere to put a kept value, so none is reused."""
+    coord = _make_coordinator(hass)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[_mock_response({"value": 1}), TimeoutError()]
+    )
+    coord._session = mock_session
+
+    await coord.expand_data_urls({"node": {"dataUrl": "/x"}})
+    await coord.expand_data_urls({"dataUrl": "/x"})
+    assert coord._sections_reused == 0
+
+
+async def test_async_update_data_polls_sooner_while_a_section_is_reused(hass):
+    """While any section runs on reused data, the next poll comes after 3 minutes."""
+    coord = _make_coordinator(hass)
+    data = MagicMock(spec=MetServicePublicData)
+    reused = iter([1, 0])
+
+    async def fake_fetch():
+        coord._sections_reused = next(reused)
+        return data
+
+    with patch.object(coord, "get_public_weather", side_effect=fake_fetch):
+        await coord._async_update_data()
+        assert coord.update_interval == RETRY_INTERVAL
+        await coord._async_update_data()
+        assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES

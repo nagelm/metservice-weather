@@ -130,6 +130,10 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         # Last good result of each section fetch (pollen, tides, boating, surf,
         # dataUrl modules), keyed by URL, with the monotonic time it was fetched.
         self._section_cache: dict[str, tuple[float, Any]] = {}
+        # How many section values the update in progress has reused from the
+        # cache. A parent dataUrl skips caching a payload with reused children,
+        # and the next poll comes sooner while any section runs on reused data.
+        self._sections_reused = 0
         self.units_of_measurement = {
             TEMPUNIT: UnitOfTemperature.CELSIUS,
             LENGTHUNIT: UnitOfLength.MILLIMETERS,
@@ -208,7 +212,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             _LOGGER.info("MetService data for %s recovered", self._location_name)
         self._outage_logged = False
         self._last_success = time.monotonic()
-        self.update_interval = self._normal_update_interval
+        # A section still running on reused data is retried sooner, the same as
+        # a failed update. This stops once its last data is too old to reuse.
+        self.update_interval = (
+            RETRY_INTERVAL if self._sections_reused else self._normal_update_interval
+        )
         return data
 
     def _can_keep_last_data(self, err: UpdateFailed) -> bool:
@@ -262,6 +270,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             time.monotonic() - entry[0] < STALE_DATA_LIMIT.total_seconds()
         ):
             _LOGGER.log(level, "%s: %s; keeping the last data", label, reason)
+            self._sections_reused += 1
             return copy.deepcopy(entry[1])
         _LOGGER.log(level, "%s: %s; no recent data to keep", label, reason)
         return default
@@ -275,6 +284,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     async def get_public_weather(self):
         """Get weather data from public API."""
         self._prune_sections()
+        self._sections_reused = 0
         headers = self._PUBLIC_HEADERS
         try:
             async with asyncio.timeout(10):
@@ -384,11 +394,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         "Tides endpoint returned HTTP %s — tides data will be unavailable",
                         response.status,
                     )
-                    return None
+                    return self._keep_section(self._tide_url, None)
                 result_tides = await response.json(content_type=None)
                 if result_tides is None:
                     _LOGGER.warning("No tides data received")
-                    return None
+                    return self._keep_section(self._tide_url, None)
                 self._check_errors(url, result_tides)
             await self.expand_data_urls(result_tides)
             for path in [
@@ -421,13 +431,13 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             _LOGGER.warning(
                 "Error fetching tides data: %s — tides will be unavailable", repr(err)
             )
-            return None
+            return self._keep_section(self._tide_url, None)
         except Exception as err:
             _LOGGER.warning(
                 "Unexpected error fetching tides data: %s — tides will be unavailable",
                 repr(err),
             )
-            return None
+            return self._keep_section(self._tide_url, None)
 
     async def get_boating_data(self) -> dict:
         """Get boating/surf conditions. Returns empty dict if unavailable."""
@@ -449,7 +459,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         "Boating endpoint returned HTTP %s — boating data unavailable",
                         response.status,
                     )
-                    return {}
+                    return self._keep_section(self._boating_url, {})
                 data = await response.json(content_type=None)
             modules = (
                 data.get("layout", {})
@@ -485,13 +495,13 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 "Error fetching boating data: %s — boating will be unavailable",
                 repr(err),
             )
-            return {}
+            return self._keep_section(self._boating_url, {})
         except Exception as err:
             _LOGGER.warning(
                 "Unexpected error fetching boating data: %s — boating will be unavailable",
                 repr(err),
             )
-            return {}
+            return self._keep_section(self._boating_url, {})
 
     async def get_surf_data(self) -> dict:
         """Get surf conditions for the configured location."""
@@ -517,7 +527,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         "Surf endpoint returned HTTP %s — surf data unavailable",
                         response.status,
                     )
-                    return {}
+                    return self._keep_section(self._surf_url, {})
                 data = await response.json(content_type=None)
 
             all_markers = (
@@ -573,13 +583,13 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             _LOGGER.warning(
                 "Error fetching surf data: %s — surf will be unavailable", repr(err)
             )
-            return {}
+            return self._keep_section(self._surf_url, {})
         except Exception as err:
             _LOGGER.warning(
                 "Unexpected error fetching surf data: %s — surf will be unavailable",
                 repr(err),
             )
-            return {}
+            return self._keep_section(self._surf_url, {})
 
     @staticmethod
     def _parse_pollen_html(html: str) -> dict:
@@ -621,7 +631,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                         "Pollen endpoint returned HTTP %s — pollen data unavailable",
                         response.status,
                     )
-                    return empty
+                    return self._keep_section(url, empty)
                 result = await response.json(content_type=None)
             modules = (
                 result.get("layout", {})
@@ -651,7 +661,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     logging.DEBUG,
                 )
             _LOGGER.debug("Could not fetch pollen data: %s", repr(err))
-            return empty
+            return self._keep_section(url, empty)
         return self._keep_section(url, empty)
 
     def _check_errors(self, url: str, response: dict):
@@ -697,13 +707,14 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             if "dataUrl" in data:
                 url = data["dataUrl"]
                 full_url = f"{BASE_URL}{url}" if url.startswith("/") else url
+                has_slot = parent is not None and key is not None
                 try:
                     async with asyncio.timeout(10):
                         response = await self._session.get(
                             full_url, headers=self._PUBLIC_HEADERS
                         )
                         if response.status != 200:
-                            if response.status in _TRANSIENT_HTTP_STATUSES:
+                            if response.status in _TRANSIENT_HTTP_STATUSES and has_slot:
                                 fallback = self._last_section(
                                     full_url,
                                     None,
@@ -717,31 +728,34 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                                     full_url,
                                     response.status,
                                 )
-                                fallback = None
-                            if parent is not None and key is not None:
+                                fallback = self._keep_section(full_url, None)
+                            if has_slot:
                                 parent[key] = fallback
                             return
                         result = await response.json(content_type=None)
-                    if parent is not None and key is not None:
+                    if has_slot:
                         parent[key] = result
+                    reused_before = self._sections_reused
                     await self.expand_data_urls(
                         result, parent=parent, key=key, _depth=_depth + 1
                     )
-                    if parent is not None and key is not None:
+                    if has_slot and self._sections_reused == reused_before:
                         self._keep_section(full_url, parent[key])
                 except Exception as e:
-                    if _is_transient(e):
+                    if _is_transient(e) and has_slot:
                         fallback = self._last_section(
                             full_url,
                             None,
                             f"Error fetching dataUrl {full_url}",
-                            str(e),
+                            repr(e),
                             logging.WARNING,
                         )
                     else:
-                        _LOGGER.warning("Error fetching dataUrl %s: %s", full_url, e)
-                        fallback = None
-                    if parent is not None and key is not None:
+                        _LOGGER.warning(
+                            "Error fetching dataUrl %s: %s", full_url, repr(e)
+                        )
+                        fallback = self._keep_section(full_url, None)
+                    if has_slot:
                         parent[key] = fallback
             else:
                 for k in list(data.keys()):
