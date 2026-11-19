@@ -1595,8 +1595,8 @@ async def test_section_newer_empty_result_is_not_replaced_by_older_data(hass):
     assert await getattr(coord, getter)() == default
 
 
-async def test_section_kept_value_is_a_copy(hass):
-    """Changing a returned value doesn't change what is remembered."""
+async def test_section_reused_value_is_a_copy(hass):
+    """Changing a reused value doesn't change what is remembered."""
     kwargs, getter, payload, _default = _section_case("boating")
     coord = _make_coordinator(hass, **kwargs)
     mock_session = MagicMock()
@@ -1605,12 +1605,34 @@ async def test_section_kept_value_is_a_copy(hass):
     )
     coord._session = mock_session
 
-    first = await getattr(coord, getter)()
-    first["boating_status"] = "changed"
-    kept = await getattr(coord, getter)()
-    assert kept["boating_status"] == "Good"
-    kept["boating_status"] = "changed again"
     assert (await getattr(coord, getter)())["boating_status"] == "Good"
+    kept = await getattr(coord, getter)()
+    kept["boating_status"] = "changed"
+    assert (await getattr(coord, getter)())["boating_status"] == "Good"
+
+
+async def test_full_update_leaves_remembered_sections_unchanged(hass):
+    """Building the update doesn't edit the section values it remembers."""
+    kwargs, _getter, pollen_payload, _default = _section_case("pollen")
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response({"warnings": []}),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_payload),
+        ]
+    )
+    coord._session = mock_session
+
+    await coord.get_public_weather()
+    remembered = {k: v for k, (_at, v) in coord._section_cache.items()}
+    pollen = next(v for k, v in remembered.items() if k.endswith("/airborne-allergens"))
+    assert pollen == {
+        "pollenLevels": {"level": "Low", "type": "Grass", "status_class": "low"},
+        "groups": [{"level": "Low", "type": "Grass", "status_class": "low"}],
+    }
 
 
 @pytest.mark.parametrize(
