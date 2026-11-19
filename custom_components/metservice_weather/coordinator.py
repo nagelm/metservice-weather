@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 import logging
 import re
 import asyncio
@@ -37,9 +38,11 @@ MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=20)
 # Home Assistant's shared DNS resolver (c-ares) sometimes reports "Timeout while
 # contacting DNS servers" for a working server, and after an EDNS cookie
 # mismatch it can keep failing for about 2 minutes (home-assistant/core#145708).
-# On a transient network failure the coordinator keeps its last good data for
-# up to STALE_DATA_LIMIT and polls again after RETRY_INTERVAL, which is past
-# that window, instead of going unavailable until the next 20-minute update.
+# On a transient failure (a network error, or a 502, 503 or 504 from MetService)
+# the coordinator keeps its last good data for up to STALE_DATA_LIMIT instead of
+# going unavailable until the next 20-minute update. It polls again after
+# RETRY_INTERVAL, which is past that window, or after a longer Retry-After the
+# server sends, up to the normal interval.
 RETRY_INTERVAL = timedelta(minutes=3)
 STALE_DATA_LIMIT = timedelta(hours=1)
 _TRANSIENT_ERRORS = (
@@ -49,8 +52,19 @@ _TRANSIENT_ERRORS = (
 )
 # Certificate and TLS failures do not clear up by waiting.
 _PERMANENT_ERRORS = (aiohttp.ClientSSLError,)
+# Gateway and availability errors from MetService's edge are usually brief.
+_TRANSIENT_HTTP_STATUSES = frozenset({502, 503, 504})
 
 _MARINE_REGION_SLUG_RE = re.compile(r"/marine/regions/([^/]+)/")
+
+
+def _is_transient(cause: BaseException | None) -> bool:
+    """Return whether a fetch failure is likely to clear up on its own."""
+    if isinstance(cause, aiohttp.ClientResponseError):
+        return cause.status in _TRANSIENT_HTTP_STATUSES
+    return isinstance(cause, _TRANSIENT_ERRORS) and not isinstance(
+        cause, _PERMANENT_ERRORS
+    )
 
 
 @dataclass
@@ -66,6 +80,29 @@ class WeatherUpdateCoordinatorConfig:
     boating_url: str
     surf_url: str
     update_interval = MIN_TIME_BETWEEN_UPDATES
+
+
+def _retry_interval(cause: BaseException | None, normal: timedelta) -> timedelta:
+    """Return the wait before the next poll after a transient failure.
+
+    A Retry-After header on a 502, 503 or 504 is honoured, kept between
+    RETRY_INTERVAL and the normal update interval.
+    """
+    if not isinstance(cause, aiohttp.ClientResponseError) or not cause.headers:
+        return RETRY_INTERVAL
+    value = (cause.headers.get("Retry-After") or "").strip()
+    try:
+        if value.isascii() and value.isdigit():
+            seconds = min(int(value), normal.total_seconds())
+        else:
+            when = parsedate_to_datetime(value)
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=UTC)
+            seconds = (when - datetime.now(UTC)).total_seconds()
+        wait = timedelta(seconds=seconds)
+    except TypeError, ValueError, IndexError, OverflowError:
+        return RETRY_INTERVAL
+    return max(RETRY_INTERVAL, min(wait, normal))
 
 
 class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
@@ -153,7 +190,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     }
 
     async def _async_update_data(self) -> MetServicePublicData:
-        """Fetch data from API, riding out a transient network failure."""
+        """Fetch data from API, riding out a transient failure."""
         try:
             data = await self.get_public_weather()
         except UpdateFailed as err:
@@ -171,10 +208,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
 
     def _can_keep_last_data(self, err: UpdateFailed) -> bool:
         """Return whether a failed update can fall back to the last good data."""
-        cause = err.__cause__
-        if not isinstance(cause, _TRANSIENT_ERRORS) or isinstance(
-            cause, _PERMANENT_ERRORS
-        ):
+        if not _is_transient(err.__cause__):
             return False
         # Only while the entities are still available: once a failure has been
         # raised, old data must not come back as if an update had succeeded.
@@ -185,19 +219,25 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
 
     def _keep_last_data(self, err: UpdateFailed) -> MetServicePublicData:
         """Keep the last good data and poll again sooner than usual."""
-        retry_minutes = int(RETRY_INTERVAL.total_seconds() // 60)
+        interval = _retry_interval(err.__cause__, self._normal_update_interval)
+        retry_minutes = round(interval.total_seconds() / 60)
         if not self._outage_logged:
             _LOGGER.warning(
                 "%s; keeping the last MetService data for %s and trying again "
-                "every %s minutes",
+                "in %s minutes",
                 err,
                 self._location_name,
                 retry_minutes,
             )
             self._outage_logged = True
         else:
-            _LOGGER.debug("%s; still keeping the last MetService data", err)
-        self.update_interval = RETRY_INTERVAL
+            _LOGGER.debug(
+                "%s; still keeping the last MetService data, trying again in %s "
+                "minutes",
+                err,
+                retry_minutes,
+            )
+        self.update_interval = interval
         return self.data
 
     async def get_public_weather(self):
@@ -208,6 +248,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 url = f"{self._api_url}{self.location}"
                 _LOGGER.debug("Fetching MetService public data from %s", url)
                 response = await self._session.get(url, headers=headers)
+                response.raise_for_status()
                 result_current = await response.json(content_type=None)
                 if result_current is None:
                     raise ValueError("No current weather data received.")
@@ -216,6 +257,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             async with asyncio.timeout(10):
                 url = f"{self._warnings_url}/{result_current['location']['type']}/{result_current['location']['key']}"
                 response = await self._session.get(url, headers=headers)
+                response.raise_for_status()
                 result_warnings = await response.json(content_type=None)
                 if result_warnings is None:
                     raise ValueError("No warnings data received.")
@@ -236,6 +278,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             async with asyncio.timeout(10):
                 url = f"{self._api_url}{self.location}/7-days"
                 response = await self._session.get(url, headers=headers)
+                response.raise_for_status()
                 result_daily = await response.json(content_type=None)
                 if result_daily is None:
                     raise ValueError("No daily forecast data received.")
