@@ -49,8 +49,30 @@ _TRANSIENT_ERRORS = (
 )
 # Certificate and TLS failures do not clear up by waiting.
 _PERMANENT_ERRORS = (aiohttp.ClientSSLError,)
+# Gateway and availability errors from MetService's edge are usually brief.
+_TRANSIENT_HTTP_STATUSES = frozenset({502, 503, 504})
 
 _MARINE_REGION_SLUG_RE = re.compile(r"/marine/regions/([^/]+)/")
+
+
+def _is_transient(cause: BaseException | None) -> bool:
+    """Return whether a fetch failure is likely to clear up on its own."""
+    if isinstance(cause, aiohttp.ClientResponseError):
+        return cause.status in _TRANSIENT_HTTP_STATUSES
+    return isinstance(cause, _TRANSIENT_ERRORS) and not isinstance(
+        cause, _PERMANENT_ERRORS
+    )
+
+
+def _raise_for_transient_status(response: aiohttp.ClientResponse) -> None:
+    """Raise ClientResponseError for a 502, 503 or 504 from MetService."""
+    if response.status in _TRANSIENT_HTTP_STATUSES:
+        raise aiohttp.ClientResponseError(
+            response.request_info,
+            response.history,
+            status=response.status,
+            message=f"HTTP {response.status}",
+        )
 
 
 @dataclass
@@ -171,10 +193,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
 
     def _can_keep_last_data(self, err: UpdateFailed) -> bool:
         """Return whether a failed update can fall back to the last good data."""
-        cause = err.__cause__
-        if not isinstance(cause, _TRANSIENT_ERRORS) or isinstance(
-            cause, _PERMANENT_ERRORS
-        ):
+        if not _is_transient(err.__cause__):
             return False
         # Only while the entities are still available: once a failure has been
         # raised, old data must not come back as if an update had succeeded.
@@ -208,6 +227,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 url = f"{self._api_url}{self.location}"
                 _LOGGER.debug("Fetching MetService public data from %s", url)
                 response = await self._session.get(url, headers=headers)
+                _raise_for_transient_status(response)
                 result_current = await response.json(content_type=None)
                 if result_current is None:
                     raise ValueError("No current weather data received.")
@@ -216,6 +236,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             async with asyncio.timeout(10):
                 url = f"{self._warnings_url}/{result_current['location']['type']}/{result_current['location']['key']}"
                 response = await self._session.get(url, headers=headers)
+                _raise_for_transient_status(response)
                 result_warnings = await response.json(content_type=None)
                 if result_warnings is None:
                     raise ValueError("No warnings data received.")
@@ -236,6 +257,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             async with asyncio.timeout(10):
                 url = f"{self._api_url}{self.location}/7-days"
                 response = await self._session.get(url, headers=headers)
+                _raise_for_transient_status(response)
                 result_daily = await response.json(content_type=None)
                 if result_daily is None:
                     raise ValueError("No daily forecast data received.")

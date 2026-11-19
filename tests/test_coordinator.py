@@ -543,6 +543,72 @@ async def test_refresh_stays_available_through_dns_timeout(hass):
     assert coord.update_interval == RETRY_INTERVAL
 
 
+_POLLEN_EMPTY = {"layout": {"primary": {"slots": {"main": {"modules": []}}}}}
+
+
+@pytest.mark.parametrize("status", [502, 503, 504])
+@pytest.mark.parametrize("failing_call", [0, 1, 2])
+async def test_refresh_stays_available_through_gateway_error(
+    hass, status, failing_call
+):
+    """A 502, 503 or 504 on the current, warnings or 7-day fetch keeps the data."""
+    coord = _make_coordinator(hass)
+    good = [
+        _mock_response(_PUBLIC_CURRENT),
+        _mock_response({"warnings": []}),
+        _mock_response(_PUBLIC_DAILY),
+        _mock_response(_POLLEN_EMPTY),
+    ]
+    retry = [
+        _mock_response(_PUBLIC_CURRENT),
+        _mock_response({"warnings": []}),
+        _mock_response(_PUBLIC_DAILY),
+    ][:failing_call]
+    retry.append(_mock_response("<html>Bad gateway</html>", status=status))
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(side_effect=good + retry)
+    coord._session = mock_session
+
+    await coord.async_refresh()
+    first = coord.data
+    assert isinstance(first, MetServicePublicData)
+
+    await coord.async_refresh()
+    assert coord.last_update_success is True
+    assert coord.data is first
+    assert coord.update_interval == RETRY_INTERVAL
+
+
+@pytest.mark.parametrize("status", [400, 404, 500])
+async def test_other_http_errors_are_not_transient(hass, status):
+    """Only 502, 503 and 504 count as transient; other HTTP errors still fail."""
+    coord = _make_coordinator(hass)
+    _with_last_good_data(coord)
+    failure = UpdateFailed("failed")
+    failure.__cause__ = aiohttp.ClientResponseError(MagicMock(), (), status=status)
+    with (
+        patch.object(
+            coord,
+            "get_public_weather",
+            new_callable=AsyncMock,
+            side_effect=failure,
+        ),
+        pytest.raises(UpdateFailed),
+    ):
+        await coord._async_update_data()
+    assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+
+
+async def test_gateway_error_fails_first_refresh(hass):
+    """With no earlier data, a 503 still fails the update."""
+    coord = _make_coordinator(hass)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(return_value=_mock_response("<html/>", status=503))
+    coord._session = mock_session
+    with pytest.raises(UpdateFailed, match="503"):
+        await coord._async_update_data()
+
+
 async def test_get_pollen_data_success(hass):
     """get_pollen_data parses the pollen level from the fetched module."""
     coord = _make_coordinator(hass)
