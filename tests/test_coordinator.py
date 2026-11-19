@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
@@ -1430,3 +1431,408 @@ async def test_get_public_weather_tomorrow_extraction_exception_silenced(hass):
     result = await coord.get_public_weather()
     assert isinstance(result, MetServicePublicData)
     assert result.tomorrow_condition is None
+
+
+# --- Section fetches keep their last data through a transient failure (#129) ---
+
+_SURF_URL = (
+    "https://www.metservice.com/publicData/webdata/marine/regions/northland/"
+    "surf/locations/waihi-beach"
+)
+
+
+def _section_case(name):
+    """Return (coordinator kwargs, getter name, good payload, default)."""
+    if name == "tides":
+        payload = {
+            "layout": {
+                "primary": {
+                    "slots": {
+                        "main": {
+                            "modules": [
+                                {"tideData": [{"time": "06:30", "type": "HIGH"}]}
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        return {"tide_url": "https://example.com/tides"}, "get_tides", payload, None
+    if name == "boating":
+        payload = {
+            "layout": {
+                "primary": {
+                    "slots": {
+                        "main": {
+                            "modules": [
+                                {
+                                    "days": [
+                                        {
+                                            "view": {"text": "Good", "status": "good"},
+                                            "forecast": {"text": "Calm seas"},
+                                            "table": {"columns": []},
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        return (
+            {"boating_url": "https://example.com/boating"},
+            "get_boating_data",
+            payload,
+            {},
+        )
+    if name == "surf":
+        payload = {"layout": {"primary": {"map": {"markers": [_surf_marker()]}}}}
+        return {"surf_url": _SURF_URL}, "get_surf_data", payload, {}
+    html = '<span class="status-low">Low</span><br/>Grass'
+    payload = {
+        "layout": {
+            "primary": {
+                "slots": {
+                    "main": {
+                        "modules": [{"content": [{"iconName": "pollen", "html": html}]}]
+                    }
+                }
+            }
+        }
+    }
+    empty = {"pollenLevels": {"level": None, "type": None}, "groups": []}
+    return {}, "get_pollen_data", payload, empty
+
+
+_SECTIONS = ["tides", "boating", "surf", "pollen"]
+_TRANSIENT_SECTION_FAILURES = [
+    aiohttp.ClientConnectionError("Timeout while contacting DNS servers"),
+    TimeoutError(),
+    _mock_response(None, status=503),
+]
+
+
+@pytest.mark.parametrize("section", _SECTIONS)
+@pytest.mark.parametrize("failure", _TRANSIENT_SECTION_FAILURES)
+async def test_section_keeps_last_data_on_transient_failure(hass, section, failure):
+    """A section fetch that fails transiently returns its last good value."""
+    kwargs, getter, payload, _default = _section_case(section)
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(side_effect=[_mock_response(payload), failure])
+    coord._session = mock_session
+
+    first = await getattr(coord, getter)()
+    assert first
+    second = await getattr(coord, getter)()
+    assert second == first
+
+
+@pytest.mark.parametrize("section", _SECTIONS)
+async def test_section_returns_default_when_nothing_to_keep(hass, section):
+    """With no earlier value, a transient failure returns the usual empty value."""
+    kwargs, getter, _payload, default = _section_case(section)
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(side_effect=TimeoutError())
+    coord._session = mock_session
+
+    assert await getattr(coord, getter)() == default
+
+
+@pytest.mark.parametrize("section", _SECTIONS)
+async def test_section_drops_last_data_once_too_old(hass, section):
+    """A remembered value older than STALE_DATA_LIMIT is not reused."""
+    kwargs, getter, payload, default = _section_case(section)
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(side_effect=[_mock_response(payload), TimeoutError()])
+    coord._session = mock_session
+
+    await getattr(coord, getter)()
+    for key, (_at, value, usable) in list(coord._section_cache.items()):
+        coord._section_cache[key] = (
+            time.monotonic() - STALE_DATA_LIMIT.total_seconds() - 1,
+            value,
+            usable,
+        )
+    assert await getattr(coord, getter)() == default
+
+
+@pytest.mark.parametrize("section", _SECTIONS)
+@pytest.mark.parametrize(
+    "failure",
+    [aiohttp.ClientError("fail"), _mock_response(None, status=404)],
+)
+async def test_section_other_failures_return_default(hass, section, failure):
+    """Non-transient failures still return the empty value, not the last data."""
+    kwargs, getter, payload, default = _section_case(section)
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(side_effect=[_mock_response(payload), failure])
+    coord._session = mock_session
+
+    await getattr(coord, getter)()
+    assert await getattr(coord, getter)() == default
+
+
+async def test_section_newer_empty_result_is_not_replaced_by_older_data(hass):
+    """A successful empty result is remembered, so older data doesn't come back."""
+    kwargs, getter, payload, default = _section_case("boating")
+    coord = _make_coordinator(hass, **kwargs)
+    no_days = {"layout": {"primary": {"slots": {"main": {"modules": [{"days": []}]}}}}}
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(payload),
+            _mock_response(no_days),
+            TimeoutError(),
+        ]
+    )
+    coord._session = mock_session
+
+    assert await getattr(coord, getter)()
+    assert await getattr(coord, getter)() == default
+    assert await getattr(coord, getter)() == default
+
+
+async def test_section_reused_value_is_a_copy(hass):
+    """Changing a reused value doesn't change what is remembered."""
+    kwargs, getter, payload, _default = _section_case("boating")
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[_mock_response(payload), TimeoutError(), TimeoutError()]
+    )
+    coord._session = mock_session
+
+    assert (await getattr(coord, getter)())["boating_status"] == "Good"
+    kept = await getattr(coord, getter)()
+    kept["boating_status"] = "changed"
+    assert (await getattr(coord, getter)())["boating_status"] == "Good"
+
+
+async def test_full_update_leaves_remembered_sections_unchanged(hass):
+    """Building the update doesn't edit the section values it remembers."""
+    kwargs, _getter, pollen_payload, _default = _section_case("pollen")
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(_PUBLIC_CURRENT),
+            _mock_response({"warnings": []}),
+            _mock_response(_PUBLIC_DAILY),
+            _mock_response(pollen_payload),
+        ]
+    )
+    coord._session = mock_session
+
+    await coord.get_public_weather()
+    remembered = {k: v for k, (_at, v, _ok) in coord._section_cache.items()}
+    pollen = next(v for k, v in remembered.items() if k.endswith("/airborne-allergens"))
+    assert pollen == {
+        "pollenLevels": {"level": "Low", "type": "Grass", "status_class": "low"},
+        "groups": [{"level": "Low", "type": "Grass", "status_class": "low"}],
+    }
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        aiohttp.ClientConnectionError("Timeout while contacting DNS servers"),
+        _mock_response(None, status=502),
+    ],
+)
+async def test_expand_data_urls_keeps_last_data_on_transient_failure(hass, failure):
+    """A dataUrl module that fails transiently keeps its last expanded value."""
+    coord = _make_coordinator(hass)
+    expanded = {"realData": 42}
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(side_effect=[_mock_response(expanded), failure])
+    coord._session = mock_session
+
+    first = {"node": {"dataUrl": "/some/path"}}
+    await coord.expand_data_urls(first)
+    assert first["node"] == expanded
+
+    second = {"node": {"dataUrl": "/some/path"}}
+    await coord.expand_data_urls(second)
+    assert second["node"] == expanded
+
+
+@pytest.mark.parametrize(
+    "failure", [aiohttp.ClientError("fail"), _mock_response(None, status=404)]
+)
+async def test_expand_data_urls_other_failures_set_none(hass, failure):
+    """Non-transient dataUrl failures still set the node to None."""
+    coord = _make_coordinator(hass)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[_mock_response({"realData": 42}), failure]
+    )
+    coord._session = mock_session
+
+    await coord.expand_data_urls({"node": {"dataUrl": "/some/path"}})
+    second = {"node": {"dataUrl": "/some/path"}}
+    await coord.expand_data_urls(second)
+    assert second["node"] is None
+
+
+async def test_expand_data_urls_keeps_nested_expansion(hass):
+    """The kept value of a dataUrl includes its own expanded dataUrls."""
+    coord = _make_coordinator(hass)
+    outer = {"inner": {"dataUrl": "/inner"}}
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(outer),
+            _mock_response({"value": 7}),
+            TimeoutError(),
+        ]
+    )
+    coord._session = mock_session
+
+    first = {"node": {"dataUrl": "/outer"}}
+    await coord.expand_data_urls(first)
+    assert first["node"] == {"inner": {"value": 7}}
+
+    second = {"node": {"dataUrl": "/outer"}}
+    await coord.expand_data_urls(second)
+    assert second["node"] == {"inner": {"value": 7}}
+
+
+async def test_get_public_weather_prunes_old_section_values(hass):
+    """Each update drops remembered section values older than STALE_DATA_LIMIT."""
+    coord = _make_coordinator(hass)
+    old = time.monotonic() - STALE_DATA_LIMIT.total_seconds() - 1
+    coord._section_cache["https://example.com/old"] = (old, {"x": 1}, True)
+    coord._section_cache["https://example.com/new"] = (time.monotonic(), {"x": 2}, True)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(side_effect=TimeoutError())
+    coord._session = mock_session
+
+    with pytest.raises(UpdateFailed):
+        await coord.get_public_weather()
+    assert "https://example.com/old" not in coord._section_cache
+    assert "https://example.com/new" in coord._section_cache
+
+
+async def test_section_failure_after_permanent_error_returns_default(hass):
+    """After a non-transient failure, a transient one doesn't bring back older data."""
+    kwargs, getter, payload, default = _section_case("tides")
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(payload),
+            _mock_response(None, status=404),
+            TimeoutError(),
+        ]
+    )
+    coord._session = mock_session
+
+    assert await getattr(coord, getter)()
+    assert await getattr(coord, getter)() == default
+    assert await getattr(coord, getter)() == default
+
+
+async def test_expand_data_urls_dates_parent_by_its_reused_child(hass):
+    """A parent built on a reused child is dated by that child's data."""
+    coord = _make_coordinator(hass)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response({"inner": {"dataUrl": "/inner"}}),
+            _mock_response({"value": 7}),
+            _mock_response({"inner": {"dataUrl": "/inner"}, "fresh": 1}),
+            TimeoutError(),
+        ]
+    )
+    coord._session = mock_session
+
+    await coord.expand_data_urls({"node": {"dataUrl": "/outer"}})
+    inner_key = next(k for k in coord._section_cache if k.endswith("/inner"))
+    outer_key = next(k for k in coord._section_cache if k.endswith("/outer"))
+    inner_stamp = coord._section_cache[inner_key][0]
+
+    second = {"node": {"dataUrl": "/outer"}}
+    await coord.expand_data_urls(second)
+    assert second["node"] == {"inner": {"value": 7}, "fresh": 1}
+    stamp, value, _ok = coord._section_cache[outer_key]
+    assert value == {"inner": {"value": 7}, "fresh": 1}
+    assert stamp == inner_stamp
+
+
+async def test_expand_data_urls_top_level_is_not_fetched(hass):
+    """A top-level dataUrl has nowhere to put its value, so it isn't fetched."""
+    coord = _make_coordinator(hass)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock()
+    coord._session = mock_session
+
+    await coord.expand_data_urls({"dataUrl": "/x"})
+    mock_session.get.assert_not_called()
+
+
+async def test_failed_section_placeholder_is_not_reused(hass):
+    """An empty value recorded for a failure isn't treated as data to keep."""
+    kwargs, getter, _payload, default = _section_case("surf")
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(side_effect=[TimeoutError(), TimeoutError()])
+    coord._session = mock_session
+    coord._reuse_marks = [math.inf]
+
+    assert await getattr(coord, getter)() == default
+    assert await getattr(coord, getter)() == default
+    assert coord._reuse_marks == [math.inf]
+
+
+async def test_update_reusing_a_section_is_dated_by_it(hass):
+    """An update that reuses section data counts as only as fresh as that data."""
+    coord = _make_coordinator(hass, tide_url="https://example.com/tides")
+    _kwargs, _getter, tides_payload, _default = _section_case("tides")
+    good = [
+        _mock_response(_PUBLIC_CURRENT),
+        _mock_response({"warnings": []}),
+        _mock_response(_PUBLIC_DAILY),
+        _mock_response(_POLLEN_EMPTY),
+        _mock_response(tides_payload),
+    ]
+    reuse = good[:4] + [TimeoutError()]
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(side_effect=good + reuse)
+    coord._session = mock_session
+
+    await coord._async_update_data()
+    tides_key = "https://example.com/tides"
+    tides_stamp = coord._section_cache[tides_key][0]
+    first_success = coord._last_success
+
+    await coord._async_update_data()
+    assert coord._last_success == tides_stamp
+    assert coord._last_success <= first_success
+    assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+
+
+async def test_section_failure_logs_once_then_recovers(hass, caplog):
+    """A section outage logs one warning, then debug, then a recovery line."""
+    kwargs, getter, payload, _default = _section_case("boating")
+    coord = _make_coordinator(hass, **kwargs)
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(
+        side_effect=[
+            _mock_response(payload),
+            TimeoutError(),
+            TimeoutError(),
+            _mock_response(payload),
+        ]
+    )
+    coord._session = mock_session
+
+    for _ in range(4):
+        await getattr(coord, getter)()
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert sum("keeping the last data" in m for m in warnings) == 1
+    assert any("recovered" in m for m in warnings)
