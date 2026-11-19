@@ -64,17 +64,6 @@ def _is_transient(cause: BaseException | None) -> bool:
     )
 
 
-def _raise_for_transient_status(response: aiohttp.ClientResponse) -> None:
-    """Raise ClientResponseError for a 502, 503 or 504 from MetService."""
-    if response.status in _TRANSIENT_HTTP_STATUSES:
-        raise aiohttp.ClientResponseError(
-            response.request_info,
-            response.history,
-            status=response.status,
-            message=f"HTTP {response.status}",
-        )
-
-
 @dataclass
 class WeatherUpdateCoordinatorConfig:
     """Class representing coordinator configuration."""
@@ -227,7 +216,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 url = f"{self._api_url}{self.location}"
                 _LOGGER.debug("Fetching MetService public data from %s", url)
                 response = await self._session.get(url, headers=headers)
-                _raise_for_transient_status(response)
+                response.raise_for_status()
                 result_current = await response.json(content_type=None)
                 if result_current is None:
                     raise ValueError("No current weather data received.")
@@ -236,7 +225,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             async with asyncio.timeout(10):
                 url = f"{self._warnings_url}/{result_current['location']['type']}/{result_current['location']['key']}"
                 response = await self._session.get(url, headers=headers)
-                _raise_for_transient_status(response)
+                response.raise_for_status()
                 result_warnings = await response.json(content_type=None)
                 if result_warnings is None:
                     raise ValueError("No warnings data received.")
@@ -257,7 +246,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             async with asyncio.timeout(10):
                 url = f"{self._api_url}{self.location}/7-days"
                 response = await self._session.get(url, headers=headers)
-                _raise_for_transient_status(response)
+                response.raise_for_status()
                 result_daily = await response.json(content_type=None)
                 if result_daily is None:
                     raise ValueError("No daily forecast data received.")
