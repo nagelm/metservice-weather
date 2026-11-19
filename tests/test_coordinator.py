@@ -596,6 +596,7 @@ async def test_other_http_errors_are_not_transient(hass, status):
     """Only 502, 503 and 504 count as transient; other HTTP errors still fail."""
     coord = _make_coordinator(hass)
     _with_last_good_data(coord)
+    coord.update_interval = RETRY_INTERVAL
     mock_session = MagicMock()
     mock_session.get = AsyncMock(return_value=_mock_response(None, status=status))
     coord._session = mock_session
@@ -622,6 +623,10 @@ def _gateway_failure(retry_after: str | None) -> UpdateFailed:
         ("86400", MIN_TIME_BETWEEN_UPDATES),
         ("not a date", RETRY_INTERVAL),
         ("", RETRY_INTERVAL),
+        ("²", RETRY_INTERVAL),
+        ("Mon, 01 Jan 99999999999999999999 00:00:00 GMT", RETRY_INTERVAL),
+        ("Mon, 01 Jan 2026 99:00:00 GMT", RETRY_INTERVAL),
+        ("Sat, 01 Jan 2000 00:00:00 GMT", RETRY_INTERVAL),
     ],
 )
 async def test_retry_after_sets_the_next_poll(hass, retry_after, expected):

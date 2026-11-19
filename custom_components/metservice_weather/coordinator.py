@@ -38,9 +38,11 @@ MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=20)
 # Home Assistant's shared DNS resolver (c-ares) sometimes reports "Timeout while
 # contacting DNS servers" for a working server, and after an EDNS cookie
 # mismatch it can keep failing for about 2 minutes (home-assistant/core#145708).
-# On a transient network failure the coordinator keeps its last good data for
-# up to STALE_DATA_LIMIT and polls again after RETRY_INTERVAL, which is past
-# that window, instead of going unavailable until the next 20-minute update.
+# On a transient failure (a network error, or a 502, 503 or 504 from MetService)
+# the coordinator keeps its last good data for up to STALE_DATA_LIMIT instead of
+# going unavailable until the next 20-minute update. It polls again after
+# RETRY_INTERVAL, which is past that window, or after a longer Retry-After the
+# server sends, up to the normal interval.
 RETRY_INTERVAL = timedelta(minutes=3)
 STALE_DATA_LIMIT = timedelta(hours=1)
 _TRANSIENT_ERRORS = (
@@ -89,17 +91,18 @@ def _retry_interval(cause: BaseException | None, normal: timedelta) -> timedelta
     if not isinstance(cause, aiohttp.ClientResponseError) or not cause.headers:
         return RETRY_INTERVAL
     value = (cause.headers.get("Retry-After") or "").strip()
-    if value.isdigit():
-        seconds = min(int(value), normal.total_seconds())
-    else:
-        try:
+    try:
+        if value.isascii() and value.isdigit():
+            seconds = min(int(value), normal.total_seconds())
+        else:
             when = parsedate_to_datetime(value)
-        except TypeError, ValueError, IndexError:
-            return RETRY_INTERVAL
-        if when.tzinfo is None:
-            when = when.replace(tzinfo=UTC)
-        seconds = (when - datetime.now(UTC)).total_seconds()
-    return max(RETRY_INTERVAL, min(timedelta(seconds=seconds), normal))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=UTC)
+            seconds = (when - datetime.now(UTC)).total_seconds()
+        wait = timedelta(seconds=seconds)
+    except TypeError, ValueError, IndexError, OverflowError:
+        return RETRY_INTERVAL
+    return max(RETRY_INTERVAL, min(wait, normal))
 
 
 class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
@@ -187,7 +190,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     }
 
     async def _async_update_data(self) -> MetServicePublicData:
-        """Fetch data from API, riding out a transient network failure."""
+        """Fetch data from API, riding out a transient failure."""
         try:
             data = await self.get_public_weather()
         except UpdateFailed as err:
@@ -228,7 +231,12 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             )
             self._outage_logged = True
         else:
-            _LOGGER.debug("%s; still keeping the last MetService data", err)
+            _LOGGER.debug(
+                "%s; still keeping the last MetService data, trying again in %s "
+                "minutes",
+                err,
+                retry_minutes,
+            )
         self.update_interval = interval
         return self.data
 
