@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 from email.utils import parsedate_to_datetime
 import logging
+import math
 import re
 import asyncio
 import time
@@ -128,13 +129,15 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         self._normal_update_interval = config.update_interval
         self._last_success: float | None = None
         self._outage_logged = False
-        # Last good result of each section fetch (pollen, tides, boating, surf,
-        # dataUrl modules), keyed by URL, with the monotonic time it was fetched.
-        self._section_cache: dict[str, tuple[float, Any]] = {}
-        # How many section values the update in progress has reused from the
-        # cache. A parent dataUrl skips caching a payload with reused children,
-        # and the next poll comes sooner while any section runs on reused data.
-        self._sections_reused = 0
+        # Last result of each section fetch (pollen, tides, boating, surf,
+        # dataUrl modules), keyed by URL: (monotonic time of its oldest data,
+        # value, whether it may be reused after a transient failure).
+        self._section_cache: dict[str, tuple[float, Any, bool]] = {}
+        # Sections whose current failure has already been logged at full level.
+        self._section_outages: set[str] = set()
+        # For each section being parsed (innermost last), plus the update as a
+        # whole (first), the time of the oldest reused data it contains, or inf.
+        self._reuse_marks: list[float] = []
         self.units_of_measurement = {
             TEMPUNIT: UnitOfTemperature.CELSIUS,
             LENGTHUNIT: UnitOfLength.MILLIMETERS,
@@ -212,12 +215,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         if self._outage_logged:
             _LOGGER.info("MetService data for %s recovered", self._location_name)
         self._outage_logged = False
-        self._last_success = time.monotonic()
-        # A section still running on reused data is retried sooner, the same as
-        # a failed update. This stops once its last data is too old to reuse.
-        self.update_interval = (
-            RETRY_INTERVAL if self._sections_reused else self._normal_update_interval
-        )
+        # The data is only as fresh as the oldest section it reuses, so a later
+        # failure can't keep reused section data past STALE_DATA_LIMIT.
+        oldest_reused = self._reuse_marks[0] if self._reuse_marks else math.inf
+        self._last_success = min(time.monotonic(), oldest_reused)
+        self.update_interval = self._normal_update_interval
         return data
 
     def _can_keep_last_data(self, err: UpdateFailed) -> bool:
@@ -257,7 +259,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
     def _prune_sections(self) -> None:
         """Drop remembered section values too old to be reused."""
         cutoff = time.monotonic() - STALE_DATA_LIMIT.total_seconds()
-        for key in [k for k, (at, _) in self._section_cache.items() if at < cutoff]:
+        for key in [k for k, (at, _, _) in self._section_cache.items() if at < cutoff]:
             del self._section_cache[key]
 
     async def _fetch_section(
@@ -268,18 +270,18 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
         parse: Callable[[Any], Awaitable[Any]],
         *,
         fetch_url: str | None = None,
-        reuse: bool = True,
+        log_level: int = logging.WARNING,
     ) -> Any:
         """Fetch one optional section of data, riding out a transient failure.
 
         The parsed value is remembered under url. When the fetch fails with a
         timeout, connection or payload error, or a 502, 503 or 504, the last
-        value from within STALE_DATA_LIMIT is returned instead (a copy). Any
+        value from within STALE_DATA_LIMIT is returned instead, as a copy. Any
         other failure, or one with nothing recent to reuse, returns empty and
-        records it, so a later failure can't bring back older data.
+        records that, so a later failure can't bring back older data. The first
+        failure in a row is logged at log_level and the rest at debug.
         """
         source = fetch_url or url
-        level = logging.DEBUG if name == "pollen" else logging.WARNING
         try:
             async with asyncio.timeout(10):
                 _LOGGER.debug("Fetching %s data from %s", name, source)
@@ -293,20 +295,33 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     reason = "no data received" if data is None else ""
                     transient = False
             if not reason:
-                reused_before = self._sections_reused
-                value = await parse(data)
-                # Don't remember a value built on reused nested data, so that
-                # data can't outlive STALE_DATA_LIMIT inside its parent.
-                if self._sections_reused == reused_before:
-                    self._section_cache[url] = (time.monotonic(), value)
+                self._reuse_marks.append(math.inf)
+                try:
+                    value = await parse(data)
+                finally:
+                    oldest_reused = self._reuse_marks.pop()
+                # A value built on reused nested data is dated by that data, so
+                # it can't outlive STALE_DATA_LIMIT inside its parent.
+                self._section_cache[url] = (
+                    min(time.monotonic(), oldest_reused),
+                    value,
+                    True,
+                )
+                if url in self._section_outages:
+                    self._section_outages.discard(url)
+                    _LOGGER.log(log_level, "Fetching %s data recovered", name)
                 return value
         except Exception as err:
             reason = repr(err)
             transient = _is_transient(err)
 
-        entry = self._section_cache.get(url) if transient and reuse else None
-        if entry is not None and (
-            time.monotonic() - entry[0] < STALE_DATA_LIMIT.total_seconds()
+        level = logging.DEBUG if url in self._section_outages else log_level
+        self._section_outages.add(url)
+        entry = self._section_cache.get(url) if transient else None
+        if (
+            entry is not None
+            and entry[2]
+            and time.monotonic() - entry[0] < STALE_DATA_LIMIT.total_seconds()
         ):
             _LOGGER.log(
                 level,
@@ -315,7 +330,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 source,
                 reason,
             )
-            self._sections_reused += 1
+            self._reuse_marks = [min(mark, entry[0]) for mark in self._reuse_marks]
             return copy.deepcopy(entry[1])
         _LOGGER.log(
             level,
@@ -325,13 +340,13 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             reason,
             name,
         )
-        self._section_cache[url] = (time.monotonic(), empty)
-        return copy.deepcopy(empty)
+        self._section_cache[url] = (time.monotonic(), empty, False)
+        return empty
 
     async def get_public_weather(self):
         """Get weather data from public API."""
         self._prune_sections()
-        self._sections_reused = 0
+        self._reuse_marks = [math.inf]
         headers = self._PUBLIC_HEADERS
         try:
             async with asyncio.timeout(10):
@@ -562,7 +577,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                 if item.get("iconName") == "pollen" and "html" in item
             ]
             if not groups:
-                return copy.deepcopy(empty)
+                return empty
             _LOGGER.debug("Pollen groups this cycle: %s", groups)
             return {"pollenLevels": groups[0], "groups": groups}
 
@@ -571,6 +586,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             f"{self._api_url}{self._location}/airborne-allergens",
             empty,
             parse,
+            log_level=logging.DEBUG,
         )
 
     def _check_errors(self, url: str, response: dict):
@@ -614,9 +630,11 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             return
         if isinstance(data, dict):
             if "dataUrl" in data:
+                if parent is None or key is None:
+                    # Nowhere to put the fetched value, so don't fetch it.
+                    return
                 url = data["dataUrl"]
                 full_url = f"{BASE_URL}{url}" if url.startswith("/") else url
-                has_slot = parent is not None and key is not None
 
                 async def expand(result):
                     holder = {"value": result}
@@ -625,11 +643,9 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
                     )
                     return holder["value"]
 
-                value = await self._fetch_section(
-                    "dataUrl", full_url, None, expand, reuse=has_slot
+                parent[key] = await self._fetch_section(
+                    "dataUrl", full_url, None, expand
                 )
-                if has_slot:
-                    parent[key] = value
             else:
                 for k in list(data.keys()):
                     await self.expand_data_urls(
