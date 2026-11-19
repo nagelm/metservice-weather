@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 import logging
 import re
 import asyncio
@@ -77,6 +78,28 @@ class WeatherUpdateCoordinatorConfig:
     boating_url: str
     surf_url: str
     update_interval = MIN_TIME_BETWEEN_UPDATES
+
+
+def _retry_interval(cause: BaseException | None, normal: timedelta) -> timedelta:
+    """Return the wait before the next poll after a transient failure.
+
+    A Retry-After header on a 502, 503 or 504 is honoured, kept between
+    RETRY_INTERVAL and the normal update interval.
+    """
+    if not isinstance(cause, aiohttp.ClientResponseError) or not cause.headers:
+        return RETRY_INTERVAL
+    value = (cause.headers.get("Retry-After") or "").strip()
+    if value.isdigit():
+        seconds = min(int(value), normal.total_seconds())
+    else:
+        try:
+            when = parsedate_to_datetime(value)
+        except TypeError, ValueError, IndexError:
+            return RETRY_INTERVAL
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        seconds = (when - datetime.now(UTC)).total_seconds()
+    return max(RETRY_INTERVAL, min(timedelta(seconds=seconds), normal))
 
 
 class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
@@ -193,11 +216,12 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
 
     def _keep_last_data(self, err: UpdateFailed) -> MetServicePublicData:
         """Keep the last good data and poll again sooner than usual."""
-        retry_minutes = int(RETRY_INTERVAL.total_seconds() // 60)
+        interval = _retry_interval(err.__cause__, self._normal_update_interval)
+        retry_minutes = round(interval.total_seconds() / 60)
         if not self._outage_logged:
             _LOGGER.warning(
                 "%s; keeping the last MetService data for %s and trying again "
-                "every %s minutes",
+                "in %s minutes",
                 err,
                 self._location_name,
                 retry_minutes,
@@ -205,7 +229,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[MetServicePublicData]):
             self._outage_logged = True
         else:
             _LOGGER.debug("%s; still keeping the last MetService data", err)
-        self.update_interval = RETRY_INTERVAL
+        self.update_interval = interval
         return self.data
 
     async def get_public_weather(self):

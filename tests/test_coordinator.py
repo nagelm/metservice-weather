@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -600,6 +602,72 @@ async def test_other_http_errors_are_not_transient(hass, status):
     with pytest.raises(UpdateFailed, match=str(status)):
         await coord._async_update_data()
     assert coord.update_interval == MIN_TIME_BETWEEN_UPDATES
+
+
+def _gateway_failure(retry_after: str | None) -> UpdateFailed:
+    headers = {"Retry-After": retry_after} if retry_after is not None else None
+    err = UpdateFailed("Error fetching MetService data: 503")
+    err.__cause__ = aiohttp.ClientResponseError(
+        MagicMock(), (), status=503, headers=headers
+    )
+    return err
+
+
+@pytest.mark.parametrize(
+    ("retry_after", "expected"),
+    [
+        (None, RETRY_INTERVAL),
+        ("600", timedelta(minutes=10)),
+        ("30", RETRY_INTERVAL),
+        ("86400", MIN_TIME_BETWEEN_UPDATES),
+        ("not a date", RETRY_INTERVAL),
+        ("", RETRY_INTERVAL),
+    ],
+)
+async def test_retry_after_sets_the_next_poll(hass, retry_after, expected):
+    """Retry-After on a gateway error is honoured between 3 and 20 minutes."""
+    coord = _make_coordinator(hass)
+    previous = _with_last_good_data(coord)
+    with patch.object(
+        coord,
+        "get_public_weather",
+        new_callable=AsyncMock,
+        side_effect=_gateway_failure(retry_after),
+    ):
+        assert await coord._async_update_data() is previous
+    assert coord.update_interval == expected
+
+
+async def test_retry_after_http_date(hass):
+    """Retry-After as an HTTP date is honoured too."""
+    coord = _make_coordinator(hass)
+    _with_last_good_data(coord)
+    when = format_datetime(datetime.now(UTC) + timedelta(minutes=8), usegmt=True)
+    with patch.object(
+        coord,
+        "get_public_weather",
+        new_callable=AsyncMock,
+        side_effect=_gateway_failure(when),
+    ):
+        await coord._async_update_data()
+    assert timedelta(minutes=7) < coord.update_interval <= timedelta(minutes=8)
+
+
+async def test_retry_after_from_real_response(hass):
+    """The Retry-After header on a real 503 response reaches the next poll."""
+    coord = _make_coordinator(hass)
+    _with_last_good_data(coord)
+    resp = _mock_response(None, status=503)
+    resp.raise_for_status = MagicMock(
+        side_effect=aiohttp.ClientResponseError(
+            MagicMock(), (), status=503, headers={"Retry-After": "900"}
+        )
+    )
+    mock_session = MagicMock()
+    mock_session.get = AsyncMock(return_value=resp)
+    coord._session = mock_session
+    await coord._async_update_data()
+    assert coord.update_interval == timedelta(minutes=15)
 
 
 async def test_gateway_error_fails_first_refresh(hass):
